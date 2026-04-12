@@ -1,0 +1,44 @@
+<!--
+  Reputation Engine — Article Page SEO Meta Template
+
+  Variables (replaced by Content Publisher at render time):
+    {{title}}          — article headline
+    {{excerpt}}        — article summary/description
+    {{slug}}           — URL slug (e.g., "building-a-reputation-engine")
+    {{domain}}         — site domain (e.g., "sinabari.net")
+    {{site_name}}      — human-readable site name
+    {{author_name}}    — "Dr. Sina Bari, MD"
+    {{author_url}}     — "https://sinabarimd.com/about"
+    {{publish_date}}   — ISO 8601 date
+    {{word_count}}     — article word count
+    {{keywords}}       — comma-separated keywords
+    {{schema_json}}    — pre-rendered JSON-LD structured data
+-->
+
+<!-- Primary Meta -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{title}} — {{site_name}}</title>
+<meta name="description" content="{{excerpt}}">
+<meta name="author" content="{{author_name}}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://{{domain}}/articles/{{slug}}.html">
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{excerpt}}">
+<meta property="og:url" content="https://{{domain}}/articles/{{slug}}.html">
+<meta property="og:site_name" content="{{site_name}}">
+<meta property="article:published_time" content="{{publish_date}}">
+<meta property="article:author" content="{{author_url}}">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{title}}">
+<meta name="twitter:description" content="{{excerpt}}">
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{{schema_json}}
+</script>

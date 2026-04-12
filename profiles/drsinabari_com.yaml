@@ -1,0 +1,55 @@
+# Site Profile: drsinabari.com
+# Role: Editorial node — long-form essays on medicine, technology, and identity
+# Design: Newsreader serif, Work Sans labels, monochrome palette
+
+site_id: drsinabari
+domain: drsinabari.com
+name: "Dr. Sina Bari — Physician, Writer, Medical Executive"
+role: "Editorial node"
+
+author:
+  name: "Dr. Sina Bari, MD"
+  url: "https://sinabarimd.com/about"
+  author_id: "https://sinabarimd.com/#sinabari"
+
+content:
+  allowed_topics:
+    - medicine and technology
+    - physician identity
+    - clinical ethics
+    - healthcare policy
+    - medical humanities
+  forbidden_topics:
+    - clinic promotion
+    - plastic surgery
+    - generic AI
+  default_word_count: 1500
+  tone: "editorial, reflective, long-form, first-person"
+  content_type: "longform essay"
+
+publishing:
+  min_days_between_publishes: 14
+  pipeline_section: "ESSAYS"
+  pipeline_markers:
+    start: "<!-- PIPELINE:START:ESSAYS -->"
+    end: "<!-- PIPELINE:END:ESSAYS -->"
+  cron_days: [thursday]
+  cron_time_pst: "14:00"
+
+deploy:
+  deploy_path: "/srv/sites/drsinabari"
+  verify_url: "https://drsinabari.com"
+  required_files:
+    - index.html
+    - styles.css
+    - articles/index.html
+    - sitemap.xml
+    - robots.txt
+
+seo:
+  schema_types:
+    homepage: ["WebSite", "WebPage"]
+    article: "Article"
+  canonical_hub_link: true
+  cross_links:
+    - "https://sinabarimd.com"

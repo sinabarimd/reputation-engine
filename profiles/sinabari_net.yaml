@@ -1,0 +1,59 @@
+# Site Profile: sinabari.net
+# Role: Healthcare AI authority — analytical content on medical technology
+# 75% healthcare AI + 25% broader health tech
+
+site_id: sinabari_net
+domain: sinabari.net
+name: "Sina Bari, MD — Healthcare AI Analysis & Clinical Technology"
+role: "Healthcare AI authority site"
+
+author:
+  name: "Dr. Sina Bari, MD"
+  url: "https://sinabarimd.com/about"
+  author_id: "https://sinabarimd.com/#sinabari"
+
+content:
+  allowed_topics:
+    - healthcare AI
+    - medical technology
+    - digital health
+    - precision medicine
+    - medtech
+    - robotics in healthcare
+  forbidden_topics:
+    - plastic surgery
+    - reconstructive surgery
+    - facial rejuvenation
+    - generic AI (non-healthcare)
+  default_word_count: 1200
+  tone: "analytical, evidence-based, first-person clinical perspective"
+  content_mix:
+    primary: "healthcare AI"
+    primary_ratio: 0.75
+    secondary: "broader health tech"
+    secondary_ratio: 0.25
+
+publishing:
+  min_days_between_publishes: 3
+  pipeline_section: "ANALYSIS"
+  pipeline_markers:
+    start: "<!-- PIPELINE:START:ANALYSIS -->"
+    end: "<!-- PIPELINE:END:ANALYSIS -->"
+  cron_days: [tuesday, friday]
+  cron_time_pst: "10:00"
+
+deploy:
+  deploy_path: "/srv/sites/sinabari-net"
+  verify_url: "https://sinabari.net"
+  required_files:
+    - index.html
+    - styles.css
+    - articles/index.html
+
+seo:
+  schema_types:
+    homepage: ["WebSite", "WebPage"]
+    article: "Article"
+  canonical_hub_link: true
+  cross_links:
+    - "https://sinabarimd.com"

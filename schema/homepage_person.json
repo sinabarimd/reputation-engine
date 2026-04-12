@@ -1,0 +1,65 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": ["Person", "Physician"],
+      "@id": "https://sinabarimd.com/#sinabari",
+      "name": "Dr. Sina Bari, MD",
+      "givenName": "Sina",
+      "familyName": "Bari",
+      "honorificPrefix": "Dr.",
+      "honorificSuffix": "MD",
+      "url": "https://sinabarimd.com",
+      "image": "https://sinabarimd.com/assets/headshot.jpg",
+      "description": "Physician, healthcare AI executive, and medical technology writer based in California.",
+      "alumniOf": {
+        "@type": "EducationalOrganization",
+        "name": "Stanford University"
+      },
+      "hasCredential": {
+        "@type": "EducationalOccupationalCredential",
+        "credentialCategory": "degree",
+        "name": "Doctor of Medicine (MD)"
+      },
+      "hasOccupation": [
+        {
+          "@type": "Occupation",
+          "name": "Physician",
+          "occupationalCategory": "29-1069.00"
+        },
+        {
+          "@type": "Occupation",
+          "name": "Healthcare AI Executive"
+        }
+      ],
+      "medicalSpecialty": "PlasticSurgery",
+      "workLocation": {
+        "@type": "Place",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Los Angeles",
+          "addressRegion": "CA",
+          "addressCountry": "US"
+        }
+      },
+      "sameAs": [
+        "https://linkedin.com/in/sinabari",
+        "https://sinabari.net",
+        "https://drsinabari.com",
+        "https://sinabariplasticsurgery.com",
+        "https://about.me/sinabarimd",
+        "https://behance.net/sinabarimd",
+        "https://linktr.ee/sinabarimd"
+      ]
+    },
+    {
+      "@type": "ProfilePage",
+      "@id": "https://sinabarimd.com/#profilepage",
+      "mainEntityOfPage": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "url": "https://sinabarimd.com",
+      "name": "Dr. Sina Bari, MD — Plastic Surgeon & Clinical Executive"
+    }
+  ]
+}

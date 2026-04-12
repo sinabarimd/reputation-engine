@@ -1,0 +1,38 @@
+{
+  "_comment": "Template for article page structured data. Variables in {{brackets}} are replaced by the Content Publisher pipeline at render time.",
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "{{schema_type}}",
+      "@id": "https://{{domain}}/articles/{{slug}}.html#article",
+      "headline": "{{title}}",
+      "description": "{{excerpt}}",
+      "datePublished": "{{publish_date}}",
+      "dateModified": "{{publish_date}}",
+      "url": "https://{{domain}}/articles/{{slug}}.html",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://{{domain}}/articles/{{slug}}.html"
+      },
+      "isPartOf": {
+        "@type": "WebSite",
+        "@id": "https://{{domain}}/#website",
+        "name": "{{site_name}}",
+        "url": "https://{{domain}}"
+      },
+      "author": {
+        "@type": ["Person", "Physician"],
+        "@id": "https://sinabarimd.com/#sinabari",
+        "name": "Dr. Sina Bari, MD",
+        "url": "https://sinabarimd.com/about"
+      },
+      "publisher": {
+        "@type": "Person",
+        "@id": "https://sinabarimd.com/#sinabari",
+        "name": "Dr. Sina Bari, MD"
+      },
+      "wordCount": "{{word_count}}",
+      "keywords": "{{keywords}}"
+    }
+  ]
+}

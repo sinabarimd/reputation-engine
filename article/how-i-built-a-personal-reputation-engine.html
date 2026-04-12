@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How I Built a Personal Reputation Engine with AI Agents — Dr. Sina Bari, MD</title>
+<meta name="description" content="A physician's guide to building an automated multi-site publishing system for entity-first SEO — using n8n, AI agents, and structured data to take control of professional search results.">
+<meta name="author" content="Dr. Sina Bari, MD">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html">
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="How I Built a Personal Reputation Engine with AI Agents">
+<meta property="og:description" content="A physician's guide to building an automated multi-site publishing system for entity-first SEO — using n8n, AI agents, and structured data to take control of professional search results.">
+<meta property="og:url" content="https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html">
+<meta property="og:site_name" content="Dr. Sina Bari, MD">
+<meta property="article:published_time" content="2026-04-12T00:00:00Z">
+<meta property="article:author" content="https://sinabarimd.com/about">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="How I Built a Personal Reputation Engine with AI Agents">
+<meta name="twitter:description" content="A physician's guide to building an automated multi-site publishing system for entity-first SEO.">
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "@id": "https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html#article",
+      "headline": "How I Built a Personal Reputation Engine with AI Agents",
+      "description": "A physician's guide to building an automated multi-site publishing system for entity-first SEO — using n8n, AI agents, and structured data to take control of professional search results.",
+      "datePublished": "2026-04-12T00:00:00Z",
+      "dateModified": "2026-04-12T00:00:00Z",
+      "url": "https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html",
+      "wordCount": "4600",
+      "keywords": "reputation engine, entity SEO, personal branding, AI agents, n8n, structured data, SERP management, physician branding",
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html"
+      },
+      "isPartOf": {
+        "@type": "WebSite",
+        "@id": "https://sinabarimd.com/#website",
+        "name": "Dr. Sina Bari, MD",
+        "url": "https://sinabarimd.com"
+      },
+      "author": {
+        "@type": ["Person", "Physician"],
+        "@id": "https://sinabarimd.com/#sinabari",
+        "name": "Dr. Sina Bari, MD",
+        "url": "https://sinabarimd.com/about"
+      },
+      "publisher": {
+        "@type": "Person",
+        "@id": "https://sinabarimd.com/#sinabari",
+        "name": "Dr. Sina Bari, MD"
+      }
+    }
+  ]
+}
+</script>
+
+<style>
+  :root {
+    --text: #1a1a2e;
+    --text-secondary: #4a4a68;
+    --bg: #fafafa;
+    --accent: #2d5f8a;
+    --accent-light: #e8f0f8;
+    --border: #e0e0e0;
+    --code-bg: #f4f4f8;
+    --max-width: 720px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.8;
+    font-size: 18px;
+  }
+
+  .article-container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+
+  .article-meta {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .article-meta a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  h1 {
+    font-size: 2.4em;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .article-subtitle {
+    font-size: 1.2em;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: 1.5em;
+    margin: 48px 0 16px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  h3 {
+    font-size: 1.15em;
+    margin: 32px 0 12px;
+    font-weight: 700;
+  }
+
+  p {
+    margin-bottom: 20px;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 12px 20px;
+    margin: 24px 0;
+    background: var(--accent-light);
+    font-style: italic;
+    color: var(--text-secondary);
+  }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  pre {
+    background: var(--code-bg);
+    padding: 20px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 24px 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+    border: 1px solid var(--border);
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .diagram {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+    font-family: 'SF Mono', monospace;
+    font-size: 0.8em;
+    line-height: 1.4;
+    overflow-x: auto;
+    white-space: pre;
+    text-align: center;
+  }
+
+  .callout {
+    background: var(--accent-light);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 24px 0;
+    font-family: -apple-system, sans-serif;
+    font-size: 0.95em;
+  }
+
+  .callout strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .author-box {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 48px;
+    font-family: -apple-system, sans-serif;
+    font-size: 0.9em;
+  }
+
+  .author-box .initials {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.2em;
+    flex-shrink: 0;
+  }
+
+  .author-box .author-info a {
+    text-decoration: none;
+  }
+
+  .github-banner {
+    background: #24292e;
+    color: #fff;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 32px 0;
+    font-family: -apple-system, sans-serif;
+    font-size: 0.95em;
+  }
+
+  .github-banner a {
+    color: #58a6ff;
+  }
+
+  .nav-back {
+    font-family: -apple-system, sans-serif;
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+
+  .nav-back a {
+    text-decoration: none;
+    color: var(--accent);
+  }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 1.8em; }
+    body { font-size: 16px; }
+    .article-container { padding: 32px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<article class="article-container">
+
+<nav class="nav-back">
+  <a href="https://sinabarimd.com">&larr; sinabarimd.com</a>
+</nav>
+
+<div class="article-meta">
+  By <a href="https://sinabarimd.com/about">Dr. Sina Bari, MD</a> &middot; April 2026
+</div>
+
+<h1>How I Built a Personal Reputation Engine with AI Agents</h1>
+
+<p class="article-subtitle">
+A physician's guide to building a multi-site automated publishing system that turns entity-first SEO from a theory into a running machine.
+</p>
+
+<p>
+If you Google most professionals, you'll find a messy collage of outdated profiles, third-party aggregator pages, and information they never consented to having published. For physicians, it's worse. Licensing board records, malpractice databases, review sites with no context — all of it ranking alongside (or above) the work you've actually done.
+</p>
+
+<p>
+I spent years as a practicing plastic surgeon and healthcare AI executive. When I searched my own name, what I saw didn't reflect who I am or what I do. It wasn't inaccurate, exactly — it was incomplete, uncontrolled, and fragmented. The internet had assembled a version of me from pieces, and that version was what patients, colleagues, and potential collaborators encountered first.
+</p>
+
+<p>
+So I built a system to fix that. Not a single website or a social media push — a full automated publishing pipeline that researches topics, generates content, validates SEO quality, publishes across multiple domains, and measures the impact. I call it the Reputation Engine.
+</p>
+
+<p>
+This article is the full technical walkthrough. The <a href="https://github.com/drsinabari/reputation-engine">code is on GitHub</a>.
+</p>
+
+<h2>The Core Idea: Entity-First SEO</h2>
+
+<p>
+Most SEO advice focuses on keywords and backlinks. That's fine if you're selling software or running a blog. But for personal reputation, the unit of optimization isn't a keyword — it's an <em>entity</em>.
+</p>
+
+<p>
+Google's Knowledge Graph thinks in entities. When someone searches "Sina Bari MD," Google isn't just matching keywords — it's trying to assemble a coherent picture of a person. The results it surfaces are the sources it considers most authoritative for understanding that entity.
+</p>
+
+<p>
+The insight that shaped everything I built: if you can present Google with multiple high-quality, consistent, authoritative sources about yourself — each covering a different facet of who you are — you can occupy more of the results page. Not by gaming the algorithm, but by giving it exactly what it wants: comprehensive, structured, trustworthy information about the entity it's trying to describe.
+</p>
+
+<h2>Four Domains, Four Roles</h2>
+
+<p>
+Instead of putting everything on one site, I split my professional identity across four purpose-built domains:
+</p>
+
+<p>
+<strong><a href="https://sinabarimd.com">sinabarimd.com</a></strong> is the canonical identity hub — the anchor. This is where the Person+Physician structured data lives, where the <code>@id</code> is defined, where <code>sameAs</code> points to everything else. It has my bio, selected writing, media appearances, and serves as the authoritative source Google should reference for "who is this person."
+</p>
+
+<p>
+<strong><a href="https://sinabari.net">sinabari.net</a></strong> is the healthcare AI authority site. Roughly 75% healthcare AI analysis, 25% broader health tech (medtech, robotics, digital health, precision medicine). It targets the professional expertise facet of my identity.
+</p>
+
+<p>
+<strong><a href="https://drsinabari.com">drsinabari.com</a></strong> is the editorial node — long-form essays on medicine and technology, physician identity, clinical ethics, healthcare policy. It's designed with a Newsreader serif font, monochrome palette, and the feel of a personal journal. This targets the "thinker and writer" facet.
+</p>
+
+<p>
+<strong><a href="https://sinabariplasticsurgery.com">sinabariplasticsurgery.com</a></strong> covers my surgical background — aesthetics, aging, rejuvenation. It targets the clinical specialty facet.
+</p>
+
+<p>
+Every satellite site links back to sinabarimd.com and references the same author <code>@id</code>. To Google, these aren't four unrelated sites — they're four facets of one entity, all pointing to the same canonical anchor.
+</p>
+
+<h2>The Agent Architecture</h2>
+
+<p>
+The system runs on <a href="https://n8n.io">n8n</a>, an open-source workflow automation platform I self-host on a VPS. Every function of the system is handled by a dedicated agent — a standalone n8n workflow with exactly one job. There are ten of them.
+</p>
+
+<p>
+The <strong>Portfolio Orchestrator</strong> is the scheduling brain. It runs on a per-site cron schedule (Monday for sinabarimd, Tuesday and Friday for sinabari.net, Wednesday for the surgery site, Thursday for drsinabari). On each cron fire, it checks whether the site is eligible for a new publish based on minimum intervals and ramp-up rules, looks for any approved drafts ready to auto-publish, and dispatches content generation if the queue is empty.
+</p>
+
+<p>
+The <strong>Content Research Agent</strong> runs every Friday. Phase 1 is automated: it searches the web via <a href="https://tavily.com">Tavily</a> for relevant topics across all four sites and synthesizes 2-3 candidates per site using an LLM. Phase 2 is operator-triggered: I pick the topics I want to pursue, optionally attach source documents (academic papers, clinical guidelines), and the agent generates a full research brief. Operators can also inject custom topics at any time — I often add topics based on conversations, conferences, or ideas that come up during the week.
+</p>
+
+<p>
+The <strong>Content Generator</strong> takes a research brief and a site profile, and produces a structured draft. The draft includes a title, slug, excerpt, full content HTML, word count, and metadata — all scoped to the specific site's allowed topics, tone, and formatting rules. Every draft is stored with a <code>pending_review</code> status. Nothing publishes without human approval.
+</p>
+
+<p>
+The content generation prompt is heavily engineered. It enforces site-specific word counts (1,500 for drsinabari editorial essays, 1,200 for sinabari.net analysis, 900 for the surgery site, 750 for sinabarimd). FAQs must use real patient questions, not generic filler. Scientific claims require specific citations — "studies show" without naming the study is a hard fail. The system includes a banned-phrases list to avoid generic AI tell-tales ("revolutionize," "cutting-edge," "in today's fast-paced world"). And every piece is written from a first-person clinical perspective, because that's the one thing an AI can't fake without being told to.
+</p>
+
+<p>
+The <strong>Content Publisher</strong> is the most complex workflow — twenty nodes that take an approved draft and turn it into a live article. It fetches the draft, extracts all fields, loads the current live homepage, updates the article register (a sliding window of the three most recent articles per site), renders featured cards for the homepage, replaces the pipeline injection markers in the HTML, generates the full article page with SEO meta tags and structured data, builds an articles index page, generates a sitemap, runs QA checks, assembles the deploy payload, and deploys via a deterministic file-sync service.
+</p>
+
+<p>
+The <strong>SEO QA Agent</strong> runs three levels of validation. Article-level checks verify meta tags, structured data, author attribution, canonical links, word count, forbidden topic compliance, and — critically — that no content claims board certification (because I'm not board certified, and inaccuracy in medical credentials isn't just an SEO problem, it's a legal one). Domain-level checks validate the homepage, pipeline markers, and site-wide schema. Portfolio-level checks verify cross-site consistency: are all satellites linking to the hub? Is topic separation clean? Is author attribution uniform?
+</p>
+
+<p>
+The remaining agents handle intelligence and measurement. The <strong>SEO Research Agent</strong> generates a weekly brief on SERP trends and keyword opportunities. The <strong>Technical SEO Implementer</strong> converts those briefs into actionable tasks. The <strong>Media Ingestion Agent</strong> monitors the web for mentions of my name and queues them for the press page. And the <strong>Measurement Agent</strong> tracks SERP positions using residential proxy searches via <a href="https://brightdata.com">BrightData</a> and pulls click/impression data from Google Search Console.
+</p>
+
+<h2>The Publishing Pipeline</h2>
+
+<p>
+The publish flow is worth describing in detail because it's where most of the engineering complexity lives.
+</p>
+
+<p>
+When the Orchestrator determines a site is ready for a new publish, it checks for approved drafts first. If one exists, it fires an auto-publish. If not, it dispatches the Content Generator. This means the system can run fully autonomously — cron fires, content generates, I approve it on the dashboard during my coffee, and the next cron cycle publishes it.
+</p>
+
+<p>
+The deploy model is deliberately simple and deliberately strict. The deploy service is a Python HTTP server that receives a file manifest — a list of file paths and their contents — and syncs the target directory to match. Files not in the manifest are deleted. This sounds aggressive, but it means the deployed state is always exactly what the pipeline specified. No orphaned files, no state drift, no surprises.
+</p>
+
+<pre><code># The deploy service's core logic (simplified)
+for file_entry in manifest:
+    write(deploy_path / file_entry.path, file_entry.content)
+
+for existing_file in walk(deploy_path):
+    if existing_file not in manifest:
+        delete(existing_file)</code></pre>
+
+<p>
+This has an important implication: every deploy must include <em>all</em> files the site needs, not just the new ones. The Content Publisher always includes the homepage, all known articles, the articles index, stylesheets, and the sitemap. If a file isn't in the manifest, it doesn't exist after the deploy.
+</p>
+
+<h2>Structured Data as Entity Glue</h2>
+
+<p>
+Structured data is what turns four separate websites into a coherent entity in Google's understanding. Every page on every site includes JSON-LD structured data that references the same canonical <code>@id</code>.
+</p>
+
+<p>
+On sinabarimd.com, the homepage schema defines a <code>Person</code> + <code>Physician</code> entity with an <code>@id</code> of <code>https://sinabarimd.com/#sinabari</code>. It lists credentials (MD from Stanford), occupations (Physician, Healthcare AI Executive), work location, medical specialty, and a <code>sameAs</code> array pointing to all satellite domains plus LinkedIn, about.me, Behance, and other profiles.
+</p>
+
+<p>
+On every satellite site, the author field in the article schema references that same <code>@id</code>. This tells Google: "The person who wrote this article on sinabari.net is the same Person+Physician entity defined at sinabarimd.com." The entity signal compounds across domains.
+</p>
+
+<p>
+Article pages also auto-generate <code>FAQPage</code> schema by scanning the content HTML for Q&A patterns. If the article includes an FAQ section with <code>&lt;h3&gt;</code> questions and <code>&lt;p&gt;</code> answers, the pipeline extracts them into structured data automatically. This makes the content eligible for Google's FAQ rich results, which occupy more visual real estate on the SERP.
+</p>
+
+<h2>The Dashboard</h2>
+
+<p>
+All of this is managed through a password-protected dashboard hosted at sinabarimd.com/dashboard.html. It has eight tabs: Overview (system status and daily action items), Research (topic candidates and deep research triggers), Drafts (review, edit, approve, or dismiss generated content), Publish (approved drafts queued with scheduled dates), QA (three-level quality reports), SEO Actions (generated from intelligence briefs), Metrics (SERP positions and Search Console data), and Web 2.0 (56 profile pages across platforms, organized by suppression priority).
+</p>
+
+<p>
+The dashboard is a single static HTML file with inline JavaScript. It talks to the system entirely through webhooks — the same API that the agents use. This means everything I can do on the dashboard, I can also do via API calls or automation.
+</p>
+
+<h2>The AI Tool Stack: How I Actually Built This</h2>
+
+<p>
+I'm a physician, not a software engineer. I didn't write this system by hand-coding n8n workflows and deploy scripts from scratch. I built it using AI tools at every layer — for content generation, for system design, for coding, and for visual design. That's worth being transparent about, because I think the most important shift in personal reputation management isn't the SEO strategy itself — it's that AI tools have made it possible for a non-engineer to build sophisticated automated systems that would have required a development team five years ago.
+</p>
+
+<h3>OpenClaw: Self-Hosted LLM Gateway</h3>
+
+<p>
+All content generation runs through <a href="https://github.com/open-claw/open-claw">OpenClaw</a>, an open-source LLM gateway I self-host on the same VPS that runs everything else. OpenClaw sits at <code>http://host.docker.internal:18789</code> inside the Docker network, accepting API calls from any n8n workflow that needs language model capabilities.
+</p>
+
+<p>
+I chose self-hosted over a managed API for three reasons. First, control: I can swap the underlying model without changing any workflow logic — OpenClaw abstracts the provider. Second, cost: a single VPS running the gateway handles all four sites' content generation, research synthesis, media classification, and SEO analysis for a fraction of what per-token API pricing would cost at this volume. Third, privacy: my prompts, content drafts, and SEO intelligence briefs never leave my infrastructure.
+</p>
+
+<p>
+OpenClaw powers the Content Generator (draft creation), Content Research Agent (topic synthesis and deep research), Media Ingestion Agent (mention classification), SEO Research Agent (intelligence brief generation), and the Site Refresh workflow (full page regeneration). Every call uses inline authentication headers and raw JSON content type — a quirk I discovered after debugging why n8n's credential system wasn't working with OpenClaw's endpoint format.
+</p>
+
+<h3>Host Services: The "Open Server" Pattern</h3>
+
+<p>
+One of the early architectural challenges was that n8n runs inside a Docker container, which means it can't directly execute commands on the host system. No shelling out, no file system access, no <code>child_process</code> in Code nodes. The solution was a pattern I call "open servers" — lightweight Python HTTP services running on the host machine, exposed to the Docker network through firewall rules on the Docker bridge interface.
+</p>
+
+<p>
+There are three of them. The <strong>Deploy Service</strong> (port 9911) handles the deterministic file-sync deploys described earlier. The <strong>Text Extract Service</strong> (port 9913) converts uploaded PDFs, Word documents, and text files into plain text for the research pipeline — when I attach a medical paper to a research topic, this service extracts the content so the LLM can use it as context. Each is a single Python file using <code>http.server</code>, managed by systemd, and locked down with a UFW rule that only allows connections from the Docker bridge subnet (<code>172.17.0.0/16</code>).
+</p>
+
+<pre><code># The pattern: a Python HTTP server as a host-side microservice
+# Accessible from Docker via host.docker.internal:{port}
+# Managed by systemd, firewalled to Docker bridge only
+
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class ServiceHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        # Read request, do work, return JSON
+        ...
+
+HTTPServer(("0.0.0.0", 9911), ServiceHandler).serve_forever()</code></pre>
+
+<p>
+This pattern turned out to be one of the most reusable pieces of the architecture. Any time n8n needs to do something that requires host-level access — file operations, system calls, GPU inference — I spin up another single-file Python service. No Docker orchestration, no complex networking. Just a script, a systemd unit, and a firewall rule.
+</p>
+
+<h3>Google Stitch: AI-Generated Site Design</h3>
+
+<p>
+The current site designs are functional but minimal — I built the initial HTML templates by hand with help from Claude Code. The next phase involves <a href="https://stitch.withgoogle.com">Google Stitch</a>, an AI web design tool that generates complete site designs from prompts and reference materials.
+</p>
+
+<p>
+The plan is to use Stitch to redesign all four domains with professional, polished templates, then adapt the deploy pipeline to work in a "content-only" mode — where the pipeline injects articles and dynamic content into the Stitch-generated templates without overwriting the design layer. This requires a fundamental change to the deploy model: instead of full-file-sync (where the pipeline owns everything), the pipeline would own only a content subdirectory while Stitch owns the template shell.
+</p>
+
+<p>
+I haven't made this transition yet, but it's the next major architectural decision. The site profile schema is already being extended with a <code>content_path</code> field and the deploy service contract with a <code>deploy_mode: content_only</code> parameter to support it.
+</p>
+
+<h3>Claude: The Development Partner</h3>
+
+<p>
+I use Anthropic's Claude in two distinct modes that mirror how a non-engineer and a technical partner would collaborate.
+</p>
+
+<p>
+<strong><a href="https://claude.ai">Claude in Cowork mode</a></strong> handles the thinking work: system design, architecture planning, writing spec documents, drafting workflow logic, analyzing SEO strategies, and brainstorming content approaches. When I need to figure out how a new agent should work, what its inputs and outputs should be, how it fits into the existing pipeline — that's a Cowork conversation. It produces specification files, workflow JSON drafts, and architectural documents that I review and refine before anything touches the live system.
+</p>
+
+<p>
+<strong><a href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview">Claude Code</a></strong> handles the building work: live API calls to n8n, triggering and monitoring workflows, pushing configuration changes, debugging production issues, and writing actual code. Claude Code has direct network access to my n8n instance, so it can make real API calls — listing workflows, checking execution status, updating node parameters, activating and deactivating workflows.
+</p>
+
+<p>
+Here's a concrete example. The sinabarimd.com homepage has a scrolling news ticker at the bottom that displays recent media mentions — pulled from the Media Ingestion Agent's weekly monitoring runs. That ticker didn't exist in my original design. I was reviewing media mentions on the dashboard and thought, "these should be visible on the public site, not hidden behind a password gate." I described what I wanted to Claude in Cowork mode, it helped me design the component spec (ticker behavior, data source, styling, mobile responsiveness), and then I moved to Claude Code to actually build it: writing the HTML/CSS/JavaScript, testing it against the live site's stylesheet, wiring it up to the media webhook data, and deploying it through the pipeline. The whole thing — from idea to live on the site — took one working session.
+</p>
+
+<p>
+This division of labor — Cowork for design, Code for implementation — isn't just a workflow preference. It reflects a real constraint: the Cowork environment can't reach my VPS (it runs in a sandboxed VM), so it literally cannot make n8n API calls. But it's excellent at reading specs, thinking through architecture, and producing files. Claude Code runs locally on my machine with full network access, so it handles everything that touches the live system. They share the same project folder, so a spec file written in Cowork is immediately available for Claude Code to implement.
+</p>
+
+<p>
+The system's <code>CLAUDE.md</code> file — a 500-line document in the project root — acts as the institutional memory. It contains the complete API reference, workflow IDs, webhook endpoints, architectural rules, deployment procedures, and domain configurations. Every Claude Code session reads it automatically, which means the AI starts each session with full system context rather than needing to be re-briefed. This is the closest thing I've found to having a junior engineer who actually reads the documentation.
+</p>
+
+<h2>The Profile Network</h2>
+
+<p>
+The four owned domains are the core of the strategy, but they're not the whole picture. Google's SERP for a branded query includes more than just websites you own — it surfaces LinkedIn, Healthgrades, Doximity, about.me, Behance, and dozens of other third-party platforms. These profiles are another layer of the entity signal, and they're also SERP real estate you can influence.
+</p>
+
+<p>
+I maintain 56 profiles across platforms, each with a unique bio tailored to that platform's context and audience. The LinkedIn bio emphasizes healthcare AI leadership. The Healthgrades profile focuses on clinical credentials. The Behance profile highlights visual and design work. Every profile includes a consistent name ("Sina Bari, MD" or "Dr. Sina Bari"), links back to sinabarimd.com, and uses the same professional headshot.
+</p>
+
+<p>
+The dashboard's Web 2.0 tab organizes these profiles by suppression priority — which profiles are closest to displacing unwanted results, and which are already ranking well and need maintenance. This isn't about gaming review sites or creating fake profiles. Every one of these is a legitimate professional presence on a platform where I actually have an account. The system just makes sure they're consistent, current, and optimized.
+</p>
+
+<p>
+A crucial insight: platforms with high domain authority (LinkedIn at DA 98, GitHub at DA 95, YouTube at DA 100) tend to rank faster for branded queries than your own domains. When I created a well-optimized GitHub repository for this project, it had potential to rank on page one within weeks — faster than most content I publish on my own sites. That's why this article links to a GitHub repo, and why the repo links back here. The cross-reference strengthens both.
+</p>
+
+<h2>Content Quality as a Ranking Signal</h2>
+
+<p>
+Building the publishing infrastructure was the easy part. The hard part was making sure the content was actually good — not "good for AI-generated content," but good enough that a reader wouldn't know (or care) whether a human or a machine wrote the first draft.
+</p>
+
+<p>
+The Content Generator's prompt engineering took more iteration than the entire deploy pipeline. The key breakthroughs were: requiring first-person clinical perspective (not generic third-person analysis), mandating specific study citations instead of vague "research shows" hand-waving, enforcing site-specific tone (analytical for sinabari.net, reflective for drsinabari.com, patient-facing for the surgery site), and maintaining a banned-phrases list that catches the most common AI writing tells.
+</p>
+
+<p>
+Every FAQ must contain at least one branded question — something a real patient or reader would actually search for, like "Does Dr. Bari use AI in his practice?" — because these are the queries where Answer Engine Optimization (AEO) captures featured snippets. The FAQ sections are formatted specifically for extraction by Google's AI Overview, with concise answers that can stand alone as snippet text.
+</p>
+
+<p>
+The system also requires 2-3 outbound links to authoritative external sources per article. This isn't just good practice — it signals to Google that the content participates in the broader knowledge ecosystem rather than existing in an isolated self-referential bubble. The Content Research Agent surfaces specific citable sources (PubMed studies, JAMA articles, FDA guidelines) during the research phase, so the Content Generator has real references to work with rather than hallucinating citations.
+</p>
+
+<h2>What I've Learned</h2>
+
+<h3>Start with one site, then replicate</h3>
+
+<p>
+I built and validated the full pipeline on sinabarimd.com before launching the second site. The temptation to parallelize was strong — the architecture was designed for four sites from day one. But getting the pipeline rock-solid on one domain first saved me from multiplying bugs across four sites simultaneously. When I launched sinabari.net, it was a configuration change, not a rebuild.
+</p>
+
+<h3>Deterministic deploys are worth the rigidity</h3>
+
+<p>
+The full-file-sync deploy model felt restrictive at first. Why can't I just push one file? But after a few weeks, I stopped worrying about state drift entirely. If the pipeline says a site has three articles, I can prove it by looking at the manifest. There's no scenario where a file exists on the server that the pipeline doesn't know about.
+</p>
+
+<h3>Agent isolation prevents cascading failures</h3>
+
+<p>
+Early on, I was tempted to combine the Content Generator and Content Publisher into a single workflow. It would have been simpler. But keeping them separate meant that when the publisher had a bug in its sitemap generation, it didn't affect content generation at all. I fixed the publisher, redeployed, and all the drafts that had been generated during the outage were still there, approved and ready to publish.
+</p>
+
+<h3>QA gates catch more than you expect</h3>
+
+<p>
+The SEO QA Agent has caught issues I wouldn't have noticed manually: missing canonical links on one site, a structured data type mismatch, an article that inadvertently used a forbidden topic phrase. The portfolio-level check that verifies all satellites link to the canonical hub has been especially valuable — it's easy to miss a link when you're editing content.
+</p>
+
+<h3>Measurement changes your behavior</h3>
+
+<p>
+Before I built the Measurement Agent, I'd check my SERP position manually every few days, get anxious, and make impulsive changes. Now I have weekly residential-IP SERP snapshots with position tracking, trend data, and Google Search Console metrics. The data tells me what's working and what isn't, and it keeps me from over-optimizing based on a single bad day.
+</p>
+
+<h2>Results (Three Weeks In)</h2>
+
+<p>
+As of mid-April 2026, after three weeks of the system running in production:
+</p>
+
+<p>
+Four owned domains are ranking on page one for branded queries. Six articles have been published across all sites, all scoring A+ on the QA agent's validation. The system has tracked and classified 42 media mentions. The Measurement Agent has collected 12 SERP snapshots, showing a steady increase in owned result positions. The entire portfolio maintains 100% QA compliance — no issues across any domain.
+</p>
+
+<p>
+It's early. SERP positions shift, Google's algorithm changes, and three weeks isn't enough to draw conclusions about long-term effectiveness. But the system is running, the data is flowing, and I'm not manually updating HTML files at midnight anymore.
+</p>
+
+<h2>Open Source</h2>
+
+<div class="github-banner">
+  <strong>The code is open source.</strong><br>
+  Repository: <a href="https://github.com/drsinabari/reputation-engine">github.com/drsinabari/reputation-engine</a><br>
+  Includes the deploy service, site profiles, QA validation logic, structured data templates, GSC measurement scripts, and architecture documentation.
+</div>
+
+<p>
+The repository includes the deploy service (Python), site profile YAML configs for all four domains, the SEO QA validation logic, structured data templates (Person+Physician homepage schema, Article schema, FAQ extractor), the Google Search Console measurement script, and detailed architecture and pipeline documentation.
+</p>
+
+<p>
+It's a reference implementation — not a plug-and-play product. You'll need to adapt the site profiles, prompts, and workflows to your own situation. But the patterns are transferable: the multi-site entity strategy, the agent architecture, the deterministic deploy model, the QA gate pattern. If you're a professional who wants to take control of your search results, this is one way to do it systematically.
+</p>
+
+<h2>Who Is This For?</h2>
+
+<p>
+Physicians, attorneys, executives, researchers — anyone whose professional reputation matters and whose Google results don't reflect the full picture. You don't need to be a software engineer to benefit from the strategy (entity consolidation + topic separation + consistent structured data). But if you want to automate it the way I did, the engineering is real and the code is there.
+</p>
+
+<p>
+The underlying philosophy is straightforward: you can't delete what other people put on the internet about you, but you can build enough high-quality, authoritative content to occupy the space that matters. Do it systematically, do it consistently, and measure whether it's working.
+</p>
+
+<p>
+That's what a reputation engine does.
+</p>
+
+<!-- Author Box -->
+<div class="author-box">
+  <div class="initials">SB</div>
+  <div class="author-info">
+    <strong><a href="https://sinabarimd.com/about">Dr. Sina Bari, MD</a></strong><br>
+    Physician, healthcare AI executive, and builder of automated systems. Writes about medicine, technology, and the intersection of clinical practice and AI at
+    <a href="https://sinabari.net">sinabari.net</a> and <a href="https://drsinabari.com">drsinabari.com</a>.
+  </div>
+</div>
+
+</article>
+
+</body>
+</html>

@@ -1,0 +1,52 @@
+# Site Profile: sinabariplasticsurgery.com
+# Role: Legacy specialty node — aesthetics, aging, rejuvenation, surgery
+# Content uses MedicalWebPage schema type
+
+site_id: sinabariplasticsurgery
+domain: sinabariplasticsurgery.com
+name: "Dr. Sina Bari, MD — Plastic & Reconstructive Surgery"
+role: "Legacy specialty node"
+
+author:
+  name: "Dr. Sina Bari, MD"
+  url: "https://sinabarimd.com/about"
+  author_id: "https://sinabarimd.com/#sinabari"
+
+content:
+  allowed_topics:
+    - aesthetics
+    - aging
+    - rejuvenation
+    - plastic surgery
+    - reconstructive surgery
+  forbidden_topics:
+    - healthcare AI
+    - enterprise technology
+    - generic tech
+  default_word_count: 900
+  tone: "educational, patient-friendly, clinical authority"
+
+publishing:
+  min_days_between_publishes: 7
+  pipeline_section: "ARTICLES"
+  pipeline_markers:
+    start: "<!-- PIPELINE:START:ARTICLES -->"
+    end: "<!-- PIPELINE:END:ARTICLES -->"
+  cron_days: [wednesday]
+  cron_time_pst: "11:00"
+
+deploy:
+  deploy_path: "/srv/sites/sinabariplasticsurgery"
+  verify_url: "https://sinabariplasticsurgery.com"
+  required_files:
+    - index.html
+    - styles.css
+    - articles/index.html
+
+seo:
+  schema_types:
+    homepage: ["WebSite", "MedicalWebPage"]
+    article: "MedicalWebPage"
+  canonical_hub_link: true
+  cross_links:
+    - "https://sinabarimd.com"
