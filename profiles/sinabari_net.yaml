@@ -1,59 +1,59 @@
-# Site Profile: sinabari.net
-# Role: Healthcare AI authority — analytical content on medical technology
-# 75% healthcare AI + 25% broader health tech
-
-site_id: sinabari_net
-domain: sinabari.net
-name: "Sina Bari, MD — Healthcare AI Analysis & Clinical Technology"
-role: "Healthcare AI authority site"
-
-author:
-  name: "Dr. Sina Bari, MD"
-  url: "https://sinabarimd.com/about"
-  author_id: "https://sinabarimd.com/#sinabari"
-
-content:
-  allowed_topics:
-    - healthcare AI
-    - medical technology
-    - digital health
-    - precision medicine
-    - medtech
-    - robotics in healthcare
-  forbidden_topics:
-    - plastic surgery
-    - reconstructive surgery
-    - facial rejuvenation
-    - generic AI (non-healthcare)
-  default_word_count: 1200
-  tone: "analytical, evidence-based, first-person clinical perspective"
-  content_mix:
-    primary: "healthcare AI"
-    primary_ratio: 0.75
-    secondary: "broader health tech"
-    secondary_ratio: 0.25
-
-publishing:
-  min_days_between_publishes: 3
-  pipeline_section: "ANALYSIS"
-  pipeline_markers:
-    start: "<!-- PIPELINE:START:ANALYSIS -->"
-    end: "<!-- PIPELINE:END:ANALYSIS -->"
-  cron_days: [tuesday, friday]
-  cron_time_pst: "10:00"
-
-deploy:
-  deploy_path: "/srv/sites/sinabari-net"
-  verify_url: "https://sinabari.net"
-  required_files:
-    - index.html
-    - styles.css
-    - articles/index.html
-
-seo:
-  schema_types:
-    homepage: ["WebSite", "WebPage"]
-    article: "Article"
-  canonical_hub_link: true
-  cross_links:
-    - "https://sinabarimd.com"
+site: sinabari.net
+role: Healthcare AI authority node
+objective: Build topical authority for healthcare AI and support branded queries related
+  to AI leadership.
+positioning: Thought leadership hub focused on healthcare AI, clinical workflows,
+  validation, adoption, and innovation.
+allowed_topics:
+- healthcare AI
+- clinical workflow design
+- AI adoption in health systems
+- medical imaging and diagnostics AI
+- governance, safety, and evaluation of medical AI
+- commentary on healthcare innovation
+forbidden_topics:
+- plastic surgery education
+- beauty or aesthetics advice
+- local practice or patient acquisition pages
+- generic productivity / tech fluff unrelated to healthcare
+primary_keywords:
+- Sina Bari AI
+- medical AI expert
+- healthcare AI thought leadership
+- Sina Bari healthcare AI
+content_types:
+- pillar pages
+- research-backed blog posts
+- case-study style articles
+- op-eds
+- talk summaries
+core_pages:
+- /
+- /about
+- /topics/healthcare-ai
+- /topics/clinical-workflows
+- /writing
+- /speaking
+linking_rules:
+  inbound_priority: Secondary node; receives links from canonical site and AI-relevant
+    Web 2.0 profiles.
+  outbound:
+  - Link prominently to sinabarimd.com as official personal site
+  - Link to drsinabari.com only when an essay format is the better destination
+  anchor_guidance:
+  - Sina Bari, MD
+  - official profile
+  - healthcare AI
+  - medical AI
+schema:
+- Person
+- WebSite
+- Blog
+- Article
+agent:
+  name: ai-authority-agent
+  job: Publish high-trust healthcare AI content without drifting into aesthetics or
+    generic personal branding.
+  approval_required_for:
+  - topic expansion beyond healthcare AI
+  - new pillar pages

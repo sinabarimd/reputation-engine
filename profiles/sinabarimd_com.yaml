@@ -1,69 +1,63 @@
-# Site Profile: sinabarimd.com
-# Role: Canonical identity hub — the primary entity anchor for Dr. Sina Bari
-# All satellite sites reference this domain for author attribution.
-
-site_id: sinabarimd
-domain: sinabarimd.com
-name: "Dr. Sina Bari, MD — Plastic Surgeon & Clinical Executive"
-role: "Canonical identity hub"
-
-author:
-  name: "Dr. Sina Bari, MD"
-  url: "https://sinabarimd.com/about"
-  author_id: "https://sinabarimd.com/#sinabari"
-
-content:
-  allowed_topics:
-    - biography
-    - professional work
-    - media appearances
-    - selected writing
-    - entity consolidation
-  forbidden_topics:
-    - thin blog spam
-    - clinic impersonation
-    - generic AI content
-  default_word_count: 750
-  tone: "professional, personal, authoritative"
-
-publishing:
-  min_days_between_publishes: 7
-  pipeline_section: "PUBLICATIONS"
-  pipeline_markers:
-    start: "<!-- PIPELINE:START:PUBLICATIONS -->"
-    end: "<!-- PIPELINE:END:PUBLICATIONS -->"
-  cron_days: [monday]
-  cron_time_pst: "09:00"
-
-deploy:
-  deploy_path: "/srv/sites/sinabarimd"
-  verify_url: "https://sinabarimd.com"
-  required_files:
-    - index.html
-    - styles.css
-    - dashboard.html
-    - about.html
-    - articles/index.html
-    - press.html
-    - sitemap.xml
-    - robots.txt
-
-seo:
-  schema_types:
-    homepage: ["Person", "Physician", "ProfilePage"]
-    article: "Article"
-  structured_data:
-    same_as:
-      - "https://linkedin.com/in/sinabari"
-      - "https://sinabari.net"
-      - "https://drsinabari.com"
-      - "https://sinabariplasticsurgery.com"
-    alumni_of: "Stanford University"
-    has_credential: "MD"
-    medical_specialty: "PlasticSurgery"
-    work_location: "Los Angeles, CA"
-  canonical_hub: true
-  cross_links:
-    - "https://sinabari.net"
-    - "https://drsinabari.com"
-    - "https://sinabariplasticsurgery.com"
+site: sinabarimd.com
+role: Canonical identity hub
+objective: Own branded name queries and act as the central entity page all other assets
+  reinforce.
+positioning: Sina Bari, MD — surgeon, medical AI leader, and writer on healthcare
+  technology and aesthetics.
+allowed_topics:
+- biography and credentials
+- current work in medical AI
+- selected media and speaking
+- curated essays that connect surgery, aesthetics, and healthcare technology
+- brand-safe updates about projects and publications
+forbidden_topics:
+- thin generic SEO blog posts
+- local-clinic style service pages unless factually current
+- placeholder office/contact claims
+- broad unsourced medical claims
+- duplicate reposts of full articles from satellite sites
+primary_keywords:
+- Sina Bari MD
+- Dr Sina Bari
+- Sina Bari
+- Sina Bari AI
+- Sina Bari surgeon
+content_types:
+- homepage
+- about / current work
+- media and speaking
+- selected essays
+- press / interviews
+- contact
+core_pages:
+- /
+- /about
+- /current-work
+- /writing
+- /media
+- /contact
+linking_rules:
+  inbound_priority: Receive strongest contextual links from all owned sites and Web
+    2.0 profiles.
+  outbound:
+  - Link to sinabari.net from AI / healthcare technology sections
+  - Link to drsinabari.com from essays / commentary sections
+  - Link to sinabariplasticsurgery.com only from historical expertise or aesthetics
+    archive contexts
+  anchor_guidance:
+  - Sina Bari, MD
+  - official site
+  - current work
+  - medical AI
+schema:
+- Person
+- WebSite
+- Organization (if needed for company/project pages)
+- Article
+agent:
+  name: identity-agent
+  job: Maintain entity clarity, homepage authority, and branded SERP control.
+  approval_required_for:
+  - homepage rewrites
+  - bio changes
+  - contact or credential edits

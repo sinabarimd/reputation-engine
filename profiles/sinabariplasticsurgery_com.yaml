@@ -1,52 +1,66 @@
-# Site Profile: sinabariplasticsurgery.com
-# Role: Legacy specialty node — aesthetics, aging, rejuvenation, surgery
-# Content uses MedicalWebPage schema type
-
-site_id: sinabariplasticsurgery
-domain: sinabariplasticsurgery.com
-name: "Dr. Sina Bari, MD — Plastic & Reconstructive Surgery"
-role: "Legacy specialty node"
-
-author:
-  name: "Dr. Sina Bari, MD"
-  url: "https://sinabarimd.com/about"
-  author_id: "https://sinabarimd.com/#sinabari"
-
-content:
-  allowed_topics:
-    - aesthetics
-    - aging
-    - rejuvenation
-    - plastic surgery
-    - reconstructive surgery
-  forbidden_topics:
-    - healthcare AI
-    - enterprise technology
-    - generic tech
-  default_word_count: 900
-  tone: "educational, patient-friendly, clinical authority"
-
-publishing:
-  min_days_between_publishes: 7
-  pipeline_section: "ARTICLES"
-  pipeline_markers:
-    start: "<!-- PIPELINE:START:ARTICLES -->"
-    end: "<!-- PIPELINE:END:ARTICLES -->"
-  cron_days: [wednesday]
-  cron_time_pst: "11:00"
-
-deploy:
-  deploy_path: "/srv/sites/sinabariplasticsurgery"
-  verify_url: "https://sinabariplasticsurgery.com"
-  required_files:
-    - index.html
-    - styles.css
-    - articles/index.html
-
-seo:
-  schema_types:
-    homepage: ["WebSite", "MedicalWebPage"]
-    article: "MedicalWebPage"
-  canonical_hub_link: true
-  cross_links:
-    - "https://sinabarimd.com"
+site: sinabariplasticsurgery.com
+role: Honest aesthetics authority
+objective: Deliver a surgeon's unfiltered, credible perspective on plastic surgery,
+  beauty trends, and aesthetics — cutting through industry hype with clinical honesty.
+positioning: A board-eligible plastic surgeon telling patients and readers what the
+  aesthetics industry won't. Candid, medically grounded, consumer-facing.
+allowed_topics:
+- plastic surgery procedures and outcomes
+- facial aging and rejuvenation
+- aesthetic philosophy and beauty culture
+- trend analysis and myth-busting
+- patient education and informed consent concepts
+- honest assessment of cosmetic treatments and devices
+forbidden_topics:
+- healthcare AI
+- enterprise AI commentary
+- generic thought leadership unrelated to aesthetics
+- clinic marketing or promotional language
+- broad duplicated biography pages
+- legacy or archive framing
+primary_keywords:
+- Sina Bari plastic surgery
+- Dr Sina Bari aesthetics
+- honest plastic surgery guide
+- facial rejuvenation truth
+- aesthetic trend analysis surgeon
+tone:
+  voice: Direct, candid, medically credible
+  style: Opinionated but evidence-grounded; accessible without being dumbed down
+  avoid: Promotional language, hedging, clinic-speak, archive or museum framing
+content_types:
+- surgeon perspective pieces
+- trend analysis and myth-busting
+- procedure explainers
+- patient education articles
+- FAQ and honest Q&A
+core_pages:
+- /
+- /about
+- /topics/facial-aging
+- /topics/trends
+- /topics/procedures
+- /faq
+linking_rules:
+  inbound_priority: Supports aesthetic authority; drives credibility back to the network hub.
+  outbound:
+  - Link to sinabarimd.com as the official professional profile
+  - Do not link to AI-focused properties except in bio/context pages
+  anchor_guidance:
+  - Dr. Sina Bari, MD
+  - board-eligible plastic surgeon
+  - sinabarimd.com
+  - honest aesthetics perspective
+schema:
+- Person
+- MedicalWebPage
+- Article
+- FAQPage
+agent:
+  name: honest-aesthetics-agent
+  job: Write candid, surgeon-voice content about plastic surgery and aesthetic trends.
+    Demystify beauty culture with clinical credibility. Never sound like a clinic
+    marketing page or an educational archive.
+  approval_required_for:
+  - homepage repositioning
+  - new commercial language

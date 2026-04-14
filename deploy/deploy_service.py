@@ -1,295 +1,192 @@
 #!/usr/bin/env python3
-"""
-Reputation Engine — Deterministic File-Sync Deploy Service
-
-A lightweight HTTP server that receives a file manifest and atomically
-syncs a site directory. Files not in the manifest are removed, ensuring
-the deployed state always matches exactly what the pipeline specifies.
-
-Designed to run as a systemd service on the host, accessible from
-Docker containers via host.docker.internal.
-
-Usage:
-    python deploy_service.py --port 9911 --base-dir /srv/sites
-
-Environment:
-    DEPLOY_SERVICE_KEY  — Bearer token for authentication
-"""
-
-import argparse
-import hashlib
 import json
-import logging
 import os
 import shutil
-import sys
-import time
+import subprocess
+import tempfile
 from datetime import datetime, timezone
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-log = logging.getLogger("deploy-service")
+HOST = "0.0.0.0"
+PORT = 9911
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+# Only allow deploys into these exact directories.
+ALLOWED_DEPLOY_PATHS = [
+    "/srv/sites/sinabarimd",
+    "/srv/sites/sinabari-net",
+    "/srv/sites/drsinabari",
+    "/srv/sites/sinabariplasticsurgery",
+]
 
-DEPLOY_KEY = os.environ.get("DEPLOY_SERVICE_KEY", "")
-BASE_DIR = "/srv/sites"
-MAX_PAYLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+# Map deploy paths to site containers that should be restarted after deploy.
+SITE_CONTAINER_MAP = {
+    "/srv/sites/sinabarimd": "sinabarimd-static",
+    "/srv/sites/sinabari-net": "sinabari-net-static",
+    "/srv/sites/drsinabari": "drsinabari-static",
+    "/srv/sites/sinabariplasticsurgery": "sinabariplasticsurgery-static",
+}
 
-# Domain → deploy directory mapping
-DOMAIN_MAP = {
-    "sinabarimd.com": "sinabarimd",
-    "sinabari.net": "sinabari-net",
-    "drsinabari.com": "drsinabari",
-    "sinabariplasticsurgery.com": "sinabariplasticsurgery",
+# Optional shared secret for the deploy endpoint.
+DEPLOY_TOKEN = os.environ.get("DEPLOY_TOKEN", "")
+
+# Profile pack support
+PROFILE_DIR = Path("/opt/openclaw-deployer/site_profiles")
+ALLOWED_PROFILE_FILES = {
+    "sinabarimd_com.yaml",
+    "sinabari_net.yaml",
+    "drsinabari_com.yaml",
+    "sinabariplasticsurgery_com.yaml",
+    "network_rules.yaml",
+    "web2_support_profiles.yaml",
+    "README.txt",
 }
 
 
-# ---------------------------------------------------------------------------
-# Deploy Logic
-# ---------------------------------------------------------------------------
-
-def validate_payload(payload: dict) -> tuple[bool, str]:
-    """Validate the deploy payload structure."""
-    required = ["domain", "deployPath", "files"]
-    for key in required:
-        if key not in payload:
-            return False, f"Missing required field: {key}"
-
-    if not isinstance(payload["files"], list):
-        return False, "files must be an array"
-
-    if len(payload["files"]) == 0:
-        return False, "files array is empty — refusing to deploy (would wipe site)"
-
-    for i, f in enumerate(payload["files"]):
-        if "path" not in f or "content" not in f:
-            return False, f"File entry {i} missing 'path' or 'content'"
-        # Prevent path traversal
-        normalized = os.path.normpath(f["path"])
-        if normalized.startswith("..") or normalized.startswith("/"):
-            return False, f"Invalid file path: {f['path']}"
-
-    return True, "ok"
+def json_response(handler, status, payload):
+    body = json.dumps(payload).encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 
-def compute_manifest_hash(files: list[dict]) -> str:
-    """Compute a deterministic hash of the file manifest for release tracking."""
-    hasher = hashlib.sha256()
-    for f in sorted(files, key=lambda x: x["path"]):
-        hasher.update(f["path"].encode())
-        hasher.update(f["content"].encode())
-    return hasher.hexdigest()[:12]
+def safe_relpath(p: str) -> bool:
+    if not p or p.startswith("/") or p.startswith("\\"):
+        return False
+    parts = Path(p).parts
+    if any(part in ("..", "") for part in parts):
+        return False
+    return True
 
 
-def execute_deploy(deploy_path: str, files: list[dict], release_id: str = None) -> dict:
-    """
-    Execute a full-file-sync deploy.
-
-    1. Write all files from the manifest
-    2. Remove any files NOT in the manifest
-    3. Return a summary of what changed
-    """
-    deploy_dir = Path(deploy_path)
-    deploy_dir.mkdir(parents=True, exist_ok=True)
-
-    manifest_paths = set()
-    files_written = 0
-    files_unchanged = 0
-    files_removed = 0
-
-    # Phase 1: Write all files from manifest
-    for file_entry in files:
-        rel_path = file_entry["path"]
-        content = file_entry["content"]
-        full_path = deploy_dir / rel_path
-        manifest_paths.add(rel_path)
-
-        # Create parent directories
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Check if file already exists with same content
-        if full_path.exists():
-            existing = full_path.read_text(encoding="utf-8", errors="replace")
-            if existing == content:
-                files_unchanged += 1
-                continue
-
-        # Write the file
-        full_path.write_text(content, encoding="utf-8")
-        files_written += 1
-        log.info(f"  wrote: {rel_path}")
-
-    # Phase 2: Remove files not in manifest (full sync)
-    for root, dirs, filenames in os.walk(deploy_dir):
-        for filename in filenames:
-            full_path = Path(root) / filename
-            rel_path = str(full_path.relative_to(deploy_dir))
-            if rel_path not in manifest_paths:
-                full_path.unlink()
-                files_removed += 1
-                log.info(f"  removed: {rel_path}")
-
-    # Phase 3: Clean up empty directories
-    for root, dirs, filenames in os.walk(deploy_dir, topdown=False):
-        for d in dirs:
-            dir_path = Path(root) / d
-            if not any(dir_path.iterdir()):
-                dir_path.rmdir()
-
-    manifest_hash = compute_manifest_hash(files)
-
-    result = {
-        "success": True,
-        "deploy_path": str(deploy_dir),
-        "release_id": release_id or manifest_hash,
-        "manifest_hash": manifest_hash,
-        "files_written": files_written,
-        "files_unchanged": files_unchanged,
-        "files_removed": files_removed,
-        "total_files": len(files),
-        "deployed_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    log.info(
-        f"Deploy complete: {files_written} written, "
-        f"{files_unchanged} unchanged, {files_removed} removed"
+def normalize_permissions(path: Path):
+    subprocess.run(["chmod", "755", str(path)], check=True)
+    subprocess.run(
+        f"find {path} -type d -exec chmod 755 {{}} \\;",
+        shell=True,
+        check=True,
+    )
+    subprocess.run(
+        f"find {path} -type f -exec chmod 644 {{}} \\;",
+        shell=True,
+        check=True,
     )
 
-    return result
 
+def restart_site_container(deploy_path: str):
+    container = SITE_CONTAINER_MAP.get(deploy_path)
+    if not container:
+        return
+    subprocess.run(["docker", "restart", container], check=True)
 
-# ---------------------------------------------------------------------------
-# HTTP Handler
-# ---------------------------------------------------------------------------
 
 class DeployHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        log.info(f"{self.client_address[0]} - {format % args}")
+    server_version = "OpenClawDeployer/0.2"
 
-    def send_json(self, status: int, data: dict):
-        body = json.dumps(data, indent=2).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def check_auth(self) -> bool:
-        if not DEPLOY_KEY:
-            return True  # No key configured = no auth required
-        auth = self.headers.get("Authorization", "")
-        if auth == f"Bearer {DEPLOY_KEY}":
-            return True
-        self.send_json(401, {"error": "Unauthorized"})
-        return False
+    def log_message(self, fmt, *args):
+        print(f"[{self.log_date_time_string()}] {self.address_string()} - {fmt % args}")
 
     def do_GET(self):
-        if self.path == "/health":
-            self.send_json(200, {"status": "ok", "service": "deploy-service"})
-        elif self.path.startswith("/profiles/"):
-            self.handle_profile_request()
-        else:
-            self.send_json(404, {"error": "Not found"})
+        parsed = urlparse(self.path)
 
-    def handle_profile_request(self):
-        """Serve site profile YAML files."""
-        profile_name = self.path.split("/profiles/")[-1]
-        profile_path = Path(BASE_DIR) / "profiles" / profile_name
-        if profile_path.exists() and profile_path.suffix in (".yaml", ".yml"):
-            content = profile_path.read_text()
+        if parsed.path == "/health":
+            return json_response(self, 200, {"ok": True, "service": "openclaw-deployer"})
+
+        if parsed.path.startswith("/profiles/"):
+            filename = parsed.path.split("/profiles/", 1)[1]
+
+            if filename not in ALLOWED_PROFILE_FILES:
+                return json_response(self, 404, {"ok": False, "error": "Profile not found"})
+
+            file_path = PROFILE_DIR / filename
+            if not file_path.exists():
+                return json_response(self, 404, {"ok": False, "error": "Profile file missing"})
+
+            body = file_path.read_text(encoding="utf-8").encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "text/yaml")
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(content.encode())
-        else:
-            self.send_json(404, {"error": f"Profile not found: {profile_name}"})
+            self.wfile.write(body)
+            return
+
+        return json_response(self, 404, {"ok": False, "error": "Not found"})
 
     def do_POST(self):
         if self.path != "/deploy":
-            self.send_json(404, {"error": "Not found"})
-            return
+            return json_response(self, 404, {"ok": False, "error": "Not found"})
 
-        if not self.check_auth():
-            return
+        if DEPLOY_TOKEN:
+            auth = self.headers.get("Authorization", "")
+            if auth != f"Bearer {DEPLOY_TOKEN}":
+                return json_response(self, 401, {"ok": False, "error": "Unauthorized"})
 
-        # Read body
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length > MAX_PAYLOAD_BYTES:
-            self.send_json(413, {"error": "Payload too large"})
-            return
-
-        body = self.rfile.read(content_length)
         try:
-            payload = json.loads(body)
-        except json.JSONDecodeError as e:
-            self.send_json(400, {"error": f"Invalid JSON: {e}"})
-            return
-
-        # Validate
-        valid, msg = validate_payload(payload)
-        if not valid:
-            self.send_json(400, {"error": msg})
-            return
-
-        domain = payload["domain"]
-        deploy_path = payload["deployPath"]
-        files = payload["files"]
-        release_id = payload.get("release_id")
-        verify_url = payload.get("verifyUrl")
-
-        log.info(f"Deploy request: {domain} → {deploy_path} ({len(files)} files)")
-
-        # Verify deploy path is under BASE_DIR
-        resolved = os.path.realpath(deploy_path)
-        if not resolved.startswith(os.path.realpath(BASE_DIR)):
-            self.send_json(400, {"error": "Deploy path outside base directory"})
-            return
-
-        # Execute deploy
-        try:
-            result = execute_deploy(deploy_path, files, release_id)
-            if verify_url:
-                result["verify_url"] = verify_url
-            self.send_json(200, result)
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length)
+            payload = json.loads(raw.decode("utf-8"))
         except Exception as e:
-            log.error(f"Deploy failed: {e}", exc_info=True)
-            self.send_json(500, {"error": f"Deploy failed: {str(e)}"})
+            return json_response(self, 400, {"ok": False, "error": f"Invalid JSON: {e}"})
 
+        deploy_path = payload.get("deployPath")
+        files = payload.get("files")
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+        if deploy_path not in ALLOWED_DEPLOY_PATHS:
+            return json_response(self, 400, {"ok": False, "error": "deployPath not allowed"})
 
-def main():
-    parser = argparse.ArgumentParser(description="Reputation Engine Deploy Service")
-    parser.add_argument("--port", type=int, default=9911, help="Port to listen on")
-    parser.add_argument("--base-dir", default=BASE_DIR, help="Base directory for sites")
-    args = parser.parse_args()
+        if not isinstance(files, list) or not files:
+            return json_response(self, 400, {"ok": False, "error": "files must be a non-empty list"})
 
-    global BASE_DIR
-    BASE_DIR = args.base_dir
+        target = Path(deploy_path)
+        parent = target.parent
+        parent.mkdir(parents=True, exist_ok=True)
 
-    if not DEPLOY_KEY:
-        log.warning("DEPLOY_SERVICE_KEY not set — running without authentication")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        temp_dir = Path(tempfile.mkdtemp(prefix=f"{target.name}.tmp.", dir=str(parent)))
+        backup_dir = parent / f"{target.name}.backup.{ts}"
 
-    server = HTTPServer(("0.0.0.0", args.port), DeployHandler)
-    log.info(f"Deploy service listening on port {args.port}")
-    log.info(f"Base directory: {BASE_DIR}")
+        try:
+            for entry in files:
+                rel = entry.get("path")
+                content = entry.get("content")
 
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        log.info("Shutting down")
-        server.server_close()
+                if not isinstance(rel, str) or not safe_relpath(rel):
+                    raise ValueError(f"Invalid file path: {rel}")
+
+                if not isinstance(content, str):
+                    raise ValueError(f"Invalid content for: {rel}")
+
+                out_path = temp_dir / rel
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(content, encoding="utf-8")
+
+            normalize_permissions(temp_dir)
+
+            if target.exists():
+                if backup_dir.exists():
+                    raise RuntimeError(f"Backup path already exists: {backup_dir}")
+                target.rename(backup_dir)
+
+            temp_dir.rename(target)
+            normalize_permissions(target)
+            restart_site_container(deploy_path)
+
+            self.send_response(204)
+            self.end_headers()
+            return
+
+        except Exception as e:
+            try:
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass
+            return json_response(self, 500, {"ok": False, "error": str(e)})
 
 
 if __name__ == "__main__":
-    main()
+    print(f"Starting deploy service on {HOST}:{PORT}")
+    HTTPServer((HOST, PORT), DeployHandler).serve_forever()

@@ -1,55 +1,57 @@
-# Site Profile: drsinabari.com
-# Role: Editorial node — long-form essays on medicine, technology, and identity
-# Design: Newsreader serif, Work Sans labels, monochrome palette
-
-site_id: drsinabari
-domain: drsinabari.com
-name: "Dr. Sina Bari — Physician, Writer, Medical Executive"
-role: "Editorial node"
-
-author:
-  name: "Dr. Sina Bari, MD"
-  url: "https://sinabarimd.com/about"
-  author_id: "https://sinabarimd.com/#sinabari"
-
-content:
-  allowed_topics:
-    - medicine and technology
-    - physician identity
-    - clinical ethics
-    - healthcare policy
-    - medical humanities
-  forbidden_topics:
-    - clinic promotion
-    - plastic surgery
-    - generic AI
-  default_word_count: 1500
-  tone: "editorial, reflective, long-form, first-person"
-  content_type: "longform essay"
-
-publishing:
-  min_days_between_publishes: 14
-  pipeline_section: "ESSAYS"
-  pipeline_markers:
-    start: "<!-- PIPELINE:START:ESSAYS -->"
-    end: "<!-- PIPELINE:END:ESSAYS -->"
-  cron_days: [thursday]
-  cron_time_pst: "14:00"
-
-deploy:
-  deploy_path: "/srv/sites/drsinabari"
-  verify_url: "https://drsinabari.com"
-  required_files:
-    - index.html
-    - styles.css
-    - articles/index.html
-    - sitemap.xml
-    - robots.txt
-
-seo:
-  schema_types:
-    homepage: ["WebSite", "WebPage"]
-    article: "Article"
-  canonical_hub_link: true
-  cross_links:
-    - "https://sinabarimd.com"
+site: drsinabari.com
+role: Branded editorial platform
+objective: Expand branded search footprint with long-form essays, interviews, and
+  commentary under a memorable physician brand.
+positioning: Editorial home for essays on medicine, technology, aesthetics, and professional
+  perspective.
+allowed_topics:
+- long-form essays
+- interviews and commentary
+- personal perspective on medicine and technology
+- ethics and culture in healthcare or aesthetics
+- cross-domain reflections with clear authorship
+forbidden_topics:
+- thin news rewrites
+- generic SEO articles
+- local clinic pages
+- hard-sell service content
+- duplicate full-text copies of canonical-site content
+primary_keywords:
+- Dr Sina Bari
+- Sina Bari essays
+- Sina Bari commentary
+- Dr Sina Bari MD
+content_types:
+- essays
+- interviews
+- editorials
+- archive pages
+- topic hubs
+core_pages:
+- /
+- /essays
+- /interviews
+- /topics
+- /about
+linking_rules:
+  inbound_priority: Moderate; used to fill additional page-one branded slots.
+  outbound:
+  - Link to sinabarimd.com as the official current profile
+  - Link to sinabari.net where an AI-technical article should own the topic
+  anchor_guidance:
+  - official website
+  - Sina Bari, MD
+  - essay archive
+  - commentary
+schema:
+- Person
+- Blog
+- Article
+- CollectionPage
+agent:
+  name: editorial-agent
+  job: Generate distinctive, branded, long-form content that broadens SERP coverage
+    without cannibalizing the canonical site.
+  approval_required_for:
+  - editorial tone shifts
+  - new content clusters

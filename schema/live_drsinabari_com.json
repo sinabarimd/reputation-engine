@@ -1,0 +1,31 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://drsinabari.com/#website",
+      "url": "https://drsinabari.com",
+      "name": "Dr. Sina Bari  - Editorial",
+      "description": "Long-form editorial on medicine, technology, ethics, and society by Dr. Sina Bari, MD.",
+      "inLanguage": "en-US",
+      "author": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "publisher": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      }
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://drsinabari.com/#webpage",
+      "url": "https://drsinabari.com",
+      "name": "Dr. Sina Bari  - Editorial",
+      "isPartOf": {
+        "@id": "https://drsinabari.com/#website"
+      },
+      "about": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      }
+    }
+  ]
+}

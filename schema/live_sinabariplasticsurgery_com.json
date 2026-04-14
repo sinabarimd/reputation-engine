@@ -1,0 +1,36 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://sinabariplasticsurgery.com/#website",
+      "url": "https://sinabariplasticsurgery.com",
+      "name": "Dr. Sina Bari, MD  - Plastic Surgery Education",
+      "description": "Educational resource on plastic and reconstructive surgery, aesthetic medicine, and facial rejuvenation by Stanford-trained surgeon Dr. Sina Bari, MD.",
+      "inLanguage": "en-US",
+      "author": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "publisher": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      }
+    },
+    {
+      "@type": "MedicalWebPage",
+      "@id": "https://sinabariplasticsurgery.com/#webpage",
+      "url": "https://sinabariplasticsurgery.com",
+      "name": "Dr. Sina Bari, MD  - Plastic Surgery Education",
+      "isPartOf": {
+        "@id": "https://sinabariplasticsurgery.com/#website"
+      },
+      "about": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "medicalAudience": {
+        "@type": "MedicalAudience",
+        "audienceType": "Patient"
+      },
+      "specialty": "PlasticSurgery"
+    }
+  ]
+}

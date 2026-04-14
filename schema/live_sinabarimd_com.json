@@ -1,0 +1,114 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": [
+        "Person",
+        "Physician"
+      ],
+      "@id": "https://sinabarimd.com/#sinabari",
+      "name": "Sina Bari",
+      "honorificPrefix": "Dr.",
+      "honorificSuffix": "MD",
+      "givenName": "Sina",
+      "familyName": "Bari",
+      "jobTitle": [
+        "Plastic and Reconstructive Surgeon",
+        "Healthcare AI Executive"
+      ],
+      "url": "https://sinabarimd.com",
+      "image": "https://sinabarimd.com/#headshot",
+      "description": "California-based plastic and reconstructive surgeon, Stanford-trained physician, and healthcare AI executive advancing clinical innovation and medical technology leadership.",
+      "medicalSpecialty": "PlasticSurgery",
+      "alumniOf": [
+        {
+          "@type": "CollegeOrUniversity",
+          "name": "Stanford University",
+          "url": "https://www.stanford.edu"
+        }
+      ],
+      "hasCredential": [
+        {
+          "@type": "MedicalCredential",
+          "credentialCategory": "Medical Degree",
+          "name": "Doctor of Medicine (MD)"
+        }
+      ],
+      "hasOccupation": [
+        {
+          "@type": "Occupation",
+          "name": "Plastic and Reconstructive Surgeon",
+          "occupationalCategory": "29-1067.00",
+          "occupationLocation": {
+            "@type": "Country",
+            "name": "United States"
+          }
+        },
+        {
+          "@type": "Occupation",
+          "name": "Healthcare AI Executive",
+          "occupationLocation": {
+            "@type": "Country",
+            "name": "United States"
+          }
+        }
+      ],
+      "workLocation": {
+        "@type": "Place",
+        "name": "California, United States",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Oakland",
+          "addressRegion": "CA",
+          "addressCountry": "US"
+        }
+      },
+      "sameAs": [
+        "https://www.linkedin.com/in/sinabarimd/",
+        "https://scholar.google.com/citations?user=ue5DG5IAAAAJ",
+        "https://www.wikidata.org/wiki/Q138774674",
+        "https://techcrunch.com/author/sina-bari-md/",
+        "https://www.doximity.com/cv/sinabarimd",
+        "https://www.crunchbase.com/person/sina-bari-md-f5c7",
+        "https://muckrack.com/sinabarimd",
+        "https://www.healthgrades.com/physician/dr-sina-bari-xj7q6",
+        "https://www.instagram.com/sina.bari/",
+        "https://x.com/sinabariMD",
+        "https://www.facebook.com/SinaBariMD",
+        "https://www.youtube.com/channel/UCtepx5Hdpt3W7Rrx5cgF9zQ"
+      ],
+      "knowsAbout": [
+        "Plastic Surgery",
+        "Reconstructive Surgery",
+        "Microsurgery",
+        "Healthcare AI",
+        "Clinical Workflow Design",
+        "Medical Device Evaluation",
+        "Healthcare Technology Governance",
+        "Medical Leadership",
+        "Clinical Innovation"
+      ],
+      "mainEntityOfPage": {
+        "@id": "https://sinabarimd.com/#profilepage"
+      }
+    },
+    {
+      "@type": "ProfilePage",
+      "@id": "https://sinabarimd.com/#profilepage",
+      "url": "https://sinabarimd.com",
+      "name": "Dr. Sina Bari, MD  - Official Profile",
+      "dateModified": "2026-03-30",
+      "mainEntity": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "about": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "significantLink": [
+        "https://sinabarimd.com/about",
+        "https://sinabarimd.com/press.html",
+        "https://sinabarimd.com/articles/"
+      ]
+    }
+  ]
+}
