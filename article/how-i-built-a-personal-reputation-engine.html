@@ -596,6 +596,77 @@ Four owned domains are ranking on page one for branded queries. Six articles hav
 It's early. SERP positions shift, Google's algorithm changes, and three weeks isn't enough to draw conclusions about long-term effectiveness. But the system is running, the data is flowing, and I'm not manually updating HTML files at midnight anymore.
 </p>
 
+<h2>What It Costs</h2>
+
+<p>
+One of the most common questions I get about this system is what it costs to run. The answer is surprisingly little. The entire infrastructure runs on free and open-source tools, a single cheap VPS, and minimal API usage.
+</p>
+
+<table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:0.95em;">
+<thead>
+<tr style="border-bottom:2px solid rgba(255,255,255,0.15);text-align:left;">
+<th style="padding:10px 12px;color:#94a3b8;">Item</th>
+<th style="padding:10px 12px;color:#94a3b8;text-align:right;">Monthly</th>
+<th style="padding:10px 12px;color:#94a3b8;text-align:right;">Annual</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">Claude Pro (Code + Cowork)</td>
+<td style="padding:10px 12px;text-align:right;">$20</td>
+<td style="padding:10px 12px;text-align:right;">$240</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">Hetzner VPS (CX22 - 2 vCPU, 4GB RAM)</td>
+<td style="padding:10px 12px;text-align:right;">$5</td>
+<td style="padding:10px 12px;text-align:right;">$60</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">Domains (4 - .com and .net)</td>
+<td style="padding:10px 12px;text-align:right;">~$4</td>
+<td style="padding:10px 12px;text-align:right;">~$50</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">AI tokens (content generation, research, rewrites)</td>
+<td style="padding:10px 12px;text-align:right;">~$3-5</td>
+<td style="padding:10px 12px;text-align:right;">~$40-60</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">BrightData SERP monitoring</td>
+<td style="padding:10px 12px;text-align:right;">~$1-2</td>
+<td style="padding:10px 12px;text-align:right;">~$15-25</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">n8n (self-hosted, community edition)</td>
+<td style="padding:10px 12px;text-align:right;">$0</td>
+<td style="padding:10px 12px;text-align:right;">$0</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">OpenClaw (self-hosted LLM gateway)</td>
+<td style="padding:10px 12px;text-align:right;">$0</td>
+<td style="padding:10px 12px;text-align:right;">$0</td>
+</tr>
+<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+<td style="padding:10px 12px;">Tavily (web search API - free tier)</td>
+<td style="padding:10px 12px;text-align:right;">$0</td>
+<td style="padding:10px 12px;text-align:right;">$0</td>
+</tr>
+<tr style="border-top:2px solid rgba(255,255,255,0.15);font-weight:600;">
+<td style="padding:10px 12px;color:#6366f1;">Total</td>
+<td style="padding:10px 12px;text-align:right;color:#6366f1;">~$33-36</td>
+<td style="padding:10px 12px;text-align:right;color:#6366f1;">~$405-435</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+The token costs are low because the system is efficient about when it calls the LLM. Content generation happens a few times per week, not continuously. Research briefs reuse web search results rather than generating everything from scratch. The QA agent validates HTML with regex and HTTP checks, no AI needed. Most of the orchestration is just n8n moving data between webhooks.
+</p>
+
+<p>
+For context, hiring an SEO consultant to manage four domains with weekly content, structured data optimization, SERP monitoring, and social media campaigns would cost $3,000-10,000 per month. This system does it for about $35, and it runs whether I'm paying attention or not.
+</p>
+
 <h2>Open Source</h2>
 
 <div class="github-banner">
