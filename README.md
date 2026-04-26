@@ -8,13 +8,15 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 ### What's New
 
-- **Spotlight Articles** - featured articles on the homepage, outside normal rotation, with multi-week social media campaigns across 15+ platforms. Includes campaign tracking dashboard with per-task copy/complete/skip.
-- **Draft Rewrite with Suggestions** - review a draft, type what you want changed, and OpenClaw rewrites it while preserving voice and site rules. Iterate before approving.
-- **Research File Attachments** - attach PDFs, clinical papers, or docs when adding research topics. Server-side text extraction feeds the content into the research pipeline.
-- **Daily Todos Dashboard** - consolidated actionable items from Content, SEO, and Web 2.0 with inline approve/dismiss/publish buttons. No more tab-hopping.
-- **Broken Link Detection** - domain-level QA now crawls all internal article links and flags 404s before they hurt rankings.
-- **News Links Management** - manually add media mentions alongside automated Tavily scanning, with recent items surfaced in Overview alerts.
-- **Monthly Auto-Sync to GitHub** - cron job syncs live system state, generates versioned changelog, and pushes. Human-authored feature notes included.
+- **Full workflow source published** -- all 10 n8n workflow JSONs (sanitized) now in `workflows/`, plus the operator dashboard and host services. You can see exactly how the system works.
+- **Upgraded research pipeline** -- Tavily advanced search depth, deep-researcher with wider academic search (breadth 3, depth 1, 4 iterations), and an OpenClaw synthesis pass that produces richer briefs with quantitative findings, interconnections, and writing hooks.
+- **Smart Web 2.0 syndication** -- no-repeat logic tracks which articles have been posted to each platform. Monthly YouTube video tasks suggest walkthrough/VLOG content for demo-friendly topics.
+- **Spotlight Articles** -- featured articles on the homepage, outside normal rotation, with multi-week social media campaigns across 15+ platforms. Campaign tracking dashboard with per-task copy/complete/skip.
+- **Seed-aware topic suggestions** -- type a rough idea in the topic field, hit Suggest, and the AI riffs on it. Clicking a suggestion copies the full topic, rationale, and angle.
+- **Draft Rewrite with Suggestions** -- review a draft, type what you want changed, and OpenClaw rewrites it while preserving voice and site rules. Iterate before approving.
+- **Research File Attachments** -- attach PDFs, clinical papers, or docs when adding research topics. Server-side text extraction feeds the content into the research pipeline.
+- **Daily Todos Dashboard** -- consolidated actionable items from Content, SEO, and Web 2.0 with inline approve/dismiss/publish buttons. Schedule-aware: only surfaces review reminders when a publish deadline is approaching.
+- **Broken Link Detection** -- domain-level QA now crawls all internal article links and flags 404s before they hurt rankings.
 
 ---
 
@@ -139,8 +141,24 @@ Each agent has exactly one job. The Content Generator doesn't know about SEO sco
 reputation-engine/
 ├── README.md                    # You are here
 ├── LICENSE                      # MIT
+├── workflows/                   # All 10 n8n workflow JSONs (sanitized)
+│   ├── portfolio-orchestrator.json      # Scheduling brain (54 nodes)
+│   ├── content-research-agent.json      # Topic scout + deep research (43 nodes)
+│   ├── content-generator.json           # Draft generation via LLM (30 nodes)
+│   ├── content-publisher.json           # 20-node article pipeline
+│   ├── seo-qa-agent.json               # 3-level SEO validation (28 nodes)
+│   ├── seo-research-agent.json          # Weekly intelligence brief (14 nodes)
+│   ├── technical-seo-implementer.json   # Brief-to-tasks pipeline (22 nodes)
+│   ├── media-ingestion-agent.json       # Media monitoring (18 nodes)
+│   ├── measurement-agent.json           # SERP + GSC tracking (28 nodes)
+│   └── site-refresh.json               # Full page regen (35 nodes)
+├── dashboard.html               # Operator dashboard (3,350 lines, 8 tabs)
 ├── deploy/
 │   └── deploy_service.py        # Deterministic file-sync deploy service
+├── services/
+│   └── deep-researcher-api.py   # Async academic paper research + n8n callback
+├── scripts/
+│   └── backup.sh                # Full system backup (workflows + sites + state)
 ├── profiles/
 │   ├── sinabarimd_com.yaml      # Site profile - canonical hub
 │   ├── sinabari_net.yaml        # Site profile - healthcare AI
@@ -231,14 +249,15 @@ def handle_deploy(request):
 
 ## Results
 
-After 3 weeks of operation (as of April 2026):
+After 5 weeks of operation (as of late April 2026):
 
 - **4 owned domains** ranking on page 1 for branded queries
-- **6+ articles** published across all sites with automated QA (all scoring A+)
+- **10+ articles** published across all sites with automated QA
 - **Structured data** (Person, Physician, Article, FAQPage) deployed on every page
-- **42 media mentions** tracked and classified
-- **Zero manual deploys** - everything goes through the pipeline
-- **100% QA pass rate** across the portfolio
+- **Web 2.0 syndication** across 15+ platforms with no-repeat tracking
+- **Zero manual deploys** -- everything goes through the pipeline
+- **Deep academic research** -- papers indexed and synthesized into content briefs
+- **Operator dashboard** -- single-page control plane with 8 tabs, daily todos, inline actions
 
 ---
 

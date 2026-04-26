@@ -1,219 +1,103 @@
 #!/usr/bin/env python3
+"""GSC Measurement Script — run locally or via cron.
+Queries Google Search Console for all 3 sites and pushes results to the Measurement Agent.
+Usage: python3 measure.py
 """
-Reputation Engine — Google Search Console Data Collection
+import json, time, base64, ssl, sys, os
+from urllib.request import Request, urlopen, build_opener, HTTPSHandler, install_opener
+from urllib.parse import urlencode
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
-Collects search performance data from GSC for all four domains
-and pushes it to the Measurement Agent workflow via webhook.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SA_PATH = os.path.join(SCRIPT_DIR, 'gsc-service-account.json')
+N8N_WEBHOOK = 'https://YOUR_N8N_DOMAIN/webhook'
 
-Uses a service account for authentication (no interactive OAuth).
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+install_opener(build_opener(HTTPSHandler(context=ctx)))
 
-Usage:
-    python measure.py
+def get_access_token():
+    with open(SA_PATH) as f:
+        sa = json.load(f)
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "RS256", "typ": "JWT"}).encode()).rstrip(b'=')
+    now = int(time.time())
+    claims = {"iss": sa["client_email"], "scope": "https://www.googleapis.com/auth/webmasters.readonly",
+              "aud": sa["token_uri"], "iat": now, "exp": now + 3600}
+    payload = base64.urlsafe_b64encode(json.dumps(claims).encode()).rstrip(b'=')
+    pk = serialization.load_pem_private_key(sa["private_key"].encode(), password=None)
+    sig = pk.sign(header + b'.' + payload, padding.PKCS1v15(), hashes.SHA256())
+    jwt = (header + b'.' + payload + b'.' + base64.urlsafe_b64encode(sig).rstrip(b'=')).decode()
+    resp = urlopen(Request(sa["token_uri"],
+        data=urlencode({"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}).encode(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"}))
+    return json.loads(resp.read())["access_token"]
 
-Environment:
-    GSC_SERVICE_ACCOUNT_FILE — path to service account JSON key
-    N8N_WEBHOOK_URL          — webhook endpoint for data push
-"""
-
-import json
-import os
-import sys
-from datetime import datetime, timedelta
-
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-SERVICE_ACCOUNT_FILE = os.environ.get(
-    "GSC_SERVICE_ACCOUNT_FILE", "/etc/reputation-engine/gsc-service-account.json"
-)
-WEBHOOK_URL = os.environ.get(
-    "N8N_WEBHOOK_URL", "http://localhost:5678/webhook/store-measurement"
-)
-
-# All four domains to monitor
-SITES = [
-    "sc-domain:sinabarimd.com",
-    "sc-domain:sinabari.net",
-    "sc-domain:drsinabari.com",
-    "sc-domain:sinabariplasticsurgery.com",
-]
-
-# Branded query patterns to track
-BRANDED_QUERIES = [
-    "sina bari",
-    "sina bari md",
-    "dr sina bari",
-    "sinabari",
-    "sinabarimd",
-]
-
-SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
-
-
-# ---------------------------------------------------------------------------
-# GSC Client
-# ---------------------------------------------------------------------------
-
-def get_gsc_service():
-    """Build authenticated GSC service client."""
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
-    )
-    return build("searchconsole", "v1", credentials=credentials)
-
-
-def fetch_search_analytics(service, site_url, start_date, end_date):
-    """
-    Fetch search analytics for a site over a date range.
-    Returns per-query performance data.
-    """
-    request_body = {
-        "startDate": start_date,
-        "endDate": end_date,
-        "dimensions": ["query", "page"],
-        "rowLimit": 1000,
-        "dimensionFilterGroups": [
-            {
-                "filters": [
-                    {
-                        "dimension": "query",
-                        "operator": "contains",
-                        "expression": "sina bari",
-                    }
-                ]
-            }
-        ],
-    }
-
-    response = (
-        service.searchanalytics()
-        .query(siteUrl=site_url, body=request_body)
-        .execute()
-    )
-
-    return response.get("rows", [])
-
-
-def fetch_branded_performance(service, site_url, start_date, end_date):
-    """Fetch aggregate branded query performance."""
-    results = []
-    for query in BRANDED_QUERIES:
-        request_body = {
-            "startDate": start_date,
-            "endDate": end_date,
-            "dimensions": ["query"],
-            "dimensionFilterGroups": [
-                {
-                    "filters": [
-                        {
-                            "dimension": "query",
-                            "operator": "equals",
-                            "expression": query,
-                        }
-                    ]
-                }
-            ],
-        }
-        response = (
-            service.searchanalytics()
-            .query(siteUrl=site_url, body=request_body)
-            .execute()
-        )
-        rows = response.get("rows", [])
-        if rows:
-            results.append(
-                {
-                    "query": query,
-                    "clicks": rows[0].get("clicks", 0),
-                    "impressions": rows[0].get("impressions", 0),
-                    "ctr": rows[0].get("ctr", 0),
-                    "position": rows[0].get("position", 0),
-                }
-            )
-
-    return results
-
-
-# ---------------------------------------------------------------------------
-# Data Push
-# ---------------------------------------------------------------------------
-
-def push_to_n8n(data):
-    """Push collected data to the Measurement Agent webhook."""
-    import urllib.request
-
-    payload = json.dumps(
-        {
-            "source": "gsc",
-            "collected_at": datetime.utcnow().isoformat() + "Z",
-            "data": data,
-        }
-    ).encode()
-
-    req = urllib.request.Request(
-        WEBHOOK_URL,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+def gsc_query(token, site_url, body):
+    encoded = site_url.replace('/', '%2F').replace(':', '%3A')
+    data = json.dumps(body).encode()
+    req = Request(f"https://www.googleapis.com/webmasters/v3/sites/{encoded}/searchAnalytics/query",
+        data=data, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    resp = urlopen(req)
+    return json.loads(resp.read())
 
 def main():
-    print(f"[{datetime.now().isoformat()}] Starting GSC data collection")
-
-    service = get_gsc_service()
-
-    # Collect last 7 days of data
-    end_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")  # GSC has ~3 day lag
-    start_date = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
-
-    all_data = {}
-
-    for site_url in SITES:
-        domain = site_url.replace("sc-domain:", "")
-        print(f"  Fetching data for {domain}...")
-
+    token = get_access_token()
+    now = time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_date = time.strftime('%Y-%m-%d', time.localtime(time.time() - 2*86400))
+    start_date = time.strftime('%Y-%m-%d', time.localtime(time.time() - 30*86400))
+    
+    sites = [
+        ('sinabarimd', 'sc-domain:sinabarimd.com'),
+        ('sinabari_net', 'sc-domain:sinabari.net'),
+        ('sinabariplasticsurgery', 'sc-domain:sinabariplasticsurgery.com'),
+    ]
+    
+    results = {}
+    for site_id, gsc_prop in sites:
+        print(f"Querying {site_id}...")
         try:
-            analytics = fetch_search_analytics(service, site_url, start_date, end_date)
-            branded = fetch_branded_performance(service, site_url, start_date, end_date)
-
-            all_data[domain] = {
-                "search_analytics": analytics,
-                "branded_performance": branded,
-                "period": {"start": start_date, "end": end_date},
+            queries = gsc_query(token, gsc_prop, {"startDate": start_date, "endDate": end_date, "dimensions": ["query"], "rowLimit": 25})
+            pages = gsc_query(token, gsc_prop, {"startDate": start_date, "endDate": end_date, "dimensions": ["page"], "rowLimit": 25})
+            branded = gsc_query(token, gsc_prop, {"startDate": start_date, "endDate": end_date, "dimensions": ["query"], "rowLimit": 10,
+                "dimensionFilterGroups": [{"filters": [{"dimension": "query", "operator": "contains", "expression": "sina bari"}]}]})
+            
+            q_rows = queries.get('rows', [])
+            p_rows = pages.get('rows', [])
+            b_rows = branded.get('rows', [])
+            
+            results[site_id] = {
+                "clicks": sum(r.get('clicks', 0) for r in q_rows),
+                "impressions": sum(r.get('impressions', 0) for r in q_rows),
+                "top_queries": [{"query": r['keys'][0], "clicks": r['clicks'], "impressions": r['impressions'], "position": round(r['position'], 1)} for r in q_rows[:10]],
+                "top_pages": [{"page": r['keys'][0], "clicks": r['clicks'], "impressions": r['impressions'], "position": round(r['position'], 1)} for r in p_rows[:10]],
+                "branded_queries": [{"query": r['keys'][0], "clicks": r['clicks'], "impressions": r['impressions'], "position": round(r['position'], 1)} for r in b_rows],
+                "indexed_pages": len(p_rows),
+                "best_branded_position": min((r['position'] for r in b_rows), default=None),
             }
-
-            print(f"    {len(analytics)} rows, {len(branded)} branded queries tracked")
-
+            print(f"  clicks={results[site_id]['clicks']} imp={results[site_id]['impressions']} branded_pos={results[site_id]['best_branded_position']}")
         except Exception as e:
-            print(f"    Error: {e}")
-            all_data[domain] = {"error": str(e)}
-
-    # Push to n8n
+            print(f"  Error: {e}")
+            results[site_id] = {"error": str(e)}
+    
+    # Push to Measurement Agent
+    measurement = {"measured_at": now, "source": "gsc", "sites": results,
+        "total_clicks": sum(r.get('clicks', 0) for r in results.values()),
+        "total_impressions": sum(r.get('impressions', 0) for r in results.values()),
+        "branded_positions": {k: v.get('best_branded_position') for k, v in results.items() if v.get('best_branded_position')}}
+    
+    payload = json.dumps({"measurement": measurement}).encode()
+    req = Request(f"{N8N_WEBHOOK}/store-measurement", data=payload,
+        headers={"Content-Type": "application/json"}, method="POST")
     try:
-        result = push_to_n8n(all_data)
-        print(f"  Data pushed to n8n: {result}")
+        resp = urlopen(req)
+        print(f"\nPushed to agent: {resp.read().decode()[:100]}")
     except Exception as e:
-        print(f"  Failed to push to n8n: {e}")
-        # Save locally as fallback
-        fallback_path = f"/tmp/gsc_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        with open(fallback_path, "w") as f:
-            json.dump(all_data, f, indent=2)
-        print(f"  Saved locally to {fallback_path}")
+        print(f"\nFailed to push (agent may need store-measurement endpoint): {e}")
+    
+    print(f"\nMeasurement complete: {json.dumps(measurement, indent=2)[:500]}")
+    return measurement
 
-    print(f"[{datetime.now().isoformat()}] Collection complete")
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

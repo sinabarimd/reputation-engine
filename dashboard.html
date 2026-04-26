@@ -1,0 +1,3350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reputation Engine — Dashboard</title>
+  <meta name="robots" content="noindex, nofollow"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #efeeeb;
+      --bg2: #e8e7e3;
+      --navy: #001a2b;
+      --green: #2e7d52;
+      --amber: #9a6c00;
+      --red: #c0392b;
+      --text: #1c1b1f;
+      --muted: #666;
+      --border: #d0cfc9;
+      --card: #f8f7f4;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; min-height: 100vh; }
+
+    /* ── Gate ── */
+    #gate {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; align-items: center; justify-content: center; z-index: 999;
+    }
+    #gate.hidden { display: none; }
+    .gate-box { text-align: center; width: 320px; }
+    .gate-box h1 { font-family: 'Cormorant Garamond', serif; font-size: 2rem; color: var(--navy); margin-bottom: 0.25rem; }
+    .gate-box p { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 2rem; }
+    .gate-box input {
+      width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border);
+      background: white; font-size: 1rem; outline: none; margin-bottom: 0.75rem;
+      font-family: 'Inter', sans-serif; border-radius: 2px;
+    }
+    .gate-box input:focus { border-color: var(--navy); }
+    .gate-box button {
+      width: 100%; padding: 0.75rem; background: var(--navy); color: white;
+      border: none; font-family: 'Inter', sans-serif; font-size: 0.8rem;
+      letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; border-radius: 2px;
+    }
+    .gate-box button:hover { opacity: 0.85; }
+    #gate-error { color: var(--red); font-size: 0.75rem; margin-top: 0.5rem; min-height: 1rem; }
+
+    /* ── Layout ── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+    #app.visible { display: flex; }
+
+    header {
+      background: var(--navy); color: white; padding: 0.875rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-family: 'Cormorant Garamond', serif; font-size: 1.25rem; letter-spacing: 0.02em; }
+    header span { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.6; margin-left: 0.75rem; }
+    #logout-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.25); color: white;
+      font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.35rem 0.75rem; cursor: pointer; border-radius: 2px; font-family: 'Inter', sans-serif;
+    }
+    #logout-btn:hover { background: rgba(255,255,255,0.1); }
+
+    .tabs {
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      display: flex; padding: 0 1.5rem;
+    }
+    .tab {
+      padding: 0.875rem 1.25rem; font-size: 0.7rem; letter-spacing: 0.12em;
+      text-transform: uppercase; cursor: pointer; border-bottom: 2px solid transparent;
+      color: var(--muted); transition: color 0.15s; margin-bottom: -1px;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--navy); border-bottom-color: var(--navy); font-weight: 500; }
+
+    main { flex: 1; padding: 2rem 1.5rem; max-width: 1100px; min-width: 0; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Cards & components ── */
+    .section-title {
+      font-family: 'Cormorant Garamond', serif; font-size: 1.5rem;
+      color: var(--navy); margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 3px; padding: 1.25rem; margin-bottom: 1rem;
+    }
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+    .card-title { font-weight: 600; font-size: 0.9rem; line-height: 1.4; }
+    .card-meta { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
+    .card-excerpt { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; line-height: 1.5; }
+    .card-actions { display: flex; gap: 0.5rem; margin-top: 0.875rem; flex-wrap: wrap; }
+
+    .badge {
+      display: inline-block; font-size: 0.6rem; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 2px; font-weight: 500;
+    }
+    .badge-pending { background: #fff3cd; color: var(--amber); }
+    .badge-approved { background: #d4edda; color: var(--green); }
+    .badge-site { background: var(--bg2); color: var(--navy); }
+    .badge-high { background: #d4edda; color: var(--green); }
+    .badge-medium { background: #fff3cd; color: var(--amber); }
+    .badge-low { background: #f8d7da; color: var(--red); }
+
+    btn, .btn {
+      display: inline-block; padding: 0.45rem 1rem; font-size: 0.7rem;
+      letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+      border-radius: 2px; font-family: 'Inter', sans-serif; border: none;
+      transition: opacity 0.15s; text-decoration: none;
+    }
+    .btn-primary { background: var(--navy); color: white; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-outline { background: none; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--navy); color: var(--navy); }
+    .btn-success { background: var(--green); color: white; }
+    .btn-success:hover { opacity: 0.85; }
+    .btn-danger { background: var(--red); color: white; }
+    .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.65rem; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .form-row { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .form-group label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .form-group select, .form-group input, .form-group textarea {
+      padding: 0.5rem 0.75rem; border: 1px solid var(--border); background: white;
+      font-size: 0.85rem; font-family: 'Inter', sans-serif; border-radius: 2px; outline: none;
+    }
+    .form-group select:focus, .form-group input:focus, .form-group textarea:focus { border-color: var(--navy); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+    .empty-state p { font-size: 0.85rem; }
+
+    .toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: var(--navy); color: white; padding: 0.75rem 1.25rem;
+      font-size: 0.8rem; border-radius: 3px; z-index: 1000;
+      opacity: 0; transform: translateY(8px); transition: all 0.25s;
+      max-width: 360px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--red); }
+    .sidebar-item { display:block; padding:0.6rem 1.25rem; font-size:0.75rem; color:var(--muted); cursor:pointer; text-decoration:none; border-left:3px solid transparent; }
+    .sidebar-item:hover { color:var(--text); background:var(--card); }
+    .sidebar-item.active { color:var(--navy); font-weight:600; border-left-color:var(--navy); background:var(--card); }
+    .toast.success { background: var(--green); }
+
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,26,43,0.2); border-top-color: var(--navy); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Draft preview modal ── */
+    #preview-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
+      display: none; align-items: center; justify-content: center; padding: 1rem;
+    }
+    #preview-modal.open { display: flex; }
+    .modal-box {
+      background: var(--card); border: 1px solid var(--border); border-radius: 4px;
+      width: 100%; max-width: 760px; max-height: 88vh; display: flex; flex-direction: column;
+    }
+    .modal-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-header h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; }
+    .modal-body { overflow-y: auto; padding: 1.5rem; flex: 1; }
+    .modal-body h1 { font-family: 'Cormorant Garamond', serif; font-size: 1.75rem; margin-bottom: 0.75rem; line-height: 1.25; }
+    .modal-body .excerpt { color: var(--muted); font-style: italic; margin-bottom: 1.5rem; line-height: 1.6; }
+    .modal-body .content-html h2 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .modal-body .content-html h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.35rem; }
+    .modal-body .content-html p { line-height: 1.7; margin-bottom: 1rem; color: #333; font-size: 0.9rem; }
+    .modal-body .content-html a { color: var(--navy); }
+    .modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+    /* ── Site grid for research ── */
+    .site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .site-section h3 { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+    .candidate-card { background: white; border: 1px solid var(--border); border-radius: 3px; padding: 1rem; margin-bottom: 0.75rem; }
+    .candidate-title { font-size: 0.85rem; font-weight: 500; line-height: 1.4; margin-bottom: 0.35rem; }
+    .candidate-rationale { font-size: 0.75rem; color: var(--muted); line-height: 1.5; margin-bottom: 0.5rem; }
+    .candidate-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .candidate-actions { display: flex; gap: 0.5rem; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    .status-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+    .status-row:last-child { border-bottom: none; }
+    .loading-msg { color: var(--muted); font-size: 0.8rem; display: flex; align-items: center; padding: 1rem 0; }
+  </style>
+</head>
+<body>
+
+<!-- Password Gate -->
+<div id="gate">
+  <div class="gate-box">
+    <h1>Reputation Engine</h1>
+    <p>Operator Dashboard</p>
+    <input type="password" id="pw-input" placeholder="Password" autocomplete="current-password"/>
+    <button onclick="checkPassword()">Enter</button>
+    <div id="gate-error"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header>
+    <div style="display:flex;align-items:center;">
+      <h1>Reputation Engine</h1>
+      <span>Operator Dashboard</span>
+    </div>
+    <button id="logout-btn" onclick="logout()">Logout</button>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchSection('home')">Overview</div>
+    <div class="tab" onclick="switchSection('content')">Content</div>
+    <div class="tab" onclick="switchSection('seogroup')">SEO</div>
+  </div>
+
+  <div id="layout-wrapper" style="display:flex;min-height:calc(100vh - 120px);">
+    <!-- Left sidebar menu (hidden for Overview) -->
+    <nav id="sidebar" style="display:none;width:180px;background:var(--bg2);border-right:1px solid var(--border);padding:1rem 0;flex-shrink:0;">
+      <div id="sidebar-content"></div>
+    </nav>
+
+    <main style="flex:1;">
+    <!-- ── OVERVIEW PANEL ── -->
+    <div id="panel-home" class="panel active">
+      <div id="home-loading" class="loading-msg"><span class="spinner"></span>Loading status…</div>
+      <div id="home-snapshot" style="display:none;">
+        <!-- Snapshot stats -->
+        <div id="home-stats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:0.75rem;margin-bottom:2rem;"></div>
+        <!-- Daily Todos -->
+        <div id="home-todos-section" style="margin-bottom:2rem;display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;border-bottom:1px solid var(--border);padding-bottom:0.5rem;">
+            <div style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);">Daily Todos</div>
+            <span id="home-todos-count" style="font-size:0.6rem;color:var(--muted);"></span>
+          </div>
+          <div id="home-todos"></div>
+        </div>
+        <!-- Two-column: Content | SEO -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">
+          <div>
+            <div style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;border-bottom:1px solid var(--border);padding-bottom:0.5rem;">Content</div>
+            <div id="home-content-alerts"></div>
+          </div>
+          <div>
+            <div style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;border-bottom:1px solid var(--border);padding-bottom:0.5rem;">SEO</div>
+            <div id="home-seo-alerts"></div>
+          </div>
+        </div>
+        <!-- Recent activity -->
+        <div id="home-recent" style="margin-bottom:1.5rem;"></div>
+      </div>
+    </div>
+
+    <!-- ── RESEARCH PANEL ── -->
+    <div id="panel-research" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Research Candidates</h2>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadResearch()">↻ Refresh</button>
+          <button class="btn btn-primary btn-sm" onclick="toggleAddTopic()">+ Add Topic</button>
+        </div>
+      </div>
+      <div id="research-status" style="margin-bottom:1.5rem;"></div>
+
+      <!-- Add custom topic form -->
+      <div id="add-topic-form" style="display:none;" class="card" style="margin-bottom:1.5rem;">
+        <div style="font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Add Custom Topic</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Site</label>
+            <select id="add-topic-site">
+              <option value="sinabarimd">sinabarimd.com</option>
+              <option value="sinabari_net">sinabari.net</option>
+              <option value="sinabariplasticsurgery">sinabariplasticsurgery.com</option>
+              <option value="drsinabari">drsinabari.com</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Content Type</label>
+            <select id="add-topic-type">
+              <option value="standard">Standard</option>
+              <option value="short_form">Short Form</option>
+              <option value="longform">Long Form</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Topic</label>
+          <textarea id="add-topic-text" placeholder="Describe the topic and angle…"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Attachment <span style="font-weight:normal;color:var(--muted);">(optional)</span></label>
+          <input type="file" id="add-topic-file" accept=".pdf,.docx,.txt,.md" style="font-size:0.78rem;padding:0.3rem 0;">
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:0.15rem;">PDF, DOCX, TXT, or MD — max 2 MB</div>
+          <div id="add-topic-file-status" style="font-size:0.7rem;margin-top:0.25rem;display:none;"></div>
+        </div>
+        <div id="suggest-results" style="display:none;margin-bottom:0.75rem;"></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-primary btn-sm" onclick="addTopic()">Add Topic</button>
+          <button class="btn btn-outline btn-sm" id="suggest-btn" onclick="suggestTopics()">Suggest</button>
+          <button class="btn btn-outline btn-sm" onclick="toggleAddTopic()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Phase 2 trigger form -->
+      <div id="phase2-form" style="display:none;" class="card">
+        <div style="font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Trigger Phase 2 Deep Research</div>
+        <input type="hidden" id="p2-site"/>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Site</label>
+          <input type="text" id="p2-site-display" readonly style="background:var(--bg2);"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Selected Topic</label>
+          <textarea id="p2-topic" style="min-height:60px;"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Content Type</label>
+            <select id="p2-type">
+              <option value="standard">Standard</option>
+              <option value="short_form">Short Form</option>
+              <option value="longform">Long Form</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Additional Direction (optional)</label>
+          <textarea id="p2-direction" placeholder="Extra guidance for the researcher…" style="min-height:60px;"></textarea>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-primary btn-sm" onclick="triggerPhase2()">Run Deep Research</button>
+          <button class="btn btn-outline btn-sm" onclick="closePhase2()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="research-loading" class="loading-msg"><span class="spinner"></span>Loading candidates…</div>
+      <div id="research-empty" class="empty-state" style="display:none;">
+        <p>No candidates yet. Phase 1 runs every Friday at 09:00 PST, or add a custom topic above.</p>
+      </div>
+      <div id="research-grid" class="site-grid"></div>
+    </div>
+
+    <!-- ── DRAFTS PANEL ── -->
+    <div id="panel-drafts" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Drafts</h2>
+        <button class="btn btn-outline btn-sm" onclick="loadDrafts()">↻ Refresh</button>
+      </div>
+      <div id="drafts-loading" class="loading-msg"><span class="spinner"></span>Loading drafts…</div>
+      <div id="drafts-empty" class="empty-state" style="display:none;"><p>No drafts yet.</p></div>
+      <div id="pending-section" style="display:none;">
+        <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Pending Review</div>
+        <div id="pending-list"></div>
+      </div>
+      <!-- Approved drafts show on Publish tab only -->
+    </div>
+
+    <!-- ── PUBLISH PANEL ── -->
+    <div id="panel-publish" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Publish</h2>
+        <button class="btn btn-outline btn-sm" onclick="loadPublish()">↻ Refresh</button>
+      </div>
+      <div id="publish-loading" class="loading-msg"><span class="spinner"></span>Loading approved drafts…</div>
+      <div id="publish-empty" class="empty-state" style="display:none;"><p>No approved drafts ready to publish. Approve a draft in the Drafts tab first.</p></div>
+      <div id="publish-list"></div>
+    </div>
+
+    <!-- ── SPOTLIGHT PANEL ── -->
+    <div id="panel-spotlight" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Spotlight Article</h2>
+        <button class="btn btn-outline btn-sm" onclick="loadSpotlight()">↻ Refresh</button>
+      </div>
+      <div id="spotlight-loading" class="loading-msg"><span class="spinner"></span>Loading spotlight…</div>
+      <div id="spotlight-content" style="display:none;">
+        <div id="spotlight-current" class="card" style="margin-bottom:1.5rem;"></div>
+        <div id="spotlight-form" style="display:none;" class="card">
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label>Title</label>
+            <input type="text" id="spotlight-title" placeholder="Article title">
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label>Excerpt</label>
+            <textarea id="spotlight-excerpt" placeholder="One-sentence description" rows="2"></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label>Slug <span style="font-weight:normal;color:var(--muted);">(becomes /articles/{slug}.html)</span></label>
+            <input type="text" id="spotlight-slug" placeholder="my-article-slug">
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label>Article HTML file</label>
+            <input type="file" id="spotlight-file" accept=".html" style="font-size:0.78rem;">
+            <div style="font-size:0.65rem;color:var(--muted);margin-top:0.15rem;">Complete standalone HTML page</div>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+            <button class="btn btn-primary btn-sm" onclick="saveSpotlight()">Set Spotlight</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('spotlight-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="spotlight-campaign-status" style="margin-top:1.5rem;display:none;">
+        <div style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.5rem;">Social Campaign</div>
+        <div id="spotlight-campaign-detail"></div>
+      </div>
+      <p style="font-size:0.65rem;color:var(--muted);margin-top:1rem;">The spotlight article appears on the sinabarimd.com homepage and is preserved across all deploys. It is not subject to article rotation.</p>
+    </div>
+
+    <!-- ── SEO ACTIONS PANEL ── -->
+    <div id="panel-seo" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">SEO Actions</h2>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadSEOActions()">↻ Refresh</button>
+          <!-- Generate from Brief retired — SEO actions now reviewed in Claude Code -->
+        </div>
+      </div>
+      <div id="seo-summary" style="display:none;margin-bottom:1rem;"></div>
+      <div id="seo-brief-toggle" style="display:none;margin-bottom:1.5rem;">
+        <button class="btn btn-outline btn-sm" onclick="toggleBrief()">View Latest Brief</button>
+        <div id="seo-brief-panel" style="display:none;margin-top:1rem;">
+          <div class="card" id="seo-brief-content" style="font-size:0.82rem;line-height:1.6;"></div>
+        </div>
+      </div>
+      <div id="seo-loading" class="loading-msg"><span class="spinner"></span>Loading SEO actions…</div>
+      <div id="seo-empty" class="empty-state" style="display:none;"><p>No SEO actions pending. Weekly briefs are reviewed and actioned in Claude Code sessions.</p></div>
+      <div id="seo-actions-list"></div>
+      <div id="seo-log" style="display:none;margin-top:2rem;"></div>
+    </div>
+
+    <!-- ── WEB 2.0 CONTENT PANEL (syndication tasks) ── -->
+    <div id="panel-web20content" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Web 2.0 Content</h2>
+      </div>
+      <div id="web20-syndication" style="margin-bottom:2rem;"></div>
+      <div id="web20-activity-log"></div>
+    </div>
+
+    <!-- ── NEWS LINKS PANEL ── -->
+    <div id="panel-newslinks" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">News Links</h2>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadNewsLinks()">&#x21bb; Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="triggerMediaScan()">Scan Now</button>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-news-form').style.display=document.getElementById('add-news-form').style.display==='none'?'block':'none'">+ Add Link</button>
+        </div>
+      </div>
+      <div id="add-news-form" style="display:none;" class="card" style="margin-bottom:1.5rem;">
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>URL</label>
+          <input type="url" id="news-url" placeholder="https://...">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="news-title" placeholder="Article or mention title">
+          </div>
+          <div class="form-group">
+            <label>Source</label>
+            <input type="text" id="news-source" placeholder="e.g. Forbes, LinkedIn, etc.">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="news-date">
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="news-type">
+              <option value="mention">Mention</option>
+              <option value="publication">Publication</option>
+              <option value="interview">Interview</option>
+              <option value="press_release">Press Release</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Sentiment</label>
+            <select id="news-sentiment">
+              <option value="positive">Positive</option>
+              <option value="neutral">Neutral</option>
+              <option value="negative">Negative</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Summary <span style="font-weight:normal;color:var(--muted);">(optional)</span></label>
+          <textarea id="news-summary" rows="2" placeholder="Brief description of the mention"></textarea>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-primary btn-sm" onclick="addNewsLink()">Add News Link</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('add-news-form').style.display='none'">Cancel</button>
+        </div>
+      </div>
+      <div id="newslinks-loading" class="loading-msg"><span class="spinner"></span>Loading news links...</div>
+      <div id="newslinks-list" style="display:none;"></div>
+    </div>
+
+    <!-- ── WEB 2.0 SEO PANEL (profile scans) ── -->
+    <div id="panel-web20seo" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Web 2.0 SEO</h2>
+        <button class="btn btn-primary btn-sm" onclick="runWeb20Scan()">Run Scan</button>
+      </div>
+      <div id="web20-scan-results" style="margin-bottom:2rem;"></div>
+      <div id="web20-content"></div>
+    </div>
+
+    <!-- ── METRICS PANEL ── -->
+    <div id="panel-metrics" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">Metrics & SERP</h2>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadMetrics()">↻ Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="clearMetricAlerts()">Clear Alerts</button>
+          <button class="btn btn-primary btn-sm" onclick="runMeasurement()">Run Measurement</button>
+        </div>
+      </div>
+      <div id="metrics-loading" class="loading-msg"><span class="spinner"></span>Loading metrics…</div>
+      <div id="metrics-empty" class="empty-state" style="display:none;"><p>No measurements yet. Click "Run Measurement" to take the first SERP snapshot.</p></div>
+      <div id="metrics-summary" style="display:none;"></div>
+      <div id="metrics-alerts" style="display:none;margin-bottom:1.5rem;"></div>
+      <div id="metrics-serp" style="display:none;margin-bottom:1.5rem;"></div>
+      <div id="metrics-trend" style="display:none;"></div>
+      <div id="metrics-security" style="display:none;margin-top:1.5rem;"></div>
+      <div id="metrics-github" style="display:none;margin-top:1.5rem;"></div>
+    </div>
+
+    <!-- ── QA PANEL ── -->
+    <div id="panel-qa" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:0;">SEO QA</h2>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadQA()">↻ Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="runDomainQA()">Domain Check</button>
+          <button class="btn btn-outline btn-sm" onclick="runPortfolioQA()">Portfolio Check</button>
+          <button class="btn btn-primary btn-sm" onclick="runQASweep()">Article Sweep</button>
+        </div>
+      </div>
+      <div id="qa-loading" class="loading-msg"><span class="spinner"></span>Loading QA results…</div>
+      <div id="qa-empty" class="empty-state" style="display:none;"><p>No QA results yet. Results appear automatically after each publish, or run checks above.</p></div>
+      <div id="qa-portfolio-section" style="display:none;margin-bottom:2rem;"></div>
+      <div id="qa-domain-section" style="display:none;margin-bottom:2rem;"></div>
+      <div id="qa-article-section" style="display:none;"></div>
+    </div>
+  </main>
+  </div><!-- close layout-wrapper -->
+</div>
+
+<!-- Preview Modal -->
+<div id="preview-modal" onclick="closePreview(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <h3 id="modal-title">Draft Preview</h3>
+        <div id="modal-edit-indicator" style="display:none;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--amber);">Edited</div>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <button class="btn btn-outline btn-sm" id="modal-edit-toggle" onclick="toggleEditMode()">Edit</button>
+        <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <!-- Read mode -->
+    <div class="modal-body" id="modal-read-mode">
+      <h1 id="modal-article-title"></h1>
+      <p class="excerpt" id="modal-excerpt"></p>
+      <div class="content-html" id="modal-content"></div>
+    </div>
+    <!-- Edit mode -->
+    <div class="modal-body" id="modal-edit-mode" style="display:none;">
+      <div class="form-group" style="margin-bottom:1rem;">
+        <label>Site (reroute draft to a different site)</label>
+        <select id="edit-site" style="padding:0.5rem 0.75rem;font-size:0.9rem;">
+          <option value="sinabarimd">sinabarimd.com — Identity Hub</option>
+          <option value="sinabari_net">sinabari.net — Healthcare AI</option>
+          <option value="sinabariplasticsurgery">sinabariplasticsurgery.com — Plastic Surgery</option>
+          <option value="drsinabari">drsinabari.com — Editorial</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:1rem;">
+        <label>Title</label>
+        <input type="text" id="edit-title" style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;padding:0.6rem 0.75rem;"/>
+      </div>
+      <div class="form-group" style="margin-bottom:1rem;">
+        <label>Excerpt</label>
+        <textarea id="edit-excerpt" style="min-height:70px;font-size:0.9rem;line-height:1.6;"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Content (HTML)</label>
+        <textarea id="edit-content" style="min-height:400px;font-family:monospace;font-size:0.8rem;line-height:1.5;"></textarea>
+      </div>
+    </div>
+    <!-- Rewrite panel -->
+    <div id="modal-rewrite-panel" style="display:none;border-top:1px solid var(--border);padding:1rem 1.5rem;background:var(--bg2);">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+        <span style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--navy);font-weight:600;">Rewrite with Suggestions</span>
+        <span id="rewrite-spinner" style="display:none;"><span class="spinner"></span></span>
+      </div>
+      <textarea id="rewrite-suggestions" rows="3" placeholder="e.g. 'Make the opening more personal', 'Add a section on clinical implications', 'Tone down the technical jargon', 'Shorten to ~800 words'" style="font-size:0.85rem;line-height:1.5;margin-bottom:0.5rem;"></textarea>
+      <div style="display:flex;gap:0.5rem;">
+        <button class="btn btn-primary btn-sm" id="rewrite-submit-btn" onclick="submitRewrite()">Rewrite Draft</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal-rewrite-panel').style.display='none'">Cancel</button>
+      </div>
+      <div id="rewrite-status" style="font-size:0.7rem;color:var(--muted);margin-top:0.5rem;display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <div id="modal-word-count" style="font-size:0.7rem;color:var(--muted);margin-right:auto;"></div>
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Close</button>
+      <button class="btn btn-outline btn-sm" id="modal-rewrite-btn" onclick="document.getElementById('modal-rewrite-panel').style.display=document.getElementById('modal-rewrite-panel').style.display==='none'?'block':'none'" style="color:var(--navy);">Rewrite</button>
+      <button class="btn btn-primary btn-sm" id="modal-save-btn" style="display:none;" onclick="saveEdits()">Save Edits</button>
+      <button class="btn btn-outline btn-sm" id="modal-dismiss-btn" style="color:var(--red);border-color:var(--red);" onclick="dismissFromModal()">Dismiss</button>
+      <button class="btn btn-success btn-sm" id="modal-approve-btn" onclick="approveFromModal()">Approve Draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+const N8N = 'https://YOUR_N8N_DOMAIN';
+const PW_HASH = 'YOUR_PASSWORD_SHA256_HASH';
+let currentModalDraft = null;
+let editMode = false;
+let suppressedChecks = {};
+
+// ── Auth ──
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function checkPassword() {
+  const pw = document.getElementById('pw-input').value;
+  const hash = await sha256(pw);
+  if (hash === PW_HASH) {
+    sessionStorage.setItem('re_auth', '1');
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('app').classList.add('visible');
+    loadHome();
+  } else {
+    document.getElementById('gate-error').textContent = 'Incorrect password.';
+    document.getElementById('pw-input').value = '';
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('re_auth');
+  location.reload();
+}
+
+document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkPassword(); });
+
+if (sessionStorage.getItem('re_auth') === '1') {
+  document.getElementById('gate').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('sidebar').style.display = 'none';
+  loadHome();
+}
+
+// ── Tabs ──
+let currentSection = 'home';
+let currentSubTab = '';
+
+const SECTION_MENUS = {
+  content: [
+    { id: 'research', label: 'Research', load: () => loadResearch() },
+    { id: 'drafts', label: 'Drafts', load: () => { loadDrafts(); startDraftsPolling(); } },
+    { id: 'publish', label: 'Publish', load: () => loadPublish() },
+    { id: 'spotlight', label: 'Spotlight', load: () => loadSpotlight() },
+    { id: 'web20content', label: 'Web 2.0 Content', load: () => loadSyndicationTasks() },
+    { id: 'newslinks', label: 'News Links', load: () => loadNewsLinks() },
+  ],
+  seogroup: [
+    { id: 'qa', label: 'QA', load: () => loadQA() },
+    { id: 'seo', label: 'Actions', load: () => loadSEOActions() },
+    { id: 'metrics', label: 'Metrics', load: () => loadMetrics() },
+    { id: 'web20seo', label: 'Web 2.0 SEO', load: () => loadWeb20SEO() },
+  ],
+};
+
+// Map subtab IDs to panel IDs
+const PANEL_MAP = {
+  web20content: 'web20content', web20seo: 'web20seo',
+  research: 'research', drafts: 'drafts', publish: 'publish',
+  qa: 'qa', seo: 'seo', metrics: 'metrics',
+};
+
+function switchSection(section, defaultSub) {
+  currentSection = section;
+  stopDraftsPolling();
+
+  // Update top tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const tabIdx = section === 'home' ? 0 : section === 'content' ? 1 : 2;
+  document.querySelectorAll('.tab')[tabIdx]?.classList.add('active');
+
+  // Hide all panels
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+  const sidebar = document.getElementById('sidebar');
+  const sidebarContent = document.getElementById('sidebar-content');
+
+  if (section === 'home') {
+    sidebar.style.display = 'none';
+    document.getElementById('panel-home').classList.add('active');
+    loadHome();
+  } else {
+    sidebar.style.display = 'block';
+    const menu = SECTION_MENUS[section] || [];
+    sidebarContent.innerHTML = menu.map(m =>
+      '<div class="sidebar-item" onclick="switchSubTab(\'' + m.id + '\')" id="sidebar-' + m.id + '">' + m.label + '</div>'
+    ).join('');
+    // Auto-select specified or first subtab
+    const sub = defaultSub || (menu.length ? menu[0].id : null);
+    if (sub) switchSubTab(sub);
+  }
+}
+
+function switchSubTab(subtab) {
+  currentSubTab = subtab;
+  stopDraftsPolling();
+  
+  // Update sidebar active state
+  document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
+  const sidebarItem = document.getElementById('sidebar-' + subtab);
+  if (sidebarItem) sidebarItem.classList.add('active');
+  
+  // Show the correct panel
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const panelId = PANEL_MAP[subtab] || subtab;
+  const panel = document.getElementById('panel-' + panelId);
+  if (panel) panel.classList.add('active');
+  
+  // Load the data
+  const menu = SECTION_MENUS[currentSection] || [];
+  const item = menu.find(m => m.id === subtab);
+  if (item && item.load) item.load();
+}
+
+// ── Todo action helper (inline complete from Overview) ──
+async function todoAction(endpoint, body, successLabel) {
+  const btn = event.currentTarget;
+  const row = btn.closest('[id^="todo-"]');
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    await api(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (row) {
+      row.style.opacity = '0.5';
+      row.querySelector('span:nth-child(2)').insertAdjacentHTML('afterend',
+        ` <span style="font-size:0.65rem;color:var(--green);font-weight:600;margin-left:0.25rem;">${successLabel}</span>`);
+      row.querySelectorAll('button').forEach(b => b.style.display = 'none');
+    }
+    setTimeout(() => loadHome(), 1500);
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.style.color = 'var(--red)';
+    setTimeout(() => loadHome(), 2000);
+  }
+}
+
+// Keep old switchTab for backward compat (overview alerts link to tabs)
+function switchTab(tab) {
+  const tabMap = {
+    home: { section: 'home' },
+    research: { section: 'content', sub: 'research' },
+    drafts: { section: 'content', sub: 'drafts' },
+    publish: { section: 'content', sub: 'publish' },
+    spotlight: { section: 'content', sub: 'spotlight' },
+    web20: { section: 'content', sub: 'web20content' },
+    newslinks: { section: 'content', sub: 'newslinks' },
+    qa: { section: 'seogroup', sub: 'qa' },
+    seo: { section: 'seogroup', sub: 'seo' },
+    metrics: { section: 'seogroup', sub: 'metrics' },
+  };
+  const map = tabMap[tab];
+  if (!map) return;
+  switchSection(map.section, map.sub);
+}
+
+// ── Scheduling constants (shared by Overview + Publish) ──
+const SCHED_MIN_INTERVALS = {sinabarimd: 7, sinabari_net: 3, sinabariplasticsurgery: 7, drsinabari: 14};
+const SCHED_CRON_DAYS = {sinabarimd: [1], sinabari_net: [2, 5], sinabariplasticsurgery: [3], drsinabari: [4]};
+const SCHED_CRON_HOURS = {sinabarimd: 16, sinabari_net: 17, sinabariplasticsurgery: 18, drsinabari: 21};
+const SCHED_LAUNCH_DATE = new Date('2026-03-25T00:00:00Z');
+const SCHED_RAMP_UNLOCK_WEEK = { sinabarimd: 1, sinabari_net: 3, drsinabari: 5, sinabariplasticsurgery: 6 };
+const SCHED_ALL_SITES = ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'];
+
+function schedRampEarliestDate(site_id) {
+  const unlockWeek = SCHED_RAMP_UNLOCK_WEEK[site_id] || 1;
+  return new Date(SCHED_LAUNCH_DATE.getTime() + (unlockWeek - 1) * 7 * 24 * 60 * 60 * 1000);
+}
+
+function schedFindNextCronDay(fromDate, site_id) {
+  const cronDays = SCHED_CRON_DAYS[site_id] || [1];
+  const cronHour = SCHED_CRON_HOURS[site_id] || 16;
+  for (let dayOff = 0; dayOff <= 14; dayOff++) {
+    const candidate = new Date(fromDate);
+    candidate.setDate(candidate.getDate() + dayOff);
+    const dow = candidate.getUTCDay();
+    if (cronDays.includes(dow === 0 ? 7 : dow)) {
+      candidate.setUTCHours(cronHour, 0, 0, 0);
+      if (candidate >= fromDate) return candidate;
+    }
+  }
+  return fromDate;
+}
+
+function schedGetNextPublishDate(site_id, scheduleEntry) {
+  const s = scheduleEntry || {};
+  const rampDate = schedRampEarliestDate(site_id);
+  const now = new Date();
+  let baseDate;
+  if (s.next_cron) {
+    baseDate = new Date(s.next_cron);
+  } else {
+    const earliest = rampDate > now ? rampDate : now;
+    baseDate = schedFindNextCronDay(earliest, site_id);
+  }
+  if (baseDate < rampDate) {
+    baseDate = schedFindNextCronDay(rampDate, site_id);
+  }
+  return baseDate;
+}
+
+// ── Overview ──
+async function loadHome() {
+  document.getElementById('home-loading').style.display = 'flex';
+  document.getElementById('home-snapshot').style.display = 'none';
+
+  const labels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
+
+  try {
+    const [drafts, schedule, qa, seoActions, media, intel, metrics, syndication, campaign] = await Promise.all([
+      api('/webhook/list-drafts').catch(() => ({})),
+      api('/webhook/publish-log').catch(() => ({})),
+      api('/webhook/qa-results').catch(() => ({})),
+      api('/webhook/seo-actions').catch(() => ({})),
+      api('/webhook/media-items').catch(() => ({})),
+      api('/webhook/seo-intel').catch(() => ({})),
+      api('/webhook/metrics').catch(() => ({})),
+      api('/webhook/syndication-tasks').catch(() => ({})),
+      api('/webhook/spotlight-campaign').catch(() => ({})),
+    ]);
+
+    document.getElementById('home-loading').style.display = 'none';
+    document.getElementById('home-snapshot').style.display = 'block';
+
+    const pending = drafts.pending_drafts || [];
+    const approved = drafts.approved_drafts || [];
+    const now = new Date();
+    const sched = schedule.schedule || {};
+    const publishLog = schedule.publish_log || {};
+    const seoSummary = seoActions.summary || {};
+    const domainResults = qa.domain_results || {};
+    const articleResults = qa.article_results_by_site || {};
+    const latestM = metrics.latest_measurement;
+
+    // ── SNAPSHOT STATS ──
+    let totalArticles = 0;
+    for (const s of Object.values(articleResults)) totalArticles += (s.articles || []).length;
+    const owned = latestM?.serp?.owned_count || 0;
+    const serpColor = owned >= 8 ? 'var(--green)' : owned >= 5 ? 'var(--amber)' : 'var(--red)';
+
+    // Next publish across all sites (ramp-aware)
+    let nextPublish = null;
+    for (const sid of SCHED_ALL_SITES) {
+      const d = schedGetNextPublishDate(sid, sched[sid]);
+      if (!nextPublish || d < nextPublish.date) nextPublish = { site: sid, date: d };
+    }
+    const npLabel = nextPublish ? new Date(nextPublish.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '\u2014';
+
+    const statsCards = [
+      { label: 'Drafts', value: String(pending.length + approved.length), sub: approved.length ? approved.length + ' approved' : 'none approved', color: pending.length ? 'var(--amber)' : 'var(--navy)' },
+      { label: 'Next Publish', value: npLabel, sub: nextPublish ? labels[nextPublish.site] : 'none scheduled', color: 'var(--navy)' },
+      { label: 'SERP Owned', value: owned ? String(owned) : '\u2014', sub: latestM?.serp ? 'of ' + latestM.serp.total_results + ' results' : 'no data', color: serpColor },
+      { label: 'QA Issues', value: String(Object.values(domainResults).reduce((n,d) => n + (d.failed_checks||[]).length, 0)), sub: totalArticles + ' articles tracked', color: 'var(--navy)' },
+      { label: 'SEO Actions', value: String(seoSummary.pending || 0), sub: (seoSummary.completed||0) + ' completed', color: seoSummary.pending ? 'var(--amber)' : 'var(--navy)' },
+      { label: 'Media', value: String(media.unconsumed_count || 0), sub: media.last_run ? 'last ' + new Date(media.last_run).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'never scanned', color: 'var(--navy)' },
+    ];
+
+    document.getElementById('home-stats').innerHTML = statsCards.map(s => `
+      <div class="card" style="text-align:center;padding:1rem 0.75rem;">
+        <div style="font-size:0.55rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.35rem;">${s.label}</div>
+        <div style="font-size:1.5rem;font-weight:600;color:${s.color};font-family:'Cormorant Garamond',serif;">${s.value}</div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:0.2rem;">${s.sub}</div>
+      </div>
+    `).join('');
+
+    // ── DAILY TODOS ──
+    const todos = [];
+    const seoActionList = seoActions.actions || [];
+
+    // Schedule-driven todos (publish deadlines)
+    for (const sid of SCHED_ALL_SITES) {
+      const nextDate = schedGetNextPublishDate(sid, sched[sid]);
+      const diffHrs = (nextDate - now) / (1000*60*60);
+      const hasApproved = approved.some(d => d.site_id === sid);
+      const hasPending = pending.some(d => d.site_id === sid);
+      const isRampBlocked = !sched[sid]?.next_cron;
+      if (isRampBlocked || hasApproved) continue;
+
+      const timeLabel = diffHrs < 0 ? Math.abs(Math.round(diffHrs)) + 'h overdue' : Math.round(diffHrs) + 'h';
+      const siteLabel = labels[sid] || sid;
+
+      if (diffHrs < 24 && diffHrs > -48) {
+        if (!hasPending) {
+          todos.push({ type: 'Content', priority: 0, icon: '\u26a0', color: 'var(--red)',
+            text: `${siteLabel}: publish ${diffHrs < 0 ? timeLabel : 'in ' + timeLabel} — no content`,
+            actions: [{ label: 'Start Research', onclick: `switchTab('research')` }]
+          });
+        } else {
+          todos.push({ type: 'Content', priority: 0, icon: '\u26a0', color: 'var(--red)',
+            text: `${siteLabel}: publish ${diffHrs < 0 ? timeLabel : 'in ' + timeLabel} — needs approval`,
+            actions: [{ label: 'Review Draft', onclick: `switchTab('drafts')` }]
+          });
+        }
+      } else if (diffHrs < 72 && diffHrs >= 24) {
+        if (!hasPending) {
+          todos.push({ type: 'Content', priority: 1, icon: '\u23f0', color: 'var(--amber)',
+            text: `${siteLabel}: publish in ${timeLabel} — start research`,
+            actions: [{ label: 'Research', onclick: `switchTab('research')` }]
+          });
+        } else {
+          todos.push({ type: 'Content', priority: 1, icon: '\u23f0', color: 'var(--amber)',
+            text: `${siteLabel}: publish in ${timeLabel} — review draft`,
+            actions: [{ label: 'Review Draft', onclick: `switchTab('drafts')` }]
+          });
+        }
+      }
+    }
+
+    // QA failures
+    for (const [sid, d] of Object.entries(domainResults)) {
+      if (d.failed_checks && d.failed_checks.length > 0) {
+        todos.push({ type: 'SEO', priority: 2, icon: '\u2717', color: 'var(--red)',
+          text: `Fix ${d.failed_checks.length} QA issue${d.failed_checks.length>1?'s':''} on ${labels[sid]||sid}`,
+          actions: [{ label: 'View', onclick: `switchTab('qa')` }]
+        });
+      }
+    }
+
+    // New SEO brief — prompt operator to share with Claude Code
+    if (intel.latest_brief) {
+      const briefAge = (now - new Date(intel.latest_brief.generated_at)) / (1000*60*60*24);
+      const briefDateKey = intel.latest_brief.generated_at.split('T')[0];
+      const dismissedBrief = localStorage.getItem('dismissed_seo_brief');
+      if (briefAge < 7 && dismissedBrief !== briefDateKey) {
+        const briefDate = new Date(intel.latest_brief.generated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        todos.push({ type: 'SEO', priority: 3, icon: '\ud83d\udcca', color: 'var(--navy)',
+          text: `New weekly SEO brief (${briefDate}) -- share with Claude Code for actioning`,
+          actions: [
+            { label: 'View Brief', onclick: `switchTab('seo')` },
+            { label: 'Dismiss', onclick: `localStorage.setItem('dismissed_seo_brief','${briefDateKey}');event.target.closest('[style*=\"border-left\"]').remove()` },
+          ]
+        });
+      }
+    }
+
+    // Media items to review
+    const mediaItems = media.items || [];
+    for (const m of mediaItems.filter(m => m.status !== 'dismissed').slice(0, 3)) {
+      todos.push({ type: 'Content', priority: 4, icon: '\ud83d\udcf0', color: 'var(--navy)',
+        text: `Media: ${(m.title||m.url||'').slice(0,55)}`,
+        actions: [
+          { label: 'View', onclick: `switchTab('research')` },
+          { label: 'Dismiss', onclick: `todoAction('/webhook/dismiss-media-item',{item_id:'${m.item_id}'},'Dismissed')` },
+        ]
+      });
+    }
+
+    // Pending syndication tasks (standard + spotlight campaign)
+    const syndicationTasks = (syndication.tasks || []).filter(t => t.status === 'pending');
+    const todayStr = now.toISOString().split('T')[0];
+    const campaignTasks = (campaign.campaign?.tasks || []).filter(t => t.date <= todayStr && t.status === 'pending');
+    const allWeb20Pending = [...campaignTasks, ...syndicationTasks];
+    if (allWeb20Pending.length > 0) {
+      const isCampaign = campaignTasks.length > 0;
+      todos.push({ type: 'Web 2.0', priority: 3, icon: isCampaign ? '\u2605' : '\ud83d\udce3', color: isCampaign ? 'var(--green)' : 'var(--navy)',
+        text: `${allWeb20Pending.length} syndication task${allWeb20Pending.length>1?'s':''} pending${isCampaign ? ' (includes spotlight campaign)' : ''}`,
+        actions: [{ label: 'View', onclick: `switchTab('web20')` }]
+      });
+    }
+
+    // Sort: priority ascending (0=urgent deadline, 1=approaching, 2=review/QA, 3=SEO+web2.0, 4=media)
+    todos.sort((a, b) => a.priority - b.priority);
+
+    const todosSection = document.getElementById('home-todos-section');
+    const todosEl = document.getElementById('home-todos');
+    if (todos.length > 0) {
+      todosSection.style.display = 'block';
+      document.getElementById('home-todos-count').textContent = todos.length + ' item' + (todos.length > 1 ? 's' : '');
+      todosEl.innerHTML = todos.map((t, i) => `
+        <div id="todo-${i}" style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.75rem;margin-bottom:0.35rem;background:var(--card);border:1px solid var(--border);border-left:5px solid ${t.color};border-radius:2px;">
+          <div style="display:flex;align-items:center;gap:0.5rem;min-width:0;flex:1;">
+            <span style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:${t.type==='SEO'?'var(--navy)':'var(--amber)'};font-weight:600;width:48px;flex-shrink:0;">${t.type}</span>
+            <span style="font-size:0.78rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.text}</span>
+          </div>
+          <div style="display:flex;gap:0.35rem;flex-shrink:0;margin-left:0.5rem;">
+            ${t.actions.map(a => `<button class="btn btn-outline btn-sm" style="${a.style||''}" onclick="${a.onclick}">${a.label}</button>`).join('')}
+          </div>
+        </div>
+      `).join('');
+    } else {
+      todosSection.style.display = 'block';
+      document.getElementById('home-todos-count').textContent = '';
+      todosEl.innerHTML = `<div style="padding:0.6rem 0.75rem;font-size:0.78rem;color:var(--green);">\u2713 Nothing to do — all clear</div>`;
+    }
+
+    // ── CONTENT ALERTS ──
+    const contentAlerts = [];
+
+    if (approved.length > 0) {
+      contentAlerts.push({ icon: '\u2713', color: 'var(--green)',
+        text: `${approved.length} approved draft${approved.length>1?'s':''} ready to publish`,
+        action: { label: 'View', tab: 'publish' } });
+    }
+    if (pending.length > 0) {
+      contentAlerts.push({ icon: '\u270e', color: 'var(--amber)',
+        text: `${pending.length} draft${pending.length>1?'s':''} pending review`,
+        action: { label: 'Review', tab: 'drafts' } });
+    }
+
+    for (const sid of SCHED_ALL_SITES) {
+      const nextDate = schedGetNextPublishDate(sid, sched[sid]);
+      const diffHrs = (nextDate - now) / (1000*60*60);
+      const hasApproved = approved.some(d => d.site_id === sid);
+      const hasPending = pending.some(d => d.site_id === sid);
+      const isRampBlocked = !sched[sid]?.next_cron;
+
+      // For ramp-blocked sites with approved content, show a calm status line
+      if (isRampBlocked && hasApproved) {
+        const dateLabel = nextDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        contentAlerts.push({ icon: '\u23f3', color: 'var(--muted)',
+          text: `${labels[sid]||sid}: approved, publishes ${dateLabel} (ramp)`,
+          action: { label: 'View', tab: 'publish' } });
+        continue;
+      }
+      if (isRampBlocked) continue; // Not yet eligible, no content — nothing to warn about
+
+      const timeLabel = diffHrs < 0 ? Math.abs(Math.round(diffHrs)) + 'h ago' : Math.round(diffHrs) + 'h';
+      if (diffHrs < 24 && diffHrs > -48) {
+        if (!hasApproved && !hasPending) {
+          contentAlerts.push({ icon: '\u26a0', color: 'var(--red)',
+            text: `${labels[sid]||sid}: ${diffHrs < 0 ? 'overdue ' + timeLabel : 'in ' + timeLabel}, no content`,
+            action: { label: 'Add', tab: 'research' } });
+        } else if (!hasApproved && hasPending) {
+          contentAlerts.push({ icon: '\u23f0', color: 'var(--red)',
+            text: `${labels[sid]||sid}: ${diffHrs < 0 ? 'overdue' : 'in ' + timeLabel}, needs approval`,
+            action: { label: 'Approve', tab: 'drafts' } });
+        }
+      } else if (diffHrs < 72 && diffHrs >= 24) {
+        if (!hasApproved && !hasPending) {
+          contentAlerts.push({ icon: '\u23f0', color: 'var(--amber)',
+            text: `${labels[sid]||sid}: publish in ${timeLabel}, no content yet`,
+            action: { label: 'Add', tab: 'research' } });
+        } else if (!hasApproved && hasPending) {
+          contentAlerts.push({ icon: '\u270e', color: 'var(--amber)',
+            text: `${labels[sid]||sid}: publish in ${timeLabel}, draft pending`,
+            action: { label: 'Review', tab: 'drafts' } });
+        }
+      }
+    }
+
+    if ((media.negative_alerts || 0) > 0) {
+      contentAlerts.push({ icon: '\u26a0', color: 'var(--red)',
+        text: `${media.negative_alerts} negative media mention${media.negative_alerts>1?'s':''}`,
+        action: { label: 'View', tab: 'newslinks' } });
+    }
+    // Show recent media items (<1 week old) individually in alerts
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const recentMedia = (media.all_unconsumed || []).filter(m => new Date(m.ingested_at || m.date) > oneWeekAgo);
+    if (recentMedia.length > 0) {
+      for (const m of recentMedia.slice(0, 4)) {
+        contentAlerts.push({ icon: '\ud83d\udcf0', color: 'var(--green)',
+          text: `New: ${(m.title||'').slice(0,50)} (${m.source||'web'})`,
+          action: { label: 'View', tab: 'newslinks' } });
+      }
+      if (recentMedia.length > 4) {
+        contentAlerts.push({ icon: '\ud83d\udcf0', color: 'var(--navy)',
+          text: `+${recentMedia.length - 4} more recent mention${recentMedia.length-4>1?'s':''}`,
+          action: { label: 'View', tab: 'newslinks' } });
+      }
+    } else if ((media.unconsumed_count || 0) > 0) {
+      contentAlerts.push({ icon: '\ud83d\udcf0', color: 'var(--muted)',
+        text: `${media.unconsumed_count} older media mention${media.unconsumed_count>1?'s':''} (>1 week)`,
+        action: null });
+    }
+
+    if (!contentAlerts.length) {
+      contentAlerts.push({ icon: '\u2713', color: 'var(--green)', text: 'All clear', action: null });
+    }
+
+    // ── SEO ALERTS ──
+    const seoAlerts = [];
+
+    for (const [sid, d] of Object.entries(domainResults)) {
+      if (d.failed_checks && d.failed_checks.length > 0) {
+        seoAlerts.push({ icon: '\u2717', color: 'var(--red)',
+          text: `${labels[sid]||sid}: ${d.failed_checks.length} QA issue${d.failed_checks.length>1?'s':''}`,
+          action: { label: 'View', tab: 'qa' } });
+      }
+    }
+
+    if (seoSummary.pending > 0) {
+      seoAlerts.push({ icon: '\u2699', color: 'var(--navy)',
+        text: `${seoSummary.pending} action${seoSummary.pending>1?'s':''} pending`,
+        action: { label: 'Review', tab: 'seo' } });
+    }
+
+    if (latestM && latestM.serp) {
+      seoAlerts.push({ icon: '\ud83c\udfaf', color: serpColor,
+        text: `SERP: ${owned}/${latestM.serp.total_results} owned, best #${latestM.serp.highest_owned_position||'\u2014'}`,
+        action: { label: 'Details', tab: 'metrics' } });
+    }
+
+    const metricAlerts = metrics.active_alerts || [];
+    for (const ma of metricAlerts) {
+      const color = ma.severity === 'high' ? 'var(--red)' : ma.severity === 'medium' ? 'var(--amber)' : 'var(--green)';
+      const icon = ma.severity === 'high' ? '\u26a0' : ma.type === 'serp_gain' ? '\u2191' : '\u2139';
+      seoAlerts.push({ icon, color, text: ma.message, action: { label: 'View', tab: 'metrics' } });
+    }
+
+    if (intel.latest_brief) {
+      const briefDate = new Date(intel.latest_brief.generated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      seoAlerts.push({ icon: '\ud83d\udcca', color: 'var(--navy)',
+        text: `Latest brief: ${briefDate}`,
+        action: { label: 'View', tab: 'seo' } });
+    }
+
+    if (!seoAlerts.length) {
+      seoAlerts.push({ icon: '\u2713', color: 'var(--green)', text: 'All clear', action: null });
+    }
+
+    // ── RENDER ALERTS ──
+    const renderAlerts = (alerts) => alerts.map(a => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.75rem;margin-bottom:0.35rem;background:var(--card);border:1px solid var(--border);border-left:5px solid ${a.color};border-radius:2px;">
+        <div style="display:flex;align-items:center;gap:0.5rem;min-width:0;">
+          <span style="font-size:0.85rem;color:${a.color};flex-shrink:0;">${a.icon}</span>
+          <span style="font-size:0.78rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.text}</span>
+        </div>
+        ${a.action ? `<button class="btn btn-outline btn-sm" style="flex-shrink:0;margin-left:0.5rem;" onclick="switchTab('${a.action.tab}')">${a.action.label}</button>` : ''}
+      </div>
+    `).join('');
+
+    document.getElementById('home-content-alerts').innerHTML = renderAlerts(contentAlerts);
+    document.getElementById('home-seo-alerts').innerHTML = renderAlerts(seoAlerts);
+
+    // ── RECENT ACTIVITY ──
+    const qaHistory = qa.recent_history || [];
+    const seoLog = seoActions.recent_log || [];
+    const syndicationLog = syndication.log || [];
+    const activity = [];
+    for (const h of qaHistory.slice(-5)) {
+      activity.push({ time: h.checked_at, type: 'QA', text: `${h.grade} - ${(h.article_url||'').split('/articles/')[1] || h.article_url}` });
+    }
+    for (const l of seoLog.slice(-5)) {
+      activity.push({ time: l.executed_at || l.created_at, type: 'SEO', text: `[${l.status}] ${l.title}` });
+    }
+    for (const [sid, info] of Object.entries(publishLog)) {
+      if (info.last_publish) {
+        activity.push({ time: info.last_publish, type: 'Publish', text: labels[sid] || sid });
+      }
+    }
+    for (const l of syndicationLog.slice(-5)) {
+      activity.push({ time: l.completed_at || l.date, type: 'Web2.0', text: `[${l.status}] ${l.platform_name}` });
+    }
+    // Include completed spotlight campaign tasks
+    for (const t of (campaign.campaign?.tasks || []).filter(t => t.status === 'completed').slice(-5)) {
+      activity.push({ time: t.completed_at, type: 'Web2.0', text: `[spotlight] ${t.platform_name} - ${t.post_type}` });
+    }
+    activity.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    if (activity.length) {
+      document.getElementById('home-recent').innerHTML = `
+        <div style="font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;border-bottom:1px solid var(--border);padding-bottom:0.5rem;">Recent Activity</div>
+        ${activity.slice(0, 8).map(a => {
+          const ts = a.time ? new Date(a.time).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+          const typeColor = a.type === 'Publish' ? 'var(--green)' : a.type === 'QA' ? 'var(--amber)' : a.type === 'Web2.0' ? '#6366f1' : 'var(--navy)';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid var(--bg2);">
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <span style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:${typeColor};font-weight:600;width:45px;">${a.type}</span>
+              <span style="font-size:0.78rem;">${a.text}</span>
+            </div>
+            <span style="font-size:0.65rem;color:var(--muted);white-space:nowrap;">${ts}</span>
+          </div>`;
+        }).join('')}
+      `;
+    }
+
+  } catch(e) {
+    document.getElementById('home-loading').style.display = 'none';
+    document.getElementById('home-snapshot').style.display = 'block';
+    document.getElementById('home-content-alerts').innerHTML = `<div class="card" style="color:var(--red);font-size:0.8rem;">Load error: ${e.message}</div>`;
+  }
+}
+
+// ── Toast ──
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── API ──
+async function api(path, opts = {}) {
+  const res = await fetch(N8N + path, {
+    headers: {'Content-Type': 'application/json'},
+    ...opts
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
+}
+
+// ── Research ──
+function toggleAddTopic() {
+  const f = document.getElementById('add-topic-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function openPhase2(site_id, topic, content_type) {
+  document.getElementById('p2-site').value = site_id;
+  const labels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
+  document.getElementById('p2-site-display').value = labels[site_id] || site_id;
+  document.getElementById('p2-topic').value = topic || '';
+  document.getElementById('p2-type').value = content_type || 'standard';
+  document.getElementById('p2-direction').value = '';
+  document.getElementById('phase2-form').style.display = 'block';
+  document.getElementById('phase2-form').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function closePhase2() {
+  document.getElementById('phase2-form').style.display = 'none';
+}
+
+async function addTopic() {
+  const site_id = document.getElementById('add-topic-site').value;
+  const topic = document.getElementById('add-topic-text').value.trim();
+  const content_type = document.getElementById('add-topic-type').value;
+  if (!topic) { toast('Enter a topic first.', 'error'); return; }
+
+  const fileInput = document.getElementById('add-topic-file');
+  const statusEl = document.getElementById('add-topic-file-status');
+  let attachment_b64 = null, attachment_filename = null;
+
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    if (file.size > 2 * 1024 * 1024) { toast('File too large — max 2 MB.', 'error'); return; }
+    statusEl.textContent = 'Reading file...';
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--muted)';
+    attachment_b64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    attachment_filename = file.name;
+    statusEl.textContent = 'Uploading ' + file.name + '...';
+  }
+
+  try {
+    const payload = { site_id, topic, content_type };
+    if (attachment_b64) { payload.attachment_b64 = attachment_b64; payload.attachment_filename = attachment_filename; }
+    await api('/webhook/add-research-topic', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    toast(attachment_filename ? 'Topic added with attachment.' : 'Topic added.', 'success');
+    document.getElementById('add-topic-text').value = '';
+    fileInput.value = '';
+    statusEl.style.display = 'none';
+    document.getElementById('suggest-results').style.display = 'none';
+    document.getElementById('add-topic-form').style.display = 'none';
+    loadResearch();
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = 'Upload failed'; statusEl.style.color = 'var(--red)'; }
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+async function suggestTopics() {
+  const site_id = document.getElementById('add-topic-site').value;
+  const content_type = document.getElementById('add-topic-type').value;
+  const btn = document.getElementById('suggest-btn');
+  const resultsEl = document.getElementById('suggest-results');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Thinking\u2026';
+  resultsEl.style.display = 'none';
+  try {
+    const seed_text = (document.getElementById('add-topic-text').value || '').trim();
+    const data = await api('/webhook/suggest-topic', {
+      method: 'POST',
+      body: JSON.stringify({ site_id, content_type, seed_text })
+    });
+    const suggestions = data.suggestions || [];
+    if (!suggestions.length) {
+      toast('No suggestions returned.', 'error');
+      return;
+    }
+    let h = '<div style="font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Suggested Topics (click to use)</div>';
+    for (const s of suggestions) {
+      const esc = str => (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
+      const fullText = [s.topic, s.rationale ? 'Rationale: ' + s.rationale : '', s.angle ? 'Angle: ' + s.angle : ''].filter(Boolean).join('\n');
+      const escaped = esc(fullText);
+      h += `<div style="background:white;border:1px solid var(--border);border-radius:3px;padding:0.75rem;margin-bottom:0.5rem;cursor:pointer;transition:border-color 0.15s;" onclick="document.getElementById('add-topic-text').value='${escaped}';this.style.borderColor='var(--navy)';document.querySelectorAll('#suggest-results > div:not(:first-child)').forEach(d=>d!==this&&(d.style.borderColor='var(--border)'));" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="if(!this.classList.contains('selected'))this.style.borderColor='var(--border)'">
+        <div style="font-size:0.85rem;font-weight:500;line-height:1.4;margin-bottom:0.25rem;">${s.topic}</div>
+        <div style="font-size:0.7rem;color:var(--muted);line-height:1.4;">${s.rationale || ''}</div>
+        ${s.angle ? '<div style="font-size:0.7rem;color:var(--navy);line-height:1.4;margin-top:0.15rem;font-style:italic;">Angle: ' + s.angle + '</div>' : ''}
+      </div>`;
+    }
+    resultsEl.innerHTML = h;
+    resultsEl.style.display = 'block';
+  } catch(e) {
+    toast('Suggest failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Suggest';
+  }
+}
+
+async function quickResearch(site_id, topic, content_type, btn) {
+  // Immediate UI feedback
+  btn.disabled = true;
+  btn.textContent = 'Running\u2026';
+  btn.style.opacity = '0.5';
+
+  // Update the status bar
+  const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+  const statusEl = document.getElementById('research-status');
+  statusEl.innerHTML = `<div style="padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--navy);border-radius:2px;font-size:0.82rem;display:flex;align-items:center;gap:0.75rem;">
+    <span class="spinner"></span>
+    <div>
+      <div>Researching <strong>${labels[site_id]||site_id}</strong>: "${topic.slice(0,50)}"</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.25rem;">Searching PubMed, OpenAlex, arXiv, CrossRef \u2014 then generating draft. This takes 3\u20138 minutes.</div>
+    </div>
+  </div>`;
+
+  // Gray out the candidate card
+  const card = btn.closest('.candidate-card');
+  if (card) card.style.opacity = '0.4';
+
+  // Run Phase 2 in background
+  try {
+    const result = await api('/webhook/research-deep', {
+      method: 'POST',
+      body: JSON.stringify({site_id, selected_topic: topic, content_type})
+    });
+
+    statusEl.innerHTML = `<div style="padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:2px;font-size:0.82rem;">
+      <div>\u2713 Research complete + draft generated for <strong>${labels[site_id]||site_id}</strong></div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.25rem;">Check the Drafts tab to review and publish.</div>
+    </div>`;
+    toast('Research queued — draft will appear in Drafts tab in 5-10 minutes.', 'success');
+
+    // Remove the researched card
+    if (card) card.remove();
+
+  } catch(e) {
+    statusEl.innerHTML = `<div style="padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:2px;font-size:0.82rem;">
+      \u2717 Research failed: ${e.message}
+    </div>`;
+    toast('Research failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Research \u2192';
+    btn.style.opacity = '1';
+    if (card) card.style.opacity = '1';
+  }
+}
+
+async function triggerPhase2() {
+  const site_id = document.getElementById('p2-site').value;
+  const selected_topic = document.getElementById('p2-topic').value.trim();
+  const content_type = document.getElementById('p2-type').value;
+  const additional_direction = document.getElementById('p2-direction').value.trim();
+  if (!selected_topic) { toast('Enter a topic.', 'error'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Running deep research\u2026';
+  const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+  const statusEl = document.getElementById('research-status');
+  statusEl.innerHTML = `<div style="padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--navy);border-radius:2px;font-size:0.82rem;display:flex;align-items:center;gap:0.75rem;">
+    <span class="spinner"></span>
+    <span>Running Phase 2 deep research for <strong>${labels[site_id]||site_id}</strong>: "${selected_topic.slice(0,60)}" \u2014 this takes 30\u201390 seconds\u2026</span>
+  </div>`;
+  try {
+    const result = await api('/webhook/research-deep', {
+      method: 'POST',
+      body: JSON.stringify({site_id, selected_topic, content_type, additional_direction: additional_direction || undefined})
+    });
+    statusEl.innerHTML = `<div style="padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:2px;font-size:0.82rem;">
+      \u2713 Phase 2 complete \u2014 research brief queued to Orchestrator for <strong>${labels[site_id]||site_id}</strong>. The next content generation for this site will use the brief.
+    </div>`;
+    closePhase2();
+    loadResearch();
+  } catch(e) {
+    statusEl.innerHTML = `<div style="padding:0.75rem 1rem;background:var(--card);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:2px;font-size:0.82rem;">
+      \u2717 Phase 2 failed: ${e.message}
+    </div>`;
+    toast('Phase 2 failed: ' + e.message, 'error');
+  }
+  finally { btn.disabled = false; btn.textContent = 'Run Deep Research'; }
+}
+
+async function loadResearch() {
+  document.getElementById('research-loading').style.display = 'flex';
+  document.getElementById('research-grid').innerHTML = '';
+  document.getElementById('research-empty').style.display = 'none';
+  try {
+    const data = await api('/webhook/list-research-candidates');
+    const sites = data.sites || {};
+    const keys = Object.keys(sites);
+    document.getElementById('research-loading').style.display = 'none';
+
+    // Show Phase 1 status
+    const statusEl = document.getElementById('research-status');
+    if (!statusEl.querySelector('.spinner')) {  // Don't overwrite Phase 2 in-progress
+      const now = new Date();
+      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      // Next Friday 09:00 PST
+      let nextFri = new Date(now);
+      nextFri.setDate(nextFri.getDate() + ((5 - nextFri.getDay() + 7) % 7 || 7));
+      nextFri.setHours(9, 0, 0, 0);
+      if (nextFri < now) nextFri.setDate(nextFri.getDate() + 7);
+      const diffH = Math.round((nextFri - now) / (1000*60*60));
+      const nextLabel = diffH < 24 ? `in ${diffH}h` : `${dayNames[nextFri.getDay()]} ${nextFri.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+
+      let totalCandidates = 0;
+      let latestGen = null;
+      for (const s of Object.values(sites)) {
+        totalCandidates += (s.candidates || []).length;
+        if (s.generated_at && (!latestGen || s.generated_at > latestGen)) latestGen = s.generated_at;
+      }
+      const lastRunLabel = latestGen ? new Date(latestGen).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'never';
+
+      statusEl.innerHTML = `<div style="display:flex;gap:1.5rem;font-size:0.75rem;color:var(--muted);padding:0.5rem 0;flex-wrap:wrap;">
+        <span>Phase 1 last ran: <strong style="color:var(--text);">${lastRunLabel}</strong></span>
+        <span>Next scout: <strong style="color:var(--text);">${nextLabel}</strong></span>
+        <span>Candidates: <strong style="color:var(--text);">${totalCandidates}</strong></span>
+        <span style="font-size:0.7rem;color:var(--muted);">Phase 2: select a topic below \u2192 click "Research \u2192" \u2192 runs 30\u201390s \u2192 brief queued</span>
+      </div>`;
+    }
+    if (keys.length === 0) {
+      document.getElementById('research-empty').style.display = 'block';
+      return;
+    }
+    const labels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
+    const grid = document.getElementById('research-grid');
+    keys.forEach(site_id => {
+      const s = sites[site_id];
+      const candidates = s.candidates || s.items || [];
+      const col = document.createElement('div');
+      col.className = 'site-section';
+      const ts = s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+      col.innerHTML = `<h3>${labels[site_id] || site_id} <span style="font-weight:normal;opacity:0.6;">· ${ts}</span></h3>`;
+      if (!candidates.length) {
+        col.innerHTML += '<p style="font-size:0.8rem;color:var(--muted);">No candidates.</p>';
+      }
+      candidates.forEach(c => {
+        const card = document.createElement('div');
+        card.className = 'candidate-card';
+        const conf = c.confidence || 'medium';
+        const ctype = c.content_type || 'standard';
+        card.innerHTML = `
+          <div class="candidate-title">${c.recommended_topic || c.topic || '—'}</div>
+          <div class="candidate-rationale">${c.rationale || ''}</div>
+          <div class="candidate-meta">
+            <span class="badge badge-${conf}">${conf}</span>
+            <span class="badge badge-site">${ctype}</span>
+            ${c.timeliness ? `<span class="badge badge-site">${c.timeliness}</span>` : ''}
+            ${c.has_attachment ? `<span class="badge badge-site" title="Has reference document attached">📎 attached</span>` : ''}
+          </div>
+          <div class="candidate-actions">
+            <button class="btn btn-primary btn-sm" onclick="quickResearch('${site_id}', \`${(c.recommended_topic||c.topic||'').replace(/`/g,"'").replace(/"/g,'&quot;')}\`, '${ctype}', this)">Research →</button>
+          </div>
+        `;
+        col.appendChild(card);
+      });
+      grid.appendChild(col);
+    });
+  } catch(e) {
+    document.getElementById('research-loading').style.display = 'none';
+    toast('Could not load candidates: ' + e.message, 'error');
+  }
+}
+
+// ── Drafts ──
+let draftsPolling = null;
+let lastDraftCount = -1;
+
+function startDraftsPolling() {
+  stopDraftsPolling();
+  draftsPolling = setInterval(async () => {
+    try {
+      const data = await api('/webhook/list-drafts');
+      const count = (data.pending_drafts || []).length + (data.approved_drafts || []).length;
+      if (lastDraftCount >= 0 && count !== lastDraftCount) {
+        toast('Drafts updated!', 'success');
+        loadDrafts();
+      }
+      lastDraftCount = count;
+    } catch(e) {}
+  }, 30000);
+}
+
+function stopDraftsPolling() {
+  if (draftsPolling) { clearInterval(draftsPolling); draftsPolling = null; }
+}
+
+async function loadDrafts() {
+  document.getElementById('drafts-loading').style.display = 'flex';
+  document.getElementById('pending-section').style.display = 'none';
+  // approved-section removed — approved drafts only on Publish tab
+  document.getElementById('drafts-empty').style.display = 'none';
+  document.getElementById('pending-list').innerHTML = '';
+  try {
+    const data = await api('/webhook/list-drafts');
+    document.getElementById('drafts-loading').style.display = 'none';
+    const pending = data.pending_drafts || [];
+    const approved = data.approved_drafts || [];
+    if (!pending.length) {
+      document.getElementById('drafts-empty').style.display = 'block';
+      document.getElementById('drafts-empty').querySelector('p').textContent = approved.length
+        ? `No drafts pending review. ${approved.length} approved draft${approved.length>1?'s':''} ready on the Publish tab.`
+        : 'No drafts yet.';
+      return;
+    }
+    if (pending.length) {
+      document.getElementById('pending-section').style.display = 'block';
+      pending.forEach(d => renderDraftCard(d, 'pending', 'pending-list'));
+    }
+    // Approved drafts only show on Publish tab
+  } catch(e) {
+    document.getElementById('drafts-loading').style.display = 'none';
+    toast('Could not load drafts: ' + e.message, 'error');
+  }
+}
+
+function renderDraftCard(d, status, containerId) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const siteName = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'}[d.site_id] || d.site_id;
+  const wc = d.word_count ? `${d.word_count} words` : '';
+  card.innerHTML = `
+    <div class="card-header">
+      <div>
+        <div class="card-title">${d.title || '—'}</div>
+        <div class="card-meta">
+          <span class="badge badge-site">${siteName}</span>
+          ${wc ? `<span style="margin-left:0.5rem;font-size:0.7rem;color:var(--muted);">${wc}</span>` : ''}
+        </div>
+      </div>
+      <span class="badge badge-${status}">${status === 'pending' ? 'Pending' : 'Approved'}</span>
+    </div>
+    ${d.excerpt ? `<div class="card-excerpt">${d.excerpt}</div>` : ''}
+    <div class="card-actions">
+      <button class="btn btn-outline btn-sm" onclick="previewDraft('${d.draft_id}')">Preview</button>
+      ${status === 'pending' ? `<button class="btn btn-success btn-sm" onclick="approveDraft('${d.draft_id}','${d.site_id}', this)">Approve</button>` : ''}
+      ${status === 'pending' ? `<button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="showDismissDialog('${d.draft_id}','${d.site_id}')">Dismiss</button>` : ''}
+    </div>
+  `;
+  document.getElementById(containerId).appendChild(card);
+}
+
+async function previewDraft(draft_id) {
+  try {
+    const data = await api('/webhook/get-draft?draft_id=' + draft_id);
+    const d = data.draft || data;
+    currentModalDraft = d;
+    editMode = false;
+    document.getElementById('modal-edit-mode').style.display = 'none';
+    document.getElementById('modal-read-mode').style.display = 'block';
+    document.getElementById('modal-edit-toggle').textContent = 'Edit';
+    document.getElementById('modal-save-btn').style.display = 'none';
+    document.getElementById('modal-edit-indicator').style.display = d.last_edited ? 'block' : 'none';
+    document.getElementById('modal-rewrite-panel').style.display = 'none';
+    document.getElementById('rewrite-suggestions').value = '';
+    document.getElementById('rewrite-status').style.display = 'none';
+
+    const labels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
+    document.getElementById('modal-title').textContent = labels[d.site_id] || d.site_id || 'Draft Preview';
+    document.getElementById('modal-article-title').textContent = d.article?.title || d.title || '';
+    document.getElementById('modal-excerpt').textContent = d.article?.excerpt || d.excerpt || '';
+    document.getElementById('modal-content').innerHTML = d.article?.content_html || '';
+
+    const wc = d.article?.word_count || d.word_count || 0;
+    const edits = d.edit_history?.length || 0;
+    const rewrites = d.rewrite_count || 0;
+    let metaText = `${wc} words`;
+    if (edits) metaText += ` · ${edits} edit${edits>1?'s':''}`;
+    if (rewrites) metaText += ` · ${rewrites} rewrite${rewrites>1?'s':''}`;
+    document.getElementById('modal-word-count').textContent = metaText;
+
+    const approveBtn = document.getElementById('modal-approve-btn');
+    approveBtn.style.display = d.status === 'approved' ? 'none' : 'inline-block';
+    document.getElementById('modal-dismiss-btn').style.display = d.status === 'approved' ? 'none' : 'inline-block';
+    document.getElementById('preview-modal').classList.add('open');
+  } catch(e) { toast('Could not load draft: ' + e.message, 'error'); }
+}
+
+function toggleEditMode() {
+  if (!currentModalDraft) return;
+  editMode = !editMode;
+  if (editMode) {
+    document.getElementById('modal-read-mode').style.display = 'none';
+    document.getElementById('modal-edit-mode').style.display = 'block';
+    document.getElementById('modal-edit-toggle').textContent = 'Preview';
+    document.getElementById('modal-save-btn').style.display = 'inline-block';
+    document.getElementById('edit-site').value = currentModalDraft.site_id || 'sinabarimd';
+    document.getElementById('edit-title').value = currentModalDraft.article?.title || '';
+    document.getElementById('edit-excerpt').value = currentModalDraft.article?.excerpt || '';
+    document.getElementById('edit-content').value = currentModalDraft.article?.content_html || '';
+  } else {
+    document.getElementById('modal-edit-mode').style.display = 'none';
+    document.getElementById('modal-read-mode').style.display = 'block';
+    document.getElementById('modal-edit-toggle').textContent = 'Edit';
+    document.getElementById('modal-save-btn').style.display = 'none';
+    // Refresh preview with current edit values
+    document.getElementById('modal-article-title').textContent = document.getElementById('edit-title').value;
+    document.getElementById('modal-excerpt').textContent = document.getElementById('edit-excerpt').value;
+    document.getElementById('modal-content').innerHTML = document.getElementById('edit-content').value;
+  }
+}
+
+async function saveEdits() {
+  if (!currentModalDraft) return;
+  const draft_id = currentModalDraft.draft_id;
+  const title = document.getElementById('edit-title').value.trim();
+  const excerpt = document.getElementById('edit-excerpt').value.trim();
+  const content_html = document.getElementById('edit-content').value;
+
+  const new_site_id = document.getElementById('edit-site').value;
+  const site_changed = new_site_id !== currentModalDraft.site_id;
+
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const updateBody = {draft_id, title, excerpt, content_html};
+    if (site_changed) updateBody.site_id = new_site_id;
+    const result = await api('/webhook/update-draft', {
+      method: 'POST',
+      body: JSON.stringify(updateBody)
+    });
+    const routeMsg = site_changed ? ` Rerouted to ${result.site_id}.` : '';
+    toast(`Saved — ${result.word_count} words, ${result.edit_count} edit${result.edit_count>1?'s':''}.${routeMsg}`, 'success');
+    // Update local state
+    currentModalDraft.draft_id = result.draft_id;
+    currentModalDraft.site_id = result.site_id;
+    currentModalDraft.article.title = title;
+    currentModalDraft.article.excerpt = excerpt;
+    currentModalDraft.article.content_html = content_html;
+    currentModalDraft.article.word_count = result.word_count;
+    currentModalDraft.last_edited = result.last_edited;
+    document.getElementById('modal-word-count').textContent = `${result.word_count} words · ${result.edit_count} edit${result.edit_count>1?'s':''}`;
+    document.getElementById('modal-edit-indicator').style.display = 'block';
+    // Switch back to preview
+    toggleEditMode();
+    loadDrafts();
+  } catch(e) { toast('Save failed: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Save Edits'; }
+}
+
+function closeModal() {
+  document.getElementById('preview-modal').classList.remove('open');
+  editMode = false;
+}
+function closePreview(e) { if (e.target.id === 'preview-modal') closeModal(); }
+
+async function approveFromModal() {
+  if (!currentModalDraft) return;
+  const draft_id = currentModalDraft.draft_id;
+  const site_id = currentModalDraft.site_id;
+  await approveDraft(draft_id, site_id, document.getElementById('modal-approve-btn'));
+  closeModal();
+}
+
+function showDismissDialog(draft_id, site_id) {
+  let modal = document.getElementById('dismiss-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'dismiss-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML = `<div style="background:var(--card);border:1px solid var(--border);border-radius:4px;width:100%;max-width:480px;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);">
+        <span style="font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Dismiss Draft</span>
+      </div>
+      <div style="padding:1.25rem;">
+        <p class="body-text" style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">Why are you dismissing this draft? This feedback helps improve future content generation.</p>
+        <textarea id="dismiss-feedback" placeholder="e.g. Too repetitive, wrong angle, topic already covered, not relevant to site..." style="width:100%;min-height:80px;padding:0.6rem 0.75rem;border:1px solid var(--border);font-family:Inter,sans-serif;font-size:0.85rem;border-radius:2px;resize:vertical;"></textarea>
+      </div>
+      <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:0.5rem;">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('dismiss-modal').style.display='none'">Cancel</button>
+        <button class="btn btn-sm" style="background:var(--red);color:white;" id="dismiss-confirm-btn" onclick="confirmDismiss()">Dismiss Draft</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.dataset.draftId = draft_id;
+  modal.dataset.siteId = site_id;
+  document.getElementById('dismiss-feedback').value = '';
+  modal.style.display = 'flex';
+  document.getElementById('dismiss-feedback').focus();
+}
+
+function dismissFromModal() {
+  if (!currentModalDraft) return;
+  closeModal();
+  showDismissDialog(currentModalDraft.draft_id, currentModalDraft.site_id);
+}
+
+async function submitRewrite() {
+  if (!currentModalDraft) return;
+  const suggestions = document.getElementById('rewrite-suggestions').value.trim();
+  if (!suggestions) { toast('Enter your suggestions for the rewrite.', 'error'); return; }
+
+  const btn = document.getElementById('rewrite-submit-btn');
+  const spinner = document.getElementById('rewrite-spinner');
+  const statusEl = document.getElementById('rewrite-status');
+  btn.disabled = true;
+  btn.textContent = 'Rewriting...';
+  spinner.style.display = 'inline';
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Sending to OpenClaw - this takes 30-60 seconds...';
+  statusEl.style.color = 'var(--muted)';
+
+  try {
+    const result = await api('/webhook/rewrite-draft', {
+      method: 'POST',
+      body: JSON.stringify({ draft_id: currentModalDraft.draft_id, suggestions })
+    });
+
+    if (result.success) {
+      statusEl.textContent = 'Rewrite complete (v' + result.rewrite_count + '). Refreshing...';
+      statusEl.style.color = 'var(--green)';
+      toast('Draft rewritten! Review the new version.', 'success');
+      document.getElementById('rewrite-suggestions').value = '';
+      document.getElementById('modal-rewrite-panel').style.display = 'none';
+
+      // Refresh drafts and reopen the modal with updated content
+      const reopenId = currentModalDraft.draft_id;
+      await loadDrafts();
+      setTimeout(() => previewDraft(reopenId), 500);
+    } else {
+      statusEl.textContent = 'Rewrite failed: ' + (result.error || 'unknown');
+      statusEl.style.color = 'var(--red)';
+      toast('Rewrite failed: ' + (result.error || 'unknown'), 'error');
+    }
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+    toast('Rewrite error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Rewrite Draft';
+    spinner.style.display = 'none';
+  }
+}
+
+async function confirmDismiss() {
+  const modal = document.getElementById('dismiss-modal');
+  const draft_id = modal.dataset.draftId;
+  const site_id = modal.dataset.siteId;
+  const feedback = document.getElementById('dismiss-feedback').value.trim();
+  const btn = document.getElementById('dismiss-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Dismissing\u2026';
+  try {
+    const body = { draft_id };
+    if (feedback) body.feedback = feedback;
+    await api('/webhook/dismiss-draft', { method: 'POST', body: JSON.stringify(body) });
+    toast(feedback ? 'Draft dismissed — feedback recorded for future generation.' : 'Draft dismissed.', 'success');
+    modal.style.display = 'none';
+    loadDrafts();
+  } catch(e) { toast('Dismiss failed: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Dismiss Draft'; }
+}
+
+async function approveDraft(draft_id, site_id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    await api('/webhook/approve-draft-gen', {
+      method: 'POST',
+      body: JSON.stringify({draft_id, site_id})
+    });
+    toast('Draft approved. Ready to publish.', 'success');
+    loadDrafts();
+  } catch(e) { toast('Approve failed: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Approve'; } }
+}
+
+// ── Publish ──
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function formatScheduleDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = d - now;
+  const diffDays = Math.ceil(diffMs / (1000*60*60*24));
+  const day = DAY_NAMES[d.getDay()];
+  const date = d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  const time = d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZoneName:'short'});
+  if (diffDays <= 0) return `Today ${time}`;
+  if (diffDays === 1) return `Tomorrow ${time}`;
+  return `${day} ${date}, ${time}`;
+}
+
+async function loadPublish() {
+  document.getElementById('publish-loading').style.display = 'flex';
+  document.getElementById('publish-list').innerHTML = '';
+  document.getElementById('publish-empty').style.display = 'none';
+  try {
+    const [draftsData, scheduleData] = await Promise.all([
+      api('/webhook/list-drafts'),
+      api('/webhook/publish-log'),
+    ]);
+    const approved = draftsData.approved_drafts || [];
+    const schedule = scheduleData.schedule || {};
+    document.getElementById('publish-loading').style.display = 'none';
+
+    if (!approved.length) {
+      document.getElementById('publish-empty').style.display = 'block';
+      // Still show schedule overview (include ramp-blocked sites with their unlock dates)
+      const ALL_SCHED_SITES = ['sinabarimd','sinabari_net','drsinabari','sinabariplasticsurgery'];
+      const overviewHtml = ALL_SCHED_SITES.map(site_id => {
+          const labels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
+          const s = schedule[site_id] || {};
+          const lastPub = s.last_published || 'never';
+          let nextLabel;
+          if (s.next_cron) {
+            nextLabel = formatScheduleDate(s.next_cron);
+          } else {
+            // Ramp-blocked — show computed unlock date
+            const computed = getScheduledDate(site_id, 0, schedule);
+            nextLabel = formatScheduleDate(computed) + ' (ramp)';
+          }
+          return `<div class="status-row">
+            <div><span class="badge badge-site">${labels[site_id]||site_id}</span> <span style="font-size:0.75rem;color:var(--muted);margin-left:0.5rem;">last: ${lastPub}</span></div>
+            <div style="font-size:0.75rem;color:var(--muted);">next: ${nextLabel}</div>
+          </div>`;
+        }).join('');
+      if (overviewHtml) {
+        document.getElementById('publish-list').innerHTML = `
+          <div style="margin-top:1rem;">
+            <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Schedule Overview</div>
+            <div class="card">${overviewHtml}</div>
+          </div>`;
+      }
+      return;
+    }
+
+    // Track queue position per site for staggered scheduling (uses shared SCHED_* constants)
+    const siteQueueCount = {};
+
+    function getScheduledDate(site_id, queuePosition, schedule) {
+      const minDays = SCHED_MIN_INTERVALS[site_id] || 7;
+      let baseDate = schedGetNextPublishDate(site_id, schedule[site_id]);
+
+      // For each queue position, advance by min_interval days and find next cron
+      for (let i = 0; i < queuePosition; i++) {
+        const earliest = new Date(baseDate.getTime() + minDays * 24 * 60 * 60 * 1000);
+        baseDate = schedFindNextCronDay(earliest, site_id);
+      }
+      return baseDate.toISOString();
+    }
+
+    approved.forEach(d => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const siteName = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'}[d.site_id] || d.site_id;
+      const wc = d.word_count ? `${d.word_count} words` : '';
+      const siteSchedule = schedule[d.site_id] || {};
+      const queuePos = siteQueueCount[d.site_id] || 0;
+      siteQueueCount[d.site_id] = queuePos + 1;
+      const scheduledIso = getScheduledDate(d.site_id, queuePos, schedule);
+      const nextCron = formatScheduleDate(scheduledIso);
+      const lastPub = siteSchedule.last_published || 'never';
+      const queueLabel = queuePos > 0 ? ` (#${queuePos + 1} in queue)` : '';
+      card.innerHTML = `
+        <div class="card-header">
+          <div>
+            <div class="card-title">${d.title || '—'}</div>
+            <div class="card-meta">
+              <span class="badge badge-site">${siteName}</span>
+              ${wc ? `<span style="margin-left:0.5rem;font-size:0.7rem;color:var(--muted);">${wc}</span>` : ''}
+            </div>
+          </div>
+          <span class="badge badge-approved">Approved</span>
+        </div>
+        ${d.excerpt ? `<div class="card-excerpt">${d.excerpt}</div>` : ''}
+        <div style="margin-top:0.75rem;padding:0.6rem 0.75rem;background:var(--bg2);border-radius:2px;font-size:0.75rem;color:var(--muted);display:flex;justify-content:space-between;">
+          <span>Scheduled: <strong style="color:var(--text);">${nextCron}</strong>${queueLabel}</span>
+          <span>Last published: ${lastPub}</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-outline btn-sm" onclick="previewDraft('${d.draft_id}')">Preview</button>
+          <button class="btn btn-primary btn-sm" id="pub-btn-${d.draft_id}" onclick="publishDraft('${d.draft_id}','${d.site_id}')">Publish Now →</button>
+        </div>
+      `;
+      document.getElementById('publish-list').appendChild(card);
+    });
+  } catch(e) {
+    document.getElementById('publish-loading').style.display = 'none';
+    toast('Could not load drafts: ' + e.message, 'error');
+  }
+}
+
+async function publishDraft(draft_id, site_id) {
+  const btn = document.getElementById('pub-btn-' + draft_id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Publishing…'; }
+  try {
+    const result = await api('/webhook/publish-draft', {
+      method: 'POST',
+      body: JSON.stringify({draft_id, site_id})
+    });
+    const url = result.article_url || result.url || '';
+    toast('Published!' + (url ? ' ' + url : ''), 'success');
+    loadPublish();
+    loadDrafts();
+    loadHome();
+  } catch(e) { toast('Publish failed: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Publish →'; } }
+}
+
+// ── Web 2.0 ──
+const WEB20_PROFILES = {
+  mystrikingly: {name:'Strikingly',url:'https://sina-barimd.mystrikingly.com/',category:'social',priority:'critical',serp:12,fields:{"status": "Well optimized \u2014 all 4 site links present", "action": "Add 1-2 recent article summaries to keep fresh"},issues:[],actions:["Add a recent article excerpt to keep page fresh", "Content and links already good"]},
+  wordpress0: {name:'WordPress (sinabarimd0)',url:'https://sinabarimd0.wordpress.com/',category:'web2',priority:'critical',serp:14,fields:{"status": "Missing sinabarimd.com link and surgeon/AI keywords", "bio": "Sina Bari, MD \u2014 Stanford-trained plastic and reconstructive surgeon and healthcare AI executive. Main site: sinabarimd.com", "website": "https://sinabarimd.com"},issues:["No sinabarimd.com link", "No surgeon or AI keywords"],actions:["Add sinabarimd.com link", "Update bio with surgery + AI keywords", "Publish 1-2 article summaries"]},
+  crunchbase: {name:'Crunchbase',url:'https://www.crunchbase.com/person/sina-bari-md-f5c7',category:'social',priority:'critical',serp:15,fields:{"status": "Contributor account \u2014 limited control", "action": "Update description if possible"},issues:["Contributor account"],actions:["Request edit access", "Update description to mention sinabarimd.com"]},
+  wordpress_sinabarimd: {name:'WordPress (sinabarimd)',url:'https://sinabarimd.wordpress.com/',category:'web2',priority:'critical',serp:16,fields:{"status": "Has hub link + good bio \u2014 already optimized", "action": "Publish 1-2 article summaries to boost freshness"},issues:[],actions:["Publish 1-2 short posts linking to recent articles"]},
+  tumblr: {name:'Tumblr',url:'https://sina-barimd.tumblr.com/',category:'web2',priority:'high',serp:20,fields:{"status": "Has hub link + good bio \u2014 already optimized", "action": "Post 1-2 short pieces to boost freshness"},issues:[],actions:["Post a short reflection or article excerpt"]},
+  linkedin: {name:'LinkedIn',url:'https://www.linkedin.com/in/sinabarimd',category:'social',priority:'high',serp:2,fields:{"status": "MISSING sinabarimd.com link (has sinabari.net)", "website": "https://sinabarimd.com"},issues:["sinabarimd.com link missing"],actions:["Add sinabarimd.com as primary website", "Add to Featured section"]},
+  about_me: {name:'About.me',url:'https://about.me/sina-barimd',category:'social',priority:'medium',serp:9,fields:{"status": "MISSING sinabarimd.com link (has sinabari.net)", "website": "https://sinabarimd.com"},issues:["sinabarimd.com link missing"],actions:["Set sinabarimd.com as primary website"]},
+  linktree: {name:'Linktree',url:'https://linktr.ee/sinabarimd',category:'social',priority:'medium',serp:null,fields:{"status": "MISSING sinabarimd.com + drsinabari.com links", "links": "Add: sinabarimd.com, drsinabari.com"},issues:["sinabarimd.com missing", "drsinabari.com missing"],actions:["Add sinabarimd.com as first link", "Add drsinabari.com"]},
+  twitter: {name:'Twitter/X',url:'https://x.com/sinabariMD',category:'social',priority:'high',serp:null,fields:{"status": "EMPTY \u2014 no bio, no links, no keywords", "bio": "Plastic surgeon \\u2022 Stanford trained \\u2022 Healthcare AI exec\\nsinabarimd.com", "website": "https://sinabarimd.com", "location": "California"},issues:["Bio essentially empty", "No links"],actions:["Update bio", "Set website to sinabarimd.com", "Set location", "Pin a tweet"]},
+  facebook: {name:'Facebook',url:'https://www.facebook.com/SinaBariMD',category:'social',priority:'high',serp:8,fields:{"status": "No links to any owned sites, no AI mention", "about": "Stanford-trained plastic surgeon and healthcare AI executive. sinabarimd.com", "website": "https://sinabarimd.com"},issues:["No links", "No AI keywords"],actions:["Set website to sinabarimd.com", "Update About section"]},
+  instagram: {name:'Instagram',url:'https://www.instagram.com/sina.bari/',category:'social',priority:'high',serp:null,fields:{"status": "Good keywords but no sinabarimd.com link in bio", "website": "https://sinabarimd.com"},issues:["Verify bio link points to sinabarimd.com"],actions:["Verify bio link is sinabarimd.com or Linktree"]},
+  medium: {name:'Medium',url:'https://sina-barimd.medium.com/',category:'web2',priority:'high',serp:null,fields:{"status": "Google SSO login \u2014 publish excerpts", "action": "Publish 1-2 article excerpts linking back"},issues:["Google SSO"],actions:["Publish article excerpts with links to sinabarimd.com articles"]},
+  youtube: {name:'YouTube',url:'https://www.youtube.com/channel/UCtepx5Hdpt3W7Rrx5cgF9zQ/',category:'social',priority:'high',serp:null,fields:{"status": "Update description with all 4 site links", "description": "sinabarimd.com | sinabari.net | sinabariplasticsurgery.com | drsinabari.com"},issues:[],actions:["Update channel description with all 4 site links"]},
+  quora: {name:'Quora',url:'https://www.quora.com/profile/Sina-Bari-MD',category:'web2',priority:'high',serp:null,fields:{"status": "Answer questions to build backlinks", "credentials": "MD | Plastic Surgery | Stanford"},issues:[],actions:["Answer 3-5 healthcare/surgery questions", "Link to articles in answers"]},
+  webflow: {name:'Webflow',url:'https://sinabarimd.webflow.io/',category:'web2',priority:'medium',serp:6,fields:{"status": "Already well optimized \u2014 no changes needed"},issues:[],actions:["No changes needed"]},
+  behance: {name:'Behance',url:'https://www.behance.net/sina-bari-md',category:'social',priority:'low',serp:null,fields:{"status": "Low priority \u2014 update when convenient"},issues:[],actions:["Update bio and website link if needed"]},
+  bluesky: {name:'Bluesky',url:'https://bsky.app/profile/sinabarimd.bsky.social',category:'social',priority:'low',serp:null,fields:{"status": "Lower priority - newer platform"},issues:[],actions:["Update bio when convenient"]},
+  orcid: {name:'ORCID',url:'https://orcid.org/0009-0001-6594-6177',category:'social',priority:'high',serp:null,fields:{"status": "New - profile created, bio set, linked to sinabarimd.com"},issues:[],actions:["Add publications if any","Add Stanford affiliation"]},
+  github_sinabarimd: {name:'GitHub',url:'https://github.com/sinabarimd',category:'web2',priority:'high',serp:null,fields:{"status": "Active - reputation-engine repo live"},issues:[],actions:["Keep repo updated via monthly sync"]},
+};
+
+async function loadSyndicationTasks() {
+  const el = document.getElementById('web20-syndication');
+  try {
+    const [data, campaignData] = await Promise.all([
+      api('/webhook/syndication-tasks').catch(() => ({})),
+      api('/webhook/spotlight-campaign').catch(() => ({})),
+    ]);
+    const allTasks = data.tasks || [];
+    const log = data.log || [];
+
+    // Merge spotlight campaign tasks for today/upcoming
+    const campaign = campaignData.campaign;
+    const todayStr = new Date().toISOString().split('T')[0];
+    let spotlightTasks = [];
+    if (campaign && campaign.tasks) {
+      spotlightTasks = campaign.tasks.filter(t => t.date <= todayStr && t.status === 'pending');
+    }
+
+    // Split standard tasks: active (pending) vs completed today
+    const now = new Date();
+    const activeTasks = allTasks.filter(t => t.status === 'pending');
+    const completedToday = allTasks.filter(t => t.status === 'completed' || t.status === 'skipped');
+
+    if (!activeTasks.length && !completedToday.length && !log.length && !spotlightTasks.length) {
+      el.innerHTML = '';
+      return;
+    }
+
+    let h = '';
+
+    // Spotlight campaign tasks (shown first, visually distinct)
+    if (spotlightTasks.length) {
+      h += '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--green);font-weight:600;margin-bottom:0.5rem;">\u2605 Spotlight Campaign</div>';
+      h += `<div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.75rem;">${campaign.title} \u2014 ${spotlightTasks.length} task${spotlightTasks.length>1?'s':''} ready</div>`;
+      for (const t of spotlightTasks) {
+        const profile = WEB20_PROFILES[t.platform_id];
+        h += `<div class="card" style="margin-bottom:0.5rem;border-left:4px solid var(--green);">
+          <div class="card-header">
+            <div>
+              <div class="card-title" style="font-size:0.85rem;">\u2605 ${t.platform_name} <span class="badge badge-site">${t.post_type}</span> <span class="badge" style="background:var(--green);color:#fff;font-size:0.5rem;">SPOTLIGHT</span> ${profile ? '<a href="' + profile.url + '" target="_blank" rel="noopener" style="font-size:0.65rem;color:var(--navy);margin-left:0.5rem;border-bottom:1px solid var(--border);text-decoration:none;">open site \u2197</a>' : ''}</div>
+              <div style="font-size:0.65rem;color:var(--muted);margin-top:0.15rem;">Scheduled: ${t.date}</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+              <button class="btn btn-success btn-sm" onclick="completeSpotlightTask('${t.task_id}','completed')">Done</button>
+              <button class="btn btn-outline btn-sm" style="font-size:0.6rem;" onclick="completeSpotlightTask('${t.task_id}','skipped')">Skip</button>
+            </div>
+          </div>
+          ${t.content ? `<div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+              <span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Post content</span>
+              <button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.textContent.trim());toast('Copied!','success')">copy</button>
+            </div>
+            <div style="font-size:0.82rem;color:var(--text);background:var(--bg2);padding:0.5rem 0.75rem;border-radius:2px;white-space:pre-wrap;line-height:1.5;">${t.content}</div>
+            ${t.link ? `<div style="margin-top:0.4rem;display:flex;justify-content:space-between;align-items:center;">
+              <a href="${t.link}" target="_blank" style="font-size:0.7rem;color:var(--navy);text-decoration:none;border-bottom:1px solid var(--border);">${t.link.slice(0,60)}</a>
+              <button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText('${t.link}');toast('Link copied!','success')">copy link</button>
+            </div>` : ''}
+          </div>` : ''}
+        </div>`;
+      }
+      h += '<div style="height:1.5rem;"></div>';
+    }
+
+    // Active standard tasks
+    if (activeTasks.length) {
+      h += '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--navy);font-weight:600;margin-bottom:0.75rem;">Today\'s Syndication Tasks</div>';
+      if (data.day_label) {
+        h += `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem;">${data.day_label} \u2014 source: ${data.source_site || ''}</div>`;
+      }
+      for (const t of activeTasks) {
+        h += `<div class="card" style="margin-bottom:0.5rem;">
+          <div class="card-header">
+            <div>
+              <div class="card-title" style="font-size:0.85rem;">${t.platform_name} <span class="badge badge-site">${t.post_type}</span> ${WEB20_PROFILES[t.platform_id] ? '<a href="' + WEB20_PROFILES[t.platform_id].url + '" target="_blank" rel="noopener" style="font-size:0.65rem;color:var(--navy);margin-left:0.5rem;border-bottom:1px solid var(--border);text-decoration:none;">open site \u2197</a>' : ''}</div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">${t.source_title ? 'Source: <strong>' + t.source_title + '</strong>' : ''}</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+              <button class="btn btn-success btn-sm" onclick="completeSyndication('${t.date}','${t.platform_id}','completed')">Done</button>
+              <button class="btn btn-outline btn-sm" style="font-size:0.6rem;" onclick="completeSyndication('${t.date}','${t.platform_id}','skipped')">Skip</button>
+            </div>
+          </div>
+          ${t.content ? `<div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+              <span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Post content</span>
+              <button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.textContent.trim());toast('Copied!','success')">copy</button>
+            </div>
+            <div style="font-size:0.82rem;color:var(--text);background:var(--bg2);padding:0.5rem 0.75rem;border-radius:2px;white-space:pre-wrap;line-height:1.5;">${t.content}</div>
+            ${t.link ? `<div style="margin-top:0.4rem;display:flex;justify-content:space-between;align-items:center;">
+              <a href="${t.link}" target="_blank" style="font-size:0.7rem;color:var(--navy);text-decoration:none;border-bottom:1px solid var(--border);">${t.link.slice(0,60)}</a>
+              <button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText('${t.link}');toast('Link copied!','success')">copy link</button>
+            </div>` : ''}
+          </div>` : ''}
+        </div>`;
+      }
+    } else if (data.day_label) {
+      h += `<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--green);font-weight:600;margin-bottom:0.5rem;">\u2713 Today\'s Syndication Complete</div>`;
+    }
+    
+    el.innerHTML = h;
+    
+    // Render log in bottom section
+    const logEl = document.getElementById('web20-activity-log');
+    const recentLog = [...completedToday.map(t => ({
+      date: t.date, platform_name: t.platform_name, status: t.status
+    })), ...log].slice(0, 15);
+    
+    if (recentLog.length) {
+      let logHtml = '<div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Syndication Activity Log</div>';
+      for (const l of recentLog) {
+        const icon = l.status === 'completed' ? '\u2713' : '\u2014';
+        const color = l.status === 'completed' ? 'var(--green)' : 'var(--muted)';
+        logHtml += `<div style="font-size:0.7rem;color:var(--muted);padding:0.2rem 0;"><span style="color:${color};">${icon}</span> ${l.date} ${l.platform_name} (${l.status})</div>`;
+      }
+      logEl.innerHTML = logHtml;
+    } else {
+      logEl.innerHTML = '';
+    }
+  } catch(e) {
+    el.innerHTML = '';
+  }
+}
+async function completeSpotlightTask(task_id, action) {
+  try {
+    await api('/webhook/spotlight-campaign-action', {method:'POST', body:JSON.stringify({task_id, action})});
+    toast(action === 'completed' ? 'Spotlight task done!' : 'Skipped.', 'success');
+    loadSyndicationTasks();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+async function completeSyndication(date, platform_id, action) {
+  try {
+    await api('/webhook/syndication-action', {method:'POST', body:JSON.stringify({date, platform_id, action})});
+    toast(action === 'completed' ? 'Marked done!' : 'Skipped.', 'success');
+    loadSyndicationTasks();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function runWeb20Scan() {
+  toast('Running Web 2.0 profile scan\u2026');
+  try {
+    await api('/webhook/web20-scan', { method: 'POST' });
+    toast('Scan complete!', 'success');
+    loadWeb20SEO();
+  } catch(e) { toast('Scan failed: ' + e.message, 'error'); }
+}
+
+async function loadWeb20Scan() {
+  const el = document.getElementById('web20-scan-results');
+  try {
+    const data = await api('/webhook/web20-status');
+    const scan = data.latest_scan;
+    if (!scan || !scan.results) { el.innerHTML = ''; return; }
+    
+    const ts = scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    
+    // Build action tasks from scan findings
+    const taskProfiles = scan.results.filter(r => r.ok && r.priority !== 'low' && (!r.hub_link || r.freshness === 'stale' || (r.entity_terms?.score || 0) < 2));
+    
+    let h = '';
+    
+    // Action tasks section
+    if (taskProfiles.length) {
+      h += '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--amber);font-weight:600;margin-bottom:0.75rem;">Profile Updates Needed (' + taskProfiles.length + ')</div>';
+      for (const r of taskProfiles) {
+        const issues = [];
+        if (!r.hub_link) issues.push('\u2717 add sinabarimd.com link');
+        if (r.freshness === 'stale') issues.push('\u2717 update content (stale)');
+        if ((r.entity_terms?.score || 0) === 0) {
+          issues.push('\u2717 add Stanford/surgeon/AI keywords');
+        } else if ((r.entity_terms?.score || 0) < 2) {
+          const missing = [];
+          if (!r.entity_terms.stanford) missing.push('Stanford');
+          if (!r.entity_terms.surgeon) missing.push('surgeon');
+          if (!r.entity_terms.ai) missing.push('AI');
+          if (missing.length) issues.push('\u26a0 add: ' + missing.join(', '));
+        }
+        h += '<div class="card" style="margin-bottom:0.5rem;border-left:4px solid var(--amber);">';
+        h += '<div class="card-header"><div>';
+        h += '<div class="card-title" style="font-size:0.85rem;">' + r.name + '</div>';
+        h += '<div style="font-size:0.72rem;color:var(--red);margin-top:0.2rem;">' + issues.join(' &nbsp;\u2022&nbsp; ') + '</div>';
+        h += '</div>';
+        h += '<a href="' + r.url + '" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">Open \u2197</a>';
+        h += '</div></div>';
+      }
+    } else {
+      h += '<div style="font-size:0.75rem;color:var(--green);margin-bottom:1rem;">\u2713 All high-priority profiles are healthy.</div>';
+    }
+    
+    // Collapsible scan details
+    h += '<div style="margin-top:1rem;">';
+    h += '<button class="btn btn-outline btn-sm" onclick="var d=document.getElementById(\'scan-detail\');d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.textContent=d.style.display===\'none\'?\'Show Scan Details\':\'Hide Scan Details\'">Show Scan Details</button>';
+    h += '<div id="scan-detail" style="display:none;margin-top:1rem;">';
+    
+    // Summary cards
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.5rem;margin-bottom:1rem;">';
+    const metrics = [
+      {v: scan.live, l: 'Live', c: scan.live >= 18 ? 'var(--green)' : 'var(--amber)'},
+      {v: scan.with_hub_link, l: 'Hub Link', c: scan.with_hub_link > 15 ? 'var(--green)' : 'var(--amber)'},
+      {v: scan.fresh_content, l: 'Fresh', c: scan.fresh_content > 15 ? 'var(--green)' : 'var(--amber)'},
+      {v: scan.stale_content, l: 'Stale', c: scan.stale_content === 0 ? 'var(--green)' : 'var(--amber)'},
+      {v: scan.avg_entity_score, l: 'Entity Avg', c: scan.avg_entity_score >= 2 ? 'var(--green)' : 'var(--amber)'},
+    ];
+    for (const m of metrics) {
+      h += '<div class="card" style="text-align:center;padding:0.6rem;">';
+      h += '<div style="font-size:1.3rem;font-weight:700;color:' + m.c + ';">' + m.v + '</div>';
+      h += '<div style="font-size:0.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">' + m.l + '</div>';
+      h += '</div>';
+    }
+    h += '</div>';
+    
+    // Per-profile details
+    for (const r of scan.results) {
+      const ok = r.ok;
+      const issues = [];
+      if (!ok) issues.push('blocked/down');
+      else {
+        if (!r.hub_link) issues.push('no hub link');
+        if (r.freshness === 'stale') issues.push('stale');
+        if ((r.entity_terms?.score || 0) === 0) issues.push('no keywords');
+      }
+      const statusColor = !ok ? 'var(--muted)' : issues.length === 0 ? 'var(--green)' : 'var(--amber)';
+      const statusIcon = !ok ? '\u25cb' : issues.length === 0 ? '\u2713' : '\u26a0';
+      h += '<div class="status-row" style="padding:0.3rem 0;">';
+      h += '<span style="font-size:0.75rem;"><span style="color:' + statusColor + ';">' + statusIcon + '</span> ' + r.name + '</span>';
+      h += '<span style="font-size:0.65rem;color:' + (issues.length ? 'var(--amber)' : 'var(--green)') + ';">' + (issues.join(', ') || 'healthy') + '</span>';
+      h += '</div>';
+    }
+    
+    h += '<div style="font-size:0.65rem;color:var(--muted);margin-top:0.75rem;">Scanned: ' + ts + '</div>';
+    h += '</div></div>';
+    
+    el.innerHTML = h;
+  } catch(e) {
+    el.innerHTML = '';
+  }
+}
+
+
+function setProfileStatus(key, status) {
+  const ps = JSON.parse(localStorage.getItem('web20_status') || '{}');
+  ps[key] = { status, updated_at: new Date().toISOString() };
+  localStorage.setItem('web20_status', JSON.stringify(ps));
+  loadWeb20SEO();
+}
+
+// ── News Links ──
+async function loadNewsLinks() {
+  document.getElementById('newslinks-loading').style.display = 'flex';
+  document.getElementById('newslinks-list').style.display = 'none';
+  try {
+    const data = await api('/webhook/media-items');
+    document.getElementById('newslinks-loading').style.display = 'none';
+    document.getElementById('newslinks-list').style.display = 'block';
+    const items = data.all_unconsumed || [];
+    const el = document.getElementById('newslinks-list');
+    if (!items.length) {
+      el.innerHTML = '<div class="empty-state"><p>No news links found. Click "Scan Now" to search or "Add Link" to add manually.</p></div>';
+      return;
+    }
+    const now = new Date();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    el.innerHTML = items.map(m => {
+      const age = now - new Date(m.ingested_at || m.date);
+      const isRecent = age < oneWeek;
+      const dateLabel = new Date(m.date || m.ingested_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const sentColor = m.sentiment === 'negative' ? 'var(--red)' : m.sentiment === 'positive' ? 'var(--green)' : 'var(--muted)';
+      return `<div class="card" style="margin-bottom:0.5rem;${isRecent ? 'border-left:4px solid var(--green);' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
+              ${isRecent ? '<span style="font-size:0.5rem;background:var(--green);color:#fff;padding:0.1rem 0.35rem;border-radius:2px;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">New</span>' : ''}
+              <span class="badge badge-site">${m.type || 'mention'}</span>
+              <span style="font-size:0.65rem;color:${sentColor};font-weight:600;">${m.sentiment || 'neutral'}</span>
+              ${m.manual ? '<span style="font-size:0.5rem;color:var(--muted);font-style:italic;">manual</span>' : ''}
+            </div>
+            <a href="${m.url}" target="_blank" style="font-size:0.85rem;font-weight:600;color:var(--navy);text-decoration:none;">${(m.title||'Untitled').slice(0,70)}</a>
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:0.2rem;">${m.source || 'Unknown'} &middot; ${dateLabel}</div>
+            ${m.summary ? `<div style="font-size:0.75rem;color:var(--text);margin-top:0.35rem;">${m.summary.slice(0,120)}</div>` : ''}
+          </div>
+          <button class="btn btn-outline btn-sm" style="flex-shrink:0;margin-left:0.75rem;" onclick="dismissNewsItem('${m.item_id}',this)">Dismiss</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('newslinks-loading').style.display = 'none';
+    document.getElementById('newslinks-list').style.display = 'block';
+    document.getElementById('newslinks-list').innerHTML = `<div style="color:var(--red);font-size:0.8rem;">Error: ${e.message}</div>`;
+  }
+}
+
+async function addNewsLink() {
+  const url = document.getElementById('news-url').value.trim();
+  const title = document.getElementById('news-title').value.trim();
+  const source = document.getElementById('news-source').value.trim();
+  const date = document.getElementById('news-date').value;
+  const type = document.getElementById('news-type').value;
+  const sentiment = document.getElementById('news-sentiment').value;
+  const summary = document.getElementById('news-summary').value.trim();
+  if (!url || !title) { toast('URL and title required.', 'error'); return; }
+  try {
+    await api('/webhook/add-media-item', {
+      method: 'POST',
+      body: JSON.stringify({ url, title, source, date, type, sentiment, summary })
+    });
+    toast('News link added.', 'success');
+    document.getElementById('add-news-form').style.display = 'none';
+    ['news-url','news-title','news-source','news-date','news-summary'].forEach(id => document.getElementById(id).value = '');
+    loadNewsLinks();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function dismissNewsItem(item_id, btn) {
+  try {
+    btn.disabled = true; btn.textContent = '...';
+    await api('/webhook/dismiss-media-item', { method: 'POST', body: JSON.stringify({ item_id }) });
+    btn.closest('.card').style.opacity = '0.4';
+    setTimeout(() => loadNewsLinks(), 1000);
+  } catch(e) { toast('Failed: ' + e.message, 'error'); btn.textContent = 'Dismiss'; btn.disabled = false; }
+}
+
+async function triggerMediaScan() {
+  toast('Running media scan...');
+  try {
+    await api('/webhook/media-ingest', { method: 'POST' });
+    toast('Scan complete!', 'success');
+    loadNewsLinks();
+  } catch(e) { toast('Scan failed: ' + e.message, 'error'); }
+}
+
+async function loadWeb20SEO() {
+  loadWeb20Scan();
+  const profileStatus = JSON.parse(localStorage.getItem('web20_status') || '{}');
+  const container = document.getElementById('web20-content');
+  const profiles = Object.entries(WEB20_PROFILES);
+  
+  // Get scan data to overlay on profiles
+  let scanResults = {};
+  try {
+    const scanData = await api('/webhook/web20-status');
+    if (scanData.latest_scan && scanData.latest_scan.results) {
+      for (const r of scanData.latest_scan.results) {
+        scanResults[r.id] = r;
+      }
+    }
+  } catch(e) {}
+  
+  const sections = [
+    { id: 'critical', label: 'Suppression Priority — Push Above mbc.ca.gov (#10)', desc: 'These profiles are at positions #11-20. Optimizing them can push the negative result to page 2.', filter: p => p.priority === 'critical' },
+    { id: 'maintain', label: 'Maintain Position — Currently Above #10', desc: 'These are holding positions above the suppression target. Keep them strong.', filter: p => p.priority === 'high' && p.serp && p.serp <= 10 },
+    { id: 'high', label: 'High Value — Not Yet Ranking', desc: 'High-authority platforms that could break into the top 20 with optimization.', filter: p => p.priority === 'high' && (!p.serp || p.serp > 20) },
+    { id: 'other', label: 'Supporting Profiles', desc: 'Additional web presence for citation breadth.', filter: p => p.priority === 'medium' || p.priority === 'low' },
+  ];
+
+  let html = '';
+  for (const section of sections) {
+    const items = profiles.filter(([k,p]) => section.filter(p));
+    if (!items.length) continue;
+    
+    html += '<div style="margin-bottom:2rem;">';
+    html += '<div style="margin-bottom:0.75rem;">';
+    html += '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:' + (section.id === 'critical' ? 'var(--red)' : 'var(--muted)') + ';font-weight:' + (section.id === 'critical' ? '600' : '400') + ';">' + section.label + '</div>';
+    html += '<div style="font-size:0.7rem;color:var(--muted);margin-top:0.15rem;">' + section.desc + '</div>';
+    html += '</div>';
+    
+    for (const [key, p] of items) {
+      const scan = scanResults[key] || {};
+      const serpBadge = p.serp ? '<span class="badge badge-site">SERP #' + p.serp + '</span>' : '';
+      const scanBadge = scan.ok === false ? '<span style="font-size:0.5rem;background:#f8d7da;color:var(--red);padding:0.1rem 0.4rem;border-radius:2px;margin-left:0.5rem;">BLOCKED</span>'
+        : scan.ok && scan.hub_link && scan.freshness !== 'stale' && (scan.entity_terms?.score || 0) >= 2 ? '<span style="font-size:0.5rem;background:#d4edda;color:var(--green);padding:0.1rem 0.4rem;border-radius:2px;margin-left:0.5rem;">HEALTHY</span>'
+        : scan.ok ? '<span style="font-size:0.5rem;background:#fff3cd;color:var(--amber);padding:0.1rem 0.4rem;border-radius:2px;margin-left:0.5rem;">NEEDS WORK</span>'
+        : '';
+      const priBadge = p.priority === 'critical' ? '<span style="font-size:0.5rem;background:#fde8e8;color:var(--red);padding:0.1rem 0.4rem;border-radius:2px;margin-left:0.5rem;">PUSH UP</span>' : '';
+      let dynamicActions = [];
+      if (scan.ok === false) {
+        dynamicActions.push('\u26a0 Profile returned error — may be blocking bots (expected for some platforms)');
+      }
+      if (scan.ok && !scan.hub_link) {
+        dynamicActions.push('\u2717 Add sinabarimd.com link — critical for entity consolidation');
+      }
+      if (scan.freshness === 'stale') {
+        dynamicActions.push('\u2717 Content is stale — publish a new post or update bio with current year');
+      }
+      if (scan.ok && scan.entity_terms && scan.entity_terms.score === 0) {
+        dynamicActions.push('\u2717 No Stanford/surgeon/AI keywords detected — update bio');
+      } else if (scan.ok && scan.entity_terms && scan.entity_terms.score < 2) {
+        const missing = [];
+        if (!scan.entity_terms.stanford) missing.push('Stanford');
+        if (!scan.entity_terms.surgeon) missing.push('surgeon');
+        if (!scan.entity_terms.ai) missing.push('healthcare AI');
+        if (missing.length) dynamicActions.push('\u26a0 Missing keywords: ' + missing.join(', '));
+      }
+      if (scan.ok && scan.hub_link && scan.freshness !== 'stale' && (scan.entity_terms?.score || 0) >= 2) {
+        dynamicActions.push('\u2713 Profile looks good — keep content fresh with periodic posts');
+      }
+      // Fall back to static actions if no scan data
+      const actions = dynamicActions.length ? dynamicActions : (p.actions || []);
+      const actionHtml = actions.map(a => {
+        const color = a.startsWith('\u2717') ? 'var(--red)' : a.startsWith('\u26a0') ? 'var(--amber)' : a.startsWith('\u2713') ? 'var(--green)' : 'var(--muted)';
+        return '<div style="font-size:0.7rem;color:' + color + ';margin-top:0.15rem;">' + a + '</div>';
+      }).join('');
+      
+      let fieldsHtml = '';
+      for (const [fname, fval] of Object.entries(p.fields || {})) {
+        const fieldLabel = fname.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+        const escapedVal = String(fval).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        fieldsHtml += '<div style="margin-top:0.5rem;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">' + fieldLabel + '</span>' +
+          '<button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.textContent.trim());toast(\'Copied!\',\'success\')">copy</button>' +
+          '</div>' +
+          '<div style="font-size:0.8rem;color:var(--text);background:var(--bg2);padding:0.5rem 0.75rem;border-radius:2px;margin-top:0.25rem;white-space:pre-wrap;line-height:1.5;">' + escapedVal + '</div>' +
+          '</div>';
+      }
+      
+      const pStatus = profileStatus[key]?.status || 'pending';
+      if (pStatus === 'dismissed' || pStatus === 'completed') continue; // Hide completed and dismissed
+      const borderColor = section.id === 'critical' ? 'border-left:3px solid var(--red);' : '';
+      const opacity = '';
+      html += '<div class="card" style="margin-bottom:0.75rem;' + borderColor + opacity + '">' +
+        '<div class="card-header"><div>' +
+        '<div class="card-title" style="font-size:0.9rem;">' + p.name + ' ' + serpBadge + priBadge + '</div>' +
+        '<a href="' + p.url + '" target="_blank" rel="noopener" style="font-size:0.65rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);">' + p.url.slice(0,55) + '</a>' +
+        '</div>' +
+        '<button class="btn btn-outline btn-sm" onclick="this.closest(\'.card\').querySelector(\'.profile-details\').style.display=this.closest(\'.card\').querySelector(\'.profile-details\').style.display===\'none\'?\'block\':\'none\';this.textContent=this.closest(\'.card\').querySelector(\'.profile-details\').style.display===\'none\'?\'Expand\':\'Collapse\'">Expand</button>' +
+        (pStatus === 'completed' ? '<span class="badge badge-approved">Done</span>' :
+         '<button class="btn btn-success btn-sm" onclick="setProfileStatus(\'' + key + '\',\'completed\')">Done</button>' +
+         '<button class="btn btn-outline btn-sm" style="font-size:0.6rem;color:var(--muted);" onclick="setProfileStatus(\'' + key + '\',\'dismissed\')">Skip</button>') +
+        '</div>' +
+        '<div class="profile-details" style="display:none;margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">' +
+        '<div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Actions</div>' +
+        actionHtml +
+        '<div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-top:1rem;margin-bottom:0.25rem;">Optimized Content (click copy)</div>' +
+        fieldsHtml +
+        '</div></div>';
+    }
+    html += '</div>';
+  }
+
+  // Show completed/dismissed summary
+  const statusCounts = { completed: 0, dismissed: 0, pending: 0 };
+  for (const [k, p] of profiles) {
+    const s = profileStatus[k]?.status || 'pending';
+    statusCounts[s] = (statusCounts[s] || 0) + 1;
+  }
+  if (statusCounts.completed || statusCounts.dismissed) {
+    html = `<div style="display:flex;gap:1.5rem;font-size:0.75rem;margin-bottom:1.5rem;">
+      <span><strong style="color:var(--green);">${statusCounts.completed}</strong> completed</span>
+      <span><strong style="color:var(--muted);">${statusCounts.dismissed}</strong> dismissed</span>
+      <span><strong style="color:var(--amber);">${statusCounts.pending}</strong> remaining</span>
+      <button style="background:none;border:none;font-size:0.7rem;color:var(--muted);cursor:pointer;text-decoration:underline;" onclick="localStorage.removeItem('web20_status');loadWeb20SEO();">reset all</button>
+    </div>` + html;
+  }
+  container.innerHTML = html;
+}
+
+// ── Metrics ──
+async function loadMetrics() {
+  document.getElementById('metrics-loading').style.display = 'flex';
+  document.getElementById('metrics-empty').style.display = 'none';
+  document.getElementById('metrics-summary').style.display = 'none';
+  document.getElementById('metrics-alerts').style.display = 'none';
+  document.getElementById('metrics-serp').style.display = 'none';
+  document.getElementById('metrics-trend').style.display = 'none';
+  try {
+    const data = await api('/webhook/metrics');
+    document.getElementById('metrics-loading').style.display = 'none';
+    const latest = data.latest_measurement;
+    if (!latest) {
+      document.getElementById('metrics-empty').style.display = 'block';
+      return;
+    }
+
+    const isGSC = latest.source === 'gsc';
+    const ts = latest.measured_at ? new Date(latest.measured_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    const posColor = v => !v ? 'var(--muted)' : v <= 5 ? 'var(--green)' : v <= 15 ? 'var(--amber)' : 'var(--red)';
+    const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+
+    // Summary cards — adapt to data source
+    const sumEl = document.getElementById('metrics-summary');
+    sumEl.style.display = 'grid';
+    sumEl.style.gridTemplateColumns = 'repeat(auto-fill,minmax(160px,1fr))';
+    sumEl.style.gap = '1rem';
+    sumEl.style.marginBottom = '1.5rem';
+
+    if (isGSC) {
+      const bp = latest.branded_positions || {};
+      const bestPos = Object.values(bp).filter(v=>v).length ? Math.min(...Object.values(bp).filter(v=>v)) : null;
+      sumEl.innerHTML = `
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Total Impressions</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--navy);font-family:'Cormorant Garamond',serif;">${latest.total_impressions||0}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">last 28 days</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Total Clicks</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--navy);font-family:'Cormorant Garamond',serif;">${latest.total_clicks||0}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">last 28 days</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Best Branded Position</div>
+          <div style="font-size:2rem;font-weight:700;color:${posColor(bestPos)};font-family:'Cormorant Garamond',serif;">#${bestPos ? Math.round(bestPos*10)/10 : '\u2014'}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">Google Search Console</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Last Measured</div>
+          <div style="font-size:1rem;font-weight:600;color:var(--navy);margin-top:0.5rem;">${ts}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">GSC data</div>
+        </div>`;
+    } else {
+      const serp = latest.serp || {};
+      const gc = v => v >= 8 ? 'var(--green)' : v >= 5 ? 'var(--amber)' : 'var(--red)';
+      sumEl.innerHTML = `
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">SERP Owned</div>
+          <div style="font-size:2rem;font-weight:700;color:${gc(serp.owned_count||0)};font-family:'Cormorant Garamond',serif;">${serp.owned_count||0}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">of ${serp.total_results||0} results</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Highest Position</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--green);font-family:'Cormorant Garamond',serif;">#${serp.highest_owned_position||'\u2014'}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">Google SERP</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1rem;">
+          <div style="font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Last Measured</div>
+          <div style="font-size:1rem;font-weight:600;color:var(--navy);margin-top:0.5rem;">${ts}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">${data.measurement_count} total</div>
+        </div>`;
+    }
+
+    // Alerts
+    const activeAlerts = data.active_alerts || [];
+    if (activeAlerts.length) {
+      const alertEl = document.getElementById('metrics-alerts');
+      alertEl.style.display = 'block';
+      alertEl.innerHTML = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Alerts</div>' +
+        activeAlerts.map(a => {
+          const color = a.severity === 'high' ? 'var(--red)' : a.severity === 'medium' ? 'var(--amber)' : 'var(--green)';
+          return `<div style="padding:0.6rem 1rem;margin-bottom:0.4rem;background:var(--card);border:1px solid var(--border);border-left:3px solid ${color};border-radius:2px;font-size:0.82rem;">${a.message}</div>`;
+        }).join('');
+    }
+
+    // SERP / GSC breakdown
+    const serpEl = document.getElementById('metrics-serp');
+    serpEl.style.display = 'block';
+
+    if (isGSC) {
+      // Show per-site branded positions + top queries
+      let html = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Per-Site Performance (GSC)</div>';
+      const sites = latest.sites || {};
+      for (const [sid, sdata] of Object.entries(sites)) {
+        const bp = sdata.best_branded_position || sdata.branded_queries?.[0]?.position;
+        const bpDisplay = bp ? Math.round(bp*10)/10 : '\u2014';
+        html += `<div class="card" style="margin-bottom:0.75rem;">
+          <div class="card-header">
+            <div>
+              <div class="card-title" style="font-size:0.85rem;">${labels[sid]||sid}</div>
+              <div class="card-meta">${sdata.clicks||0} clicks \u00b7 ${sdata.impressions||0} impressions \u00b7 ${sdata.indexed_pages||0} pages</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Branded Pos</div>
+              <div style="font-size:1.3rem;font-weight:700;color:${posColor(bp)};font-family:'Cormorant Garamond',serif;">#${bpDisplay}</div>
+            </div>
+          </div>`;
+
+        // Top queries for this site
+        const queries = sdata.top_queries || [];
+        if (queries.length) {
+          html += '<div style="margin-top:0.75rem;">';
+          for (const q of queries.slice(0, 8)) {
+            const isBranded = q.query.toLowerCase().includes('sina') || q.query.toLowerCase().includes('bari');
+            html += `<div class="status-row" style="${isBranded ? 'background:rgba(46,125,82,0.06);' : ''}padding:0.35rem 0.5rem;">
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <span style="font-family:'Cormorant Garamond',serif;font-size:0.9rem;font-weight:600;color:var(--navy);min-width:2.5rem;">#${q.position}</span>
+                <span style="font-size:0.8rem;${isBranded ? 'font-weight:500;' : ''}">${q.query}</span>
+              </div>
+              <span style="font-size:0.7rem;color:var(--muted);">${q.impressions} imp</span>
+            </div>`;
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      serpEl.innerHTML = html;
+    } else {
+      // Google SERP view (SerpAPI)
+      const serp = latest.serp || {};
+      let serpHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);">Google SERP \u2014 "${serp.query || 'Sina Bari MD'}"</div>
+        <div style="display:flex;gap:1rem;font-size:0.65rem;">
+          <span style="color:var(--green);">\u25cf ${serp.owned_count||0} owned</span>
+          <span style="color:var(--navy);">\u25cf ${serp.known_profile_count||0} profiles</span>
+          ${serp.negative_count ? `<span style="color:var(--red);font-weight:600;">\u25cf ${serp.negative_count} negative</span>` : ''}
+          <span style="color:var(--muted);">\u25cf ${serp.competitor_count||0} other</span>
+        </div>
+      </div>`;
+      const allResults = serp.all_results || [];
+      serpHtml += '<div class="card">';
+      const negTargets = data.negative_targets || [];
+      const page1 = allResults.filter(r => r.position <= 10);
+      const page2 = allResults.filter(r => r.position > 10);
+
+      serpHtml += `<div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Page 1</div>`;
+      serpHtml += '<div class="card">';
+      for (const r of page1) {
+        const isNeg = r.type === 'negative';
+        const bgColor = r.type === 'owned' ? 'rgba(46,125,82,0.08)' : isNeg ? 'rgba(192,57,43,0.08)' : r.type === 'known_profile' ? 'rgba(0,26,43,0.04)' : 'transparent';
+        const dotColor = r.type === 'owned' ? 'var(--green)' : isNeg ? 'var(--red)' : r.type === 'known_profile' ? 'var(--navy)' : 'var(--muted)';
+        const label = r.type === 'owned' ? 'OWNED' : r.type === 'known_profile' ? 'PROFILE' : isNeg ? 'SUPPRESS' : '';
+        const labelColor = r.type === 'owned' ? 'var(--green)' : isNeg ? 'var(--red)' : 'var(--navy)';
+        const isMarked = negTargets.some(t => r.domain.includes(t.domain) || r.url.includes(t.url || '___'));
+        const markBtn = r.type === 'owned' || r.type === 'known_profile' ? ''
+          : isMarked ? `<button style="background:none;border:none;font-size:0.55rem;color:var(--muted);cursor:pointer;padding:0.15rem 0.35rem;" onclick="unmarkNegative('${r.domain}')">unmark</button>`
+          : `<button style="background:none;border:none;font-size:0.55rem;color:var(--red);cursor:pointer;padding:0.15rem 0.35rem;" onclick="markNegative('${r.domain}','${r.url}','${(r.title||'').replace(/'/g,'')}',${r.position})">mark negative</button>`;
+        serpHtml += `<div class="status-row" style="background:${bgColor};padding:0.5rem 0.75rem;margin:0 -0.25rem;border-radius:2px;">
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <span style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:var(--navy);min-width:2rem;">#${r.position}</span>
+            <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0;"></span>
+            <div>
+              <div style="font-size:0.8rem;${isNeg ? 'color:var(--red);font-weight:500;' : ''}">${r.title ? r.title.slice(0,65) : r.domain}</div>
+              <div style="font-size:0.65rem;color:${isNeg ? 'var(--red)' : 'var(--muted)'};">${r.domain}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            ${label ? `<span style="font-size:0.55rem;letter-spacing:0.1em;color:${labelColor};font-weight:600;">${label}</span>` : ''}
+            ${markBtn}
+          </div>
+        </div>`;
+      }
+      serpHtml += '</div>';
+      if (page2.length) {
+        serpHtml += `<div style="margin-top:1rem;">
+          <button onclick="document.getElementById('serp-page2').style.display=document.getElementById('serp-page2').style.display==='none'?'block':'none';this.textContent=document.getElementById('serp-page2').style.display==='none'?'Show Page 2+ (${page2.length} results)':'Hide Page 2+'"
+            style="background:none;border:1px solid var(--border);padding:0.4rem 0.8rem;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-radius:2px;font-family:Inter,sans-serif;">Show Page 2+ (${page2.length} results)</button>
+          <div id="serp-page2" style="display:none;margin-top:0.75rem;">
+            <div class="card">`;
+        for (const r of page2) {
+          const isNeg = r.type === 'negative';
+          const bgColor = r.type === 'owned' ? 'rgba(46,125,82,0.08)' : isNeg ? 'rgba(192,57,43,0.08)' : r.type === 'known_profile' ? 'rgba(0,26,43,0.04)' : 'transparent';
+          const dotColor = r.type === 'owned' ? 'var(--green)' : isNeg ? 'var(--red)' : r.type === 'known_profile' ? 'var(--navy)' : 'var(--muted)';
+          const label = r.type === 'owned' ? 'OWNED' : r.type === 'known_profile' ? 'PROFILE' : isNeg ? 'SUPPRESS' : '';
+          const labelColor = r.type === 'owned' ? 'var(--green)' : isNeg ? 'var(--red)' : 'var(--navy)';
+          const isMarked = negTargets.some(t => r.domain.includes(t.domain) || r.url.includes(t.url || '___'));
+          const markBtn = r.type === 'owned' || r.type === 'known_profile' ? ''
+            : isMarked ? `<button style="background:none;border:none;font-size:0.55rem;color:var(--muted);cursor:pointer;padding:0.15rem 0.35rem;" onclick="unmarkNegative('${r.domain}')">unmark</button>`
+            : `<button style="background:none;border:none;font-size:0.55rem;color:var(--red);cursor:pointer;padding:0.15rem 0.35rem;" onclick="markNegative('${r.domain}','${r.url}','${(r.title||'').replace(/'/g,'')}',${r.position})">mark negative</button>`;
+          serpHtml += `<div class="status-row" style="background:${bgColor};padding:0.5rem 0.75rem;margin:0 -0.25rem;border-radius:2px;opacity:0.75;">
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <span style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:var(--navy);min-width:2rem;">#${r.position}</span>
+              <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0;"></span>
+              <div>
+                <div style="font-size:0.8rem;${isNeg ? 'color:var(--red);font-weight:500;' : ''}">${r.title ? r.title.slice(0,65) : r.domain}</div>
+                <div style="font-size:0.65rem;color:${isNeg ? 'var(--red)' : 'var(--muted)'};">${r.domain}</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              ${label ? `<span style="font-size:0.55rem;letter-spacing:0.1em;color:${labelColor};font-weight:600;">${label}</span>` : ''}
+              ${markBtn}
+            </div>
+          </div>`;
+        }
+        serpHtml += '</div></div></div>';
+      }
+      serpEl.innerHTML = serpHtml;
+    }
+
+    // Trend
+    const trend = data.serp_trend || [];
+    if (trend.length > 1) {
+      const trendEl = document.getElementById('metrics-trend');
+      trendEl.style.display = 'block';
+      const isGSCTrend = trend[0].total_impressions !== undefined;
+      trendEl.innerHTML = `<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">${isGSCTrend ? 'Impressions Trend' : 'SERP Trend'}</div>
+        <div class="card"><div style="display:flex;gap:1rem;overflow-x:auto;padding:0.5rem 0;">
+          ${trend.map(t => {
+            const d = new Date(t.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+            const val = isGSCTrend ? (t.total_impressions||0) : (t.owned_count||0);
+            return `<div style="text-align:center;min-width:60px;">
+              <div style="font-size:1.25rem;font-weight:700;color:var(--navy);font-family:'Cormorant Garamond',serif;">${val}</div>
+              <div style="font-size:0.6rem;color:var(--muted);">${d}</div>
+            </div>`;
+          }).join('')}
+        </div></div>`;
+    }
+
+    // Security scan
+    try {
+      const sec = await api('/webhook/security-status');
+      const scan = sec.latest_scan;
+      if (scan) {
+        const secEl = document.getElementById('metrics-security');
+        secEl.style.display = 'block';
+        const ts = scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        const allPassed = scan.failed === 0;
+        let h = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+          <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);">Security Scan</div>
+          <div style="display:flex;gap:1rem;align-items:center;">
+            <span style="font-size:0.75rem;color:var(--muted);">${ts}</span>
+            <button class="btn btn-outline btn-sm" onclick="runSecurityScan()">Re-scan</button>
+          </div>
+        </div>`;
+        h += `<div class="card"><div class="card-header"><div>
+          <div class="card-title" style="font-size:0.85rem;">${scan.passed}/${scan.total_checks} checks passed</div></div>
+          <span style="font-size:1.1rem;font-weight:700;color:${allPassed ? 'var(--green)' : 'var(--red)'};">${allPassed ? 'SECURE' : scan.failed + ' ISSUE' + (scan.failed>1?'S':'')}</span>
+        </div>`;
+        for (const c of scan.checks || []) {
+          const color = c.passed ? 'var(--green)' : c.severity === 'high' ? 'var(--red)' : 'var(--amber)';
+          const icon = c.passed ? '\u2713' : '\u2717';
+          h += `<div class="status-row" style="padding:0.35rem 0.5rem;">
+            <span style="font-size:0.75rem;"><span style="color:${color};">${icon}</span> ${c.label}</span>
+            <span style="font-size:0.65rem;color:var(--muted);">${(c.detail||'').slice(0,40)}</span>
+          </div>`;
+        }
+        h += '</div>';
+        secEl.innerHTML = h;
+      }
+    } catch(e) {}
+
+    // GitHub repo traffic
+    try {
+      const GH_TOKEN = 'YOUR_GITHUB_TOKEN';
+      const GH_REPO = 'sinabarimd/reputation-engine';
+      const [ghViews, ghClones, ghReferrers] = await Promise.all([
+        fetch(`https://api.github.com/repos/${GH_REPO}/traffic/views`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>({})),
+        fetch(`https://api.github.com/repos/${GH_REPO}/traffic/clones`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>({})),
+        fetch(`https://api.github.com/repos/${GH_REPO}/traffic/popular/referrers`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>[]),
+      ]);
+      const ghEl = document.getElementById('metrics-github');
+      const totalViews = ghViews.count || 0;
+      const uniqueViews = ghViews.uniques || 0;
+      const totalClones = ghClones.count || 0;
+      const uniqueClones = ghClones.uniques || 0;
+
+      if (totalViews > 0 || totalClones > 0 || (Array.isArray(ghReferrers) && ghReferrers.length > 0)) {
+        ghEl.style.display = 'block';
+        let h = `<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">GitHub Repository (14-day rolling)</div>`;
+        h += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1rem;">`;
+        h += `<div class="card" style="text-align:center;padding:0.75rem;">
+          <div style="font-size:1.3rem;font-weight:600;color:var(--navy);">${totalViews}</div>
+          <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Views</div></div>`;
+        h += `<div class="card" style="text-align:center;padding:0.75rem;">
+          <div style="font-size:1.3rem;font-weight:600;color:var(--navy);">${uniqueViews}</div>
+          <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Unique Visitors</div></div>`;
+        h += `<div class="card" style="text-align:center;padding:0.75rem;">
+          <div style="font-size:1.3rem;font-weight:600;color:var(--navy);">${totalClones}</div>
+          <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Clones</div></div>`;
+        h += `<div class="card" style="text-align:center;padding:0.75rem;">
+          <div style="font-size:1.3rem;font-weight:600;color:var(--navy);">${uniqueClones}</div>
+          <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Unique Cloners</div></div>`;
+        h += `</div>`;
+        if (Array.isArray(ghReferrers) && ghReferrers.length > 0) {
+          h += `<div class="card"><div style="font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Top Referrers</div>`;
+          for (const r of ghReferrers.slice(0, 8)) {
+            h += `<div class="status-row" style="padding:0.3rem 0;">
+              <span style="font-size:0.78rem;">${r.referrer}</span>
+              <span style="font-size:0.7rem;color:var(--muted);">${r.count} views (${r.uniques} unique)</span>
+            </div>`;
+          }
+          h += `</div>`;
+        }
+        // Mini sparkline from daily views
+        const dailyViews = (ghViews.views || []).map(v => v.count);
+        if (dailyViews.some(v => v > 0)) {
+          const max = Math.max(...dailyViews, 1);
+          h += `<div style="display:flex;align-items:flex-end;gap:2px;height:40px;margin-top:0.75rem;">`;
+          for (const v of dailyViews) {
+            const pct = Math.max((v / max) * 100, 2);
+            h += `<div style="flex:1;background:var(--navy);height:${pct}%;border-radius:1px;opacity:${v>0?1:0.2};" title="${v} views"></div>`;
+          }
+          h += `</div><div style="font-size:0.55rem;color:var(--muted);margin-top:0.25rem;">Daily views (14 days)</div>`;
+        }
+        ghEl.innerHTML = h;
+      }
+    } catch(e) { /* GitHub API failed, skip silently */ }
+
+  } catch(e) {
+    document.getElementById('metrics-loading').style.display = 'none';
+    document.getElementById('metrics-empty').innerHTML = `<p style="color:var(--red);">Could not load metrics: ${e.message}</p>`;
+    document.getElementById('metrics-empty').style.display = 'block';
+  }
+}
+
+async function markNegative(domain, url, title, position) {
+  try {
+    await api('/webhook/serp-action', {method:'POST', body:JSON.stringify({action:'mark_negative', domain, url, title, position})});
+    toast('Marked as negative — will be tracked for suppression.', 'success');
+    loadMetrics(); loadHome();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function unmarkNegative(domain) {
+  try {
+    await api('/webhook/serp-action', {method:'POST', body:JSON.stringify({action:'unmark_negative', domain})});
+    toast('Unmarked.', 'success');
+    loadMetrics(); loadHome();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function clearMetricAlerts() {
+  try {
+    await api('/webhook/serp-action', {method:'POST', body:JSON.stringify({action:'clear_alerts'})});
+    toast('Alerts cleared.', 'success');
+    loadMetrics(); loadHome();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function runSecurityScan() {
+  toast('Running security scan\u2026');
+  try {
+    await api('/webhook/security-scan', {method:'POST', body:JSON.stringify({})});
+    toast('Security scan complete.', 'success');
+    loadMetrics();
+  } catch(e) { toast('Scan failed: ' + e.message, 'error'); }
+}
+
+async function runMeasurement() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Measuring\u2026';
+  toast('Running SERP measurement\u2026');
+  try {
+    const r = await api('/webhook/measure', {method:'POST', body:JSON.stringify({})});
+    toast(`Measured: ${r.serp_owned} owned of ${r.serp_total} results. ${r.new_alerts} alert${r.new_alerts!==1?'s':''}.`, r.new_alerts ? '' : 'success');
+    loadMetrics();
+    loadHome(); // refresh Overview snapshot with new SERP data
+  } catch(e) { toast('Measurement failed: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Run Measurement'; }
+}
+
+// ── Spotlight ──
+async function loadSpotlight() {
+  document.getElementById('spotlight-loading').style.display = 'flex';
+  document.getElementById('spotlight-content').style.display = 'none';
+  try {
+    const data = await api('/webhook/spotlight');
+    document.getElementById('spotlight-loading').style.display = 'none';
+    document.getElementById('spotlight-content').style.display = 'block';
+    const sp = data.spotlight;
+    const currentEl = document.getElementById('spotlight-current');
+    if (sp) {
+      currentEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div style="flex:1;">
+            <div style="font-size:0.55rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--green);font-weight:600;margin-bottom:0.5rem;">Currently Live</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--navy);margin-bottom:0.35rem;">${sp.title}</div>
+            <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;">${sp.excerpt}</div>
+            <div style="font-size:0.65rem;color:var(--muted);">
+              Path: <code>/articles/${sp.slug}.html</code> &middot; Set: ${new Date(sp.set_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0.35rem;margin-left:1rem;">
+            <a href="https://sinabarimd.com/articles/${sp.slug}.html" target="_blank" class="btn btn-outline btn-sm">View Live</a>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('spotlight-form').style.display='block'">Change</button>
+          </div>
+        </div>
+      `;
+    } else {
+      currentEl.innerHTML = `
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem;">No spotlight article set.</div>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('spotlight-form').style.display='block'">Set Spotlight</button>
+      `;
+    }
+    // Load campaign status
+    try {
+      const cData = await api('/webhook/spotlight-campaign');
+      const c = cData.campaign;
+      const statusEl = document.getElementById('spotlight-campaign-status');
+      const detailEl = document.getElementById('spotlight-campaign-detail');
+      if (c && c.tasks) {
+        statusEl.style.display = 'block';
+        const total = c.tasks.length;
+        const completed = c.tasks.filter(t => t.status === 'completed').length;
+        const skipped = c.tasks.filter(t => t.status === 'skipped').length;
+        const pending = c.tasks.filter(t => t.status === 'pending').length;
+        const pct = Math.round(((completed + skipped) / total) * 100);
+        detailEl.innerHTML = `
+          <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.5rem;">${c.title}</div>
+          <div style="height:6px;background:var(--bg2);border-radius:3px;margin-bottom:0.5rem;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:var(--green);border-radius:3px;transition:width 0.3s;"></div>
+          </div>
+          <div style="font-size:0.7rem;color:var(--muted);">${completed} done, ${skipped} skipped, ${pending} remaining of ${total} tasks</div>
+          <div style="margin-top:0.5rem;">
+            <a href="#" onclick="event.preventDefault();switchTab('web20')" style="font-size:0.7rem;color:var(--navy);">View tasks in Web 2.0 Content \u2192</a>
+          </div>
+        `;
+      }
+    } catch(e) { /* campaign not set, no problem */ }
+  } catch(e) {
+    document.getElementById('spotlight-loading').style.display = 'none';
+    document.getElementById('spotlight-content').style.display = 'block';
+    document.getElementById('spotlight-current').innerHTML = `<div style="color:var(--red);font-size:0.8rem;">Load error: ${e.message}</div>`;
+  }
+}
+
+async function saveSpotlight() {
+  const title = document.getElementById('spotlight-title').value.trim();
+  const excerpt = document.getElementById('spotlight-excerpt').value.trim();
+  const slug = document.getElementById('spotlight-slug').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  const fileInput = document.getElementById('spotlight-file');
+
+  if (!title || !slug) { toast('Title and slug are required.', 'error'); return; }
+
+  let article_html = null;
+  if (fileInput.files.length > 0) {
+    article_html = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsText(fileInput.files[0]);
+    });
+  }
+
+  try {
+    await api('/webhook/spotlight-set', {
+      method: 'POST',
+      body: JSON.stringify({ title, excerpt, slug, article_html, publish_date: new Date().toISOString().split('T')[0] })
+    });
+    toast('Spotlight updated. Next sinabarimd deploy will include it.', 'success');
+    document.getElementById('spotlight-form').style.display = 'none';
+    document.getElementById('spotlight-title').value = '';
+    document.getElementById('spotlight-excerpt').value = '';
+    document.getElementById('spotlight-slug').value = '';
+    fileInput.value = '';
+    loadSpotlight();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── SEO Actions ──
+async function loadSEOActions() {
+  document.getElementById('seo-loading').style.display = 'flex';
+  document.getElementById('seo-actions-list').innerHTML = '';
+  document.getElementById('seo-empty').style.display = 'none';
+  document.getElementById('seo-summary').style.display = 'none';
+  document.getElementById('seo-log').style.display = 'none';
+  try {
+    const data = await api('/webhook/seo-actions');
+    document.getElementById('seo-loading').style.display = 'none';
+    const s = data.summary || {};
+    if (s.pending || s.approved) {
+      const sumEl = document.getElementById('seo-summary');
+      sumEl.style.display = 'block';
+      sumEl.innerHTML = `<div style="display:flex;gap:1.5rem;font-size:0.75rem;">
+        <span><strong style="color:var(--amber);">${s.pending||0}</strong> pending</span>
+        <span><strong style="color:var(--navy);">${s.approved||0}</strong> approved</span>
+        <span><strong style="color:var(--green);">${s.completed||0}</strong> completed</span>
+        <span style="color:var(--muted);">${s.dismissed||0} dismissed</span></div>`;
+    }
+    document.getElementById('seo-brief-toggle').style.display = 'block';
+    const actions = data.actions || [];
+    if (!actions.length) {
+      document.getElementById('seo-empty').style.display = 'block';
+    }
+    const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+    const typeLabels = {site_change:'Site Change',prompt_change:'Prompt Change',config_change:'Config Change',new_content:'New Content'};
+    const container = document.getElementById('seo-actions-list');
+    actions.forEach(a => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const riskColor = a.risk_level==='low'?'var(--green)':a.risk_level==='medium'?'var(--amber)':'var(--red)';
+      const statusBadge = a.status==='pending'?'badge-pending':a.status==='approved'?'badge-approved':'badge-site';
+      const autoTag = a.auto_executable ? '<span style="font-size:0.55rem;background:#d4edda;color:var(--green);padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.5rem;">AUTO</span>' : '<span style="font-size:0.55rem;background:#fff3cd;color:var(--amber);padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.5rem;">MANUAL</span>';
+      card.innerHTML = `<div class="card-header"><div>
+        <div class="card-title">${a.title}${autoTag}</div>
+        <div class="card-meta">
+          <span class="badge badge-site">${labels[a.site_id]||a.site_id}</span>
+          <span class="badge badge-site">${typeLabels[a.type]||a.type}</span>
+          <span style="font-size:0.6rem;color:${riskColor};margin-left:0.5rem;">\u25cf ${a.risk_level} risk</span>
+        </div></div>
+        <span class="badge ${statusBadge}">${a.status}</span></div>
+        <div class="card-excerpt">${a.description||''}</div>
+        <div class="card-actions">
+          ${a.status==='pending'?`<button class="btn btn-success btn-sm" onclick="approveSEO('${a.action_id}')">Approve</button><button class="btn btn-outline btn-sm" onclick="dismissSEO('${a.action_id}')">Dismiss</button>`:''}
+          ${a.status==='approved'?`<button class="btn btn-primary btn-sm" onclick="exportToClaudeCode('${a.action_id}')">Export to Claude Code</button><button class="btn btn-outline btn-sm" onclick="dismissSEO('${a.action_id}')">Dismiss</button>`:''}
+        </div>`;
+      container.appendChild(card);
+    });
+    const log = data.recent_log || [];
+    if (log.length) {
+      const logEl = document.getElementById('seo-log');
+      logEl.style.display = 'block';
+      logEl.innerHTML = `<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Recent Log</div>` +
+        log.map(l => `<div class="status-row"><span style="font-size:0.75rem;">${l.title}</span><span class="badge ${l.status==='completed'?'badge-approved':'badge-site'}">${l.status}</span></div>`).join('');
+    }
+  } catch(e) {
+    document.getElementById('seo-loading').style.display = 'none';
+    document.getElementById('seo-empty').style.display = 'block';
+    document.getElementById('seo-brief-toggle').style.display = 'block';
+  }
+}
+
+let briefData = null;
+
+function toggleBrief() {
+  const panel = document.getElementById('seo-brief-panel');
+  const btn = event.target;
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    btn.textContent = 'Hide Brief';
+    if (briefData) renderBrief(briefData);
+    else loadBrief();
+  } else {
+    panel.style.display = 'none';
+    btn.textContent = 'View Latest Brief';
+  }
+}
+
+async function loadBrief() {
+  try {
+    const data = await api('/webhook/seo-intel');
+    briefData = data.latest_brief;
+    renderBrief(briefData);
+  } catch(e) { toast('Could not load brief: ' + e.message, 'error'); }
+}
+
+function renderBrief(b) {
+  if (!b || !b.summary) {
+    document.getElementById('seo-brief-content').innerHTML = '<p style="color:var(--muted);">No brief available. Run the SEO Research Agent first.</p>';
+    return;
+  }
+  const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+  const impactColor = i => i==='high'?'var(--red)':i==='medium'?'var(--amber)':'var(--green)';
+
+  let html = `<div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">${b.brief_type||'weekly'} brief \u2014 ${b.research_date} \u2014 ${b.total_sources||0} sources</div>`;
+  html += `<p style="margin-bottom:1.25rem;color:var(--text);font-weight:500;">${b.summary}</p>`;
+
+  if (b.algorithm_updates?.length) {
+    html += `<div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 0.5rem;">Algorithm Updates</div>`;
+    b.algorithm_updates.forEach(u => {
+      html += `<div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.25rem;">
+          <span style="font-size:0.6rem;color:${impactColor(u.impact)};font-weight:600;text-transform:uppercase;">${u.impact}</span>
+          <span style="font-size:0.82rem;">${u.update}</span></div>
+        <div style="font-size:0.75rem;color:var(--muted);">Action: ${u.action_required}</div></div>`;
+    });
+  }
+
+  if (b.content_recommendations?.length) {
+    html += `<div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 0.5rem;">Recommendations</div>`;
+    b.content_recommendations.forEach(r => {
+      const urgColor = r.urgency==='immediate'?'var(--red)':r.urgency==='next_cycle'?'var(--amber)':'var(--muted)';
+      html += `<div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+          <span style="font-size:0.6rem;color:${urgColor};font-weight:600;text-transform:uppercase;">${r.urgency}</span>
+          <span class="badge badge-site">${labels[r.applies_to]||r.applies_to}</span></div>
+        <div style="font-size:0.82rem;margin-top:0.25rem;">${r.recommendation}</div></div>`;
+    });
+  }
+
+  if (b.aeo_opportunities?.length) {
+    html += `<div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 0.5rem;">AEO Opportunities</div>`;
+    b.aeo_opportunities.forEach(a => { html += `<div style="font-size:0.82rem;padding:0.35rem 0;color:var(--muted);">\u2022 ${a}</div>`; });
+  }
+
+  if (b.schema_updates?.length) {
+    html += `<div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin:1.25rem 0 0.5rem;">Schema Updates</div>`;
+    b.schema_updates.forEach(s => {
+      html += `<div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:0.82rem;">${s.change}</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">Action: ${s.action}</div></div>`;
+    });
+  }
+
+  document.getElementById('seo-brief-content').innerHTML = html;
+}
+
+async function generateSEOTasks() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Generating\u2026';
+  toast('Analyzing SEO brief and generating tasks\u2026');
+  try {
+    const r = await api('/webhook/seo-implement', {method:'POST', body:JSON.stringify({})});
+    if (r.error) { toast(r.message, 'error'); }
+    else { toast(`${r.tasks_created} tasks generated.`, 'success'); }
+    loadSEOActions();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Generate from Brief'; }
+}
+
+async function approveSEO(action_id) {
+  try {
+    await api('/webhook/approve-seo-action', {method:'POST', body:JSON.stringify({action_id})});
+    toast('Action approved.', 'success');
+    loadSEOActions();
+  } catch(e) { toast('Approve failed: ' + e.message, 'error'); }
+}
+
+async function dismissSEO(action_id) {
+  try {
+    await api('/webhook/dismiss-seo-action', {method:'POST', body:JSON.stringify({action_id})});
+    toast('Action dismissed.', 'success');
+    loadSEOActions();
+  } catch(e) { toast('Dismiss failed: ' + e.message, 'error'); }
+}
+
+async function exportToClaudeCode(action_id) {
+  try {
+    const data = await api('/webhook/seo-actions');
+    const action = (data.actions || []).find(a => a.action_id === action_id);
+    if (!action) { toast('Action not found', 'error'); return; }
+
+    const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+    const typeLabels = {site_change:'Site Change',prompt_change:'Prompt Change',config_change:'Config Change',new_content:'New Content'};
+
+    const prompt = `Implement this SEO action from the Technical SEO Implementer.
+
+## Action: ${action.title}
+- **Type:** ${typeLabels[action.type] || action.type}
+- **Site:** ${labels[action.site_id] || action.site_id}
+- **Risk:** ${action.risk_level}
+- **Target:** ${action.change_target || 'N/A'}
+
+## Description
+${action.description}
+
+## Source Brief Recommendation
+${action.brief_item || 'N/A'}
+
+## Proposed Change
+- **Method:** ${action.change_method || 'N/A'}
+- **Search pattern:** \`${action.search_pattern || 'N/A'}\`
+- **Replacement:** \`${(action.replacement || 'N/A').slice(0, 500)}\`
+
+## Instructions
+Review the proposed change against the current live state of ${labels[action.site_id] || action.site_id}. Use your knowledge of the Reputation Engine architecture (CLAUDE.md, specs) to:
+1. Verify the change is safe and correct
+2. Adapt or improve the proposed change if needed (the Implementer's suggestion may be rough)
+3. Implement the change
+4. Verify via the QA Agent (POST /webhook/qa-check)
+5. Report what was done
+
+Action ID: ${action.action_id}`;
+
+    showCopyModal(prompt);
+    // Mark as completed
+    try {
+      await api('/webhook/dismiss-seo-action', {method:'POST', body:JSON.stringify({action_id, status:'completed'})});
+    } catch(_) {}
+    loadSEOActions();
+  } catch(e) {
+    toast('Export failed: ' + e.message, 'error');
+  }
+}
+
+// ── QA ──
+let qaFixData = [];
+
+function buildQAFixPrompt(qaType, identifier, failures, warnings) {
+  const allIssues = [...(failures||[]), ...(warnings||[])];
+  if (!allIssues.length) return null;
+  const issueList = allIssues.map(c => `- **${c.label}**: ${c.detail}`).join('\n');
+  const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+  let context = '';
+  if (qaType === 'article') context = `Article URL: ${identifier}`;
+  else if (qaType === 'domain') context = `Domain: ${labels[identifier]||identifier} (homepage)`;
+  else context = 'Portfolio-level (cross-site consistency)';
+  return `Fix these QA issues found by the SEO QA Agent.
+
+## QA Level: ${qaType.charAt(0).toUpperCase() + qaType.slice(1)}
+## ${context}
+
+## Issues Found
+${issueList}
+
+## Instructions
+Use your knowledge of the Reputation Engine architecture (CLAUDE.md, specs) to:
+1. Diagnose the root cause of each issue
+2. Implement the fix
+3. Re-run QA to verify (POST /webhook/qa-${qaType === 'article' ? 'check' : qaType === 'domain' ? 'domain' : 'portfolio'})
+4. Report what was done`;
+}
+
+function registerQAFix(qaType, identifier, failures, warnings) {
+  const idx = qaFixData.length;
+  qaFixData.push({qaType, identifier, failures, warnings});
+  return idx;
+}
+
+function fixInClaudeCode(idx) {
+  const d = qaFixData[idx];
+  if (!d) { toast('No data found.', 'error'); return; }
+  const prompt = buildQAFixPrompt(d.qaType, d.identifier, d.failures, d.warnings);
+  if (!prompt) { toast('No issues to fix.'); return; }
+  showCopyModal(prompt);
+}
+
+function showCopyModal(text) {
+  let modal = document.getElementById('copy-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'copy-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML = `<div style="background:var(--card);border:1px solid var(--border);border-radius:4px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Copy to Claude Code</span>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-primary btn-sm" onclick="doCopy()">Copy</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('copy-modal').style.display='none'">Close</button>
+        </div>
+      </div>
+      <textarea id="copy-modal-text" style="flex:1;margin:1rem;padding:0.75rem;font-family:monospace;font-size:0.8rem;line-height:1.5;border:1px solid var(--border);resize:none;min-height:300px;" readonly></textarea>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('copy-modal-text').value = text;
+  modal.style.display = 'flex';
+  setTimeout(() => {
+    const ta = document.getElementById('copy-modal-text');
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+  }, 100);
+}
+
+function doCopy() {
+  const ta = document.getElementById('copy-modal-text');
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  try {
+    navigator.clipboard.writeText(ta.value).then(() => {
+      toast('Copied!', 'success');
+      document.getElementById('copy-modal').style.display = 'none';
+    }).catch(() => {
+      document.execCommand('copy');
+      toast('Copied!', 'success');
+      document.getElementById('copy-modal').style.display = 'none';
+    });
+  } catch(e) {
+    document.execCommand('copy');
+    toast('Copied!', 'success');
+    document.getElementById('copy-modal').style.display = 'none';
+  }
+}
+
+function isSuppressed(qaType, identifier, checkId) {
+  const keys = [
+    `${qaType}:${identifier}:${checkId}`,
+    `${qaType}:all:${checkId}`,
+    `all:all:${checkId}`,
+  ];
+  return keys.some(k => suppressedChecks[k]);
+}
+
+const checksList = (checks, qaType, identifier) => (checks||[]).map(c => {
+  if (isSuppressed(qaType, identifier, c.id)) return '';
+  const color = c.severity === 'warning' ? 'var(--amber)' : 'var(--red)';
+  const icon = c.severity === 'warning' ? '\u26a0' : '\u2717';
+  return `<div style="font-size:0.75rem;color:${color};margin-top:0.25rem;display:flex;justify-content:space-between;align-items:center;">
+    <span>${icon} ${c.label}: ${c.detail}</span>
+    <button style="background:none;border:none;color:var(--muted);font-size:0.6rem;cursor:pointer;padding:0.15rem 0.35rem;white-space:nowrap;" onclick="suppressCheck('${qaType}','${identifier}','${c.id}')">ignore</button>
+  </div>`;
+}).filter(Boolean).join('');
+
+function hasVisibleIssues(failures, warnings, qaType, identifier) {
+  return [...(failures||[]), ...(warnings||[])].some(c => !isSuppressed(qaType, identifier, c.id));
+}
+
+async function loadQA() {
+  document.getElementById('qa-loading').style.display = 'flex';
+  document.getElementById('qa-portfolio-section').style.display = 'none';
+  document.getElementById('qa-domain-section').style.display = 'none';
+  document.getElementById('qa-article-section').style.display = 'none';
+  document.getElementById('qa-empty').style.display = 'none';
+  try {
+    const data = await api('/webhook/qa-results');
+    suppressedChecks = data.suppressed_checks || {};
+    document.getElementById('qa-loading').style.display = 'none';
+    const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
+    const gc = s => s >= 95 ? 'var(--green)' : s >= 80 ? 'var(--amber)' : 'var(--red)';
+    const gradeHtml = (grade, score) => `<span style="font-size:1.3rem;font-weight:700;color:${gc(score)};">${grade}</span><span style="font-size:0.7rem;color:var(--muted);margin-left:0.35rem;">${score}%</span>`;
+
+    qaFixData = [];
+    let hasAny = false;
+
+    // Portfolio
+    const pf = data.portfolio_result;
+    if (pf) {
+      hasAny = true;
+      const el = document.getElementById('qa-portfolio-section');
+      el.style.display = 'block';
+      const ts = pf.checked_at ? new Date(pf.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      el.innerHTML = `<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Portfolio Health</div>
+        <div class="card"><div class="card-header"><div><div class="card-title">Cross-Site Consistency</div><div class="card-meta">${ts}</div></div>${gradeHtml(pf.grade,pf.score)}</div>
+        ${checksList(pf.failed_checks,'portfolio','portfolio')}${checksList(pf.warnings,'portfolio','portfolio')}
+        ${!hasVisibleIssues(pf.failed_checks,pf.warnings,'portfolio','portfolio') ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
+        <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runPortfolioQA()">Re-check</button>${hasVisibleIssues(pf.failed_checks,pf.warnings,'portfolio','portfolio') ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('portfolio','portfolio',pf.failed_checks,pf.warnings)})">Fix in Claude Code</button>` : ''}</div></div>`;
+    }
+
+    // Domains
+    const domains = data.domain_results || {};
+    if (Object.keys(domains).length) {
+      hasAny = true;
+      const el = document.getElementById('qa-domain-section');
+      el.style.display = 'block';
+      let html = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Domain Health</div>';
+      for (const [sid, d] of Object.entries(domains)) {
+        const ts = d.checked_at ? new Date(d.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.85rem;">${labels[sid]||sid}</div><div class="card-meta">${ts}</div></div>${gradeHtml(d.grade,d.score)}</div>
+          ${checksList(d.failed_checks,'domain',sid)}${checksList(d.warnings,'domain',sid)}
+          ${!hasVisibleIssues(d.failed_checks,d.warnings,'domain',sid) ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
+          <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runDomainQASingle('${sid}')">Re-check</button>${hasVisibleIssues(d.failed_checks,d.warnings,'domain',sid) ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('domain',sid,d.failed_checks,d.warnings)})">Fix in Claude Code</button>` : ''}</div></div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    // Articles
+    const sites = data.article_results_by_site || {};
+    if (Object.keys(sites).length) {
+      hasAny = true;
+      const el = document.getElementById('qa-article-section');
+      el.style.display = 'block';
+      let html = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Article Health</div>';
+      for (const [sid, siteData] of Object.entries(sites)) {
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:0.75rem 0 0.5rem;"><span style="font-size:0.7rem;color:var(--muted);">${labels[sid]||sid}</span><span style="font-size:0.7rem;color:${gc(siteData.avg_score)};font-weight:600;">Avg: ${siteData.avg_score}%</span></div>`;
+        for (const a of siteData.articles) {
+          const ts = new Date(a.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+          const slug = (a.url||'').split('/articles/')[1] || a.url;
+          html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.8rem;">${slug}</div><div class="card-meta">${ts}</div></div>${gradeHtml(a.grade,a.score)}</div>
+            ${checksList(a.failed_checks,'article',a.url)}${checksList(a.warnings,'article',a.url)}
+            ${!hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
+            <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runQACheck('${a.site_id}','${a.url}')">Re-check</button>${hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('article',a.url,a.failed_checks,a.warnings)})">Fix in Claude Code</button>` : ''}</div></div>`;
+        }
+      }
+      el.innerHTML = html;
+    }
+
+    if (!hasAny) document.getElementById('qa-empty').style.display = 'block';
+  } catch(e) {
+    document.getElementById('qa-loading').style.display = 'none';
+    toast('Could not load QA results: ' + e.message, 'error');
+  }
+}
+
+async function runQACheck(site_id, article_url) {
+  toast('Running QA check\u2026');
+  try {
+    const result = await api('/webhook/qa-check', {method:'POST', body:JSON.stringify({site_id, article_url, source:'dashboard'})});
+    toast(`QA: ${result.grade} (${result.score}%) \u2014 ${result.failed_checks?.length||0} issues`, result.passed ? 'success' : 'error');
+    loadQA();
+  } catch(e) { toast('QA failed: ' + e.message, 'error'); }
+}
+
+async function suppressCheck(qaType, identifier, checkId) {
+  try {
+    await api('/webhook/qa-suppress', {method:'POST', body:JSON.stringify({qa_type:qaType, identifier, check_id:checkId, action:'suppress'})});
+    suppressedChecks[`${qaType}:${identifier}:${checkId}`] = true;
+    toast('Check ignored.', 'success');
+    loadQA();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function runDomainQA() {
+  toast('Running domain checks\u2026');
+  try {
+    await api('/webhook/qa-domain', {method:'POST', body:JSON.stringify({site_id:'sinabarimd', source:'dashboard'})});
+    await api('/webhook/qa-domain', {method:'POST', body:JSON.stringify({site_id:'sinabari_net', source:'dashboard'})});
+    await api('/webhook/qa-domain', {method:'POST', body:JSON.stringify({site_id:'sinabariplasticsurgery', source:'dashboard'})});
+    await api('/webhook/qa-domain', {method:'POST', body:JSON.stringify({site_id:'drsinabari', source:'dashboard'})});
+    toast('All domain checks complete.', 'success');
+    loadQA();
+  } catch(e) { toast('Domain QA failed: ' + e.message, 'error'); }
+}
+
+async function runDomainQASingle(site_id) {
+  toast('Checking ' + site_id + '\u2026');
+  try {
+    await api('/webhook/qa-domain', {method:'POST', body:JSON.stringify({site_id, source:'dashboard'})});
+    toast('Domain check complete.', 'success');
+    loadQA();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function runPortfolioQA() {
+  toast('Running portfolio check\u2026');
+  try {
+    await api('/webhook/qa-portfolio', {method:'POST', body:JSON.stringify({source:'dashboard'})});
+    toast('Portfolio QA complete.', 'success');
+    loadQA();
+  } catch(e) { toast('Portfolio QA failed: ' + e.message, 'error'); }
+}
+
+async function runQASweep() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Sweeping\u2026';
+  toast('Running full QA sweep\u2026');
+  try {
+    await api('/webhook/qa-sweep', {method:'POST', body:JSON.stringify({source:'dashboard'})});
+    toast('Sweep complete.', 'success');
+    loadQA();
+  } catch(e) { toast('Sweep failed: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Run Full Sweep'; }
+}
+</script>
+</body>
+</html>

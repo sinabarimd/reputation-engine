@@ -1,0 +1,1221 @@
+{
+  "updatedAt": "2026-04-25T16:22:01.303Z",
+  "createdAt": "2026-03-25T16:37:37.273Z",
+  "id": "S2Bmeg8gXM8NQPo2",
+  "name": "Reputation Engine \u2014 Content Research Agent",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "877c2c1a-741b-4fa8-ba38-e7e65dda57a0",
+      "name": "Friday Scout Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1ea1fbc1-f1a1-49d8-95bb-4916520e3dff",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 2,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "1e811f11-1e48-413b-aeb0-532deeef186b",
+      "name": "List Candidates Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        360
+      ],
+      "parameters": {
+        "path": "list-research-candidates",
+        "httpMethod": "GET",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "list-research-candidates"
+    },
+    {
+      "id": "d16582a9-1ab4-402a-addf-7153d88ba9de",
+      "name": "Add Topic Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        540
+      ],
+      "parameters": {
+        "path": "add-research-topic",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "add-research-topic"
+    },
+    {
+      "id": "a650943a-94dd-40b1-8ce8-08b3e3595de0",
+      "name": "Deep Research Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        720
+      ],
+      "parameters": {
+        "path": "research-deep",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {
+          "responseTimeout": 900000
+        }
+      },
+      "webhookId": "research-deep"
+    },
+    {
+      "id": "8ed5af6b-c8ff-4323-9f13-0909bd197977",
+      "name": "Build Scout Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// Build Scout Queries per site \u2014 aligned to domain profiles\nconst SITE_PROFILES = {\n  sinabarimd: {\n    role: 'Canonical identity hub \u2014 biography, current work, entity clarity',\n    allowed_topics: 'bio, current work, media, selected writing, entity',\n    forbidden_topics: 'thin blog spam, clinic impersonation',\n    queries: [\n      '\"Sina Bari\" OR \"Dr. Sina Bari\" news 2026',\n      'physician executive personal brand search visibility',\n      'healthcare AI leader profile search results',\n    ]\n  },\n  sinabari_net: {\n    role: 'Health technology authority (75% AI, 25% broader medtech)',\n    allowed_topics: 'healthcare AI, clinical AI, surgical robotics, digital health, medical devices, EHR innovation, precision medicine, telemedicine, wearable health tech, pharma technology, health data interoperability, genomics, clinical decision support',\n    forbidden_topics: 'plastic surgery, aesthetics, generic consumer AI, cryptocurrency',\n    queries: [\n      'healthcare AI clinical workflow automation news 2026',\n      'medical technology innovation digital health breakthroughs this week',\n      'FDA AI medical device surgical robotics approval 2026',\n      'precision medicine health data interoperability EHR update 2026',\n    ]\n  },\n  drsinabari: {\n    role: 'Editorial node \u2014 essays, interviews, long-form commentary',\n    allowed_topics: 'essays, interviews, commentary, long-form narrative',\n    forbidden_topics: 'clinic marketing, generic AI news',\n    queries: [\n      'medicine technology ethics commentary 2026',\n      'physician writer opinion AI healthcare current debate',\n      'doctor perspective technology society essay topics',\n    ]\n  },\n  sinabariplasticsurgery: {\n    role: 'Legacy specialty \u2014 aesthetics education, aging, rejuvenation',\n    allowed_topics: 'aesthetics education, aging, rejuvenation, surgery',\n    forbidden_topics: 'healthcare AI, enterprise tech',\n    queries: [\n      'plastic surgery innovation patient safety 2026',\n      'facial rejuvenation new technique research',\n      'aesthetic medicine trends surgeon education',\n    ]\n  },\n};\n\nconst sites = Object.keys(SITE_PROFILES);\nreturn sites.map(site_id => ({\n  json: {\n    site_id,\n    phase: 'scout',\n    profile: SITE_PROFILES[site_id],\n    queries: SITE_PROFILES[site_id].queries,\n  }\n}));"
+      }
+    },
+    {
+      "id": "275a252b-c292-45ca-9205-8915a925a497",
+      "name": "Split by Site",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        460,
+        90
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "58e48c8d-4022-40ed-bd94-225d1e3fe4c0",
+      "name": "Tavily Scout Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// Tavily Scout Search \u2014 3 queries per site, basic depth\nconst TAVILY_API_KEY = 'YOUR_TAVILY_API_KEY';\nconst { site_id, queries, profile } = $json;\n\nconst results = [];\nfor (const query of queries) {\n  try {\n    const resp = await $http.request({\n      method: 'POST',\n      url: 'https://api.tavily.com/search',\n      headers: { 'Content-Type': 'application/json' },\n      body: {\n        api_key: TAVILY_API_KEY,\n        query,\n        search_depth: 'advanced',\n        max_results: 5,\n        include_answer: true,\n      },\n    });\n    results.push({\n      query,\n      answer: resp.answer || null,\n      results: (resp.results || []).map(r => ({\n        title: r.title,\n        url: r.url,\n        content: r.content?.slice(0, 800),\n        published_date: r.published_date,\n      })),\n    });\n  } catch(e) {\n    results.push({ query, error: e.message, results: [] });\n  }\n}\n\nreturn [{ json: { ...($json), search_results: results } }];"
+      }
+    },
+    {
+      "id": "f0f6d9aa-398e-4015-bf5c-32719e2e25d4",
+      "name": "Build Phase1 OpenClaw Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// Build Phase 1 prompt \u2014 topic synthesis aligned to domain profile\nconst { site_id, profile, search_results } = $json;\n\nconst resultsText = (search_results || []).map(sr => {\n  const items = (sr.results || []).map(r =>\n    `  TITLE: ${r.title}\\n  URL: ${r.url}\\n  CONTENT: ${r.content || ''}\\n  DATE: ${r.published_date || 'unknown'}`\n  ).join('\\n---\\n');\n  return `QUERY: ${sr.query}\\nANSWER: ${sr.answer || 'N/A'}\\nRESULTS:\\n${items}`;\n}).join('\\n===\\n');\n\nconst prompt = `You are the Content Research Agent (Phase 1: Topic Scout).\nSite: ${site_id} \u2014 Role: ${profile.role}\nAllowed topics: ${profile.allowed_topics}\nForbidden topics: ${profile.forbidden_topics}\n\nBased on the search results below, suggest 2-3 candidate content topics.\nFor each candidate, output a JSON object with:\n- recommended_topic: one sentence describing the topic and angle\n- rationale: 1-2 sentences on why this is worth writing now\n- timeliness: how fresh this is (days/weeks)\n- confidence: \"high\" | \"medium\" | \"low\"\n- content_type: \"short_form\" | \"standard\" | \"longform\"\n- novel_angle: the one non-obvious insight that makes this worth reading\n- aeo_questions: array of 3-5 specific questions the content should answer\n- citable_sources: array of {title, url, publication, date, key_fact}\n\nOutput a JSON array only. No markdown, no commentary.\nOnly suggest topics within allowed_topics. Never suggest forbidden_topics.\n\nSEARCH RESULTS:\n${resultsText}`;\n\nreturn [{\n  json: {\n    ...($json),\n    openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }),\n    openclawAgentId: 'researcher-scout',\n  }\n}];"
+      }
+    },
+    {
+      "id": "0111fc0e-16de-4dcb-9e51-998942237b45",
+      "name": "OpenClaw: Synthesise Topics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        90
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{ $json.openclawAgentId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.openclaw_request_body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "cc8d2859-2d59-42c2-a12e-01cfb52bba09",
+      "name": "Extract Topics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// Extract candidate topics from OpenClaw response\n// Re-attach upstream context lost after HTTP Request node\nconst upstream = $('Build Phase1 OpenClaw Request').first().json;\nconst output = $json.output || [];\nlet text = '';\nfor (const block of output) {\n  for (const part of (block.content || [])) {\n    if (part.text) text += part.text;\n  }\n}\n\ntext = text.replace(/^```json\\s*/m, '').replace(/^```\\s*$/m, '').trim();\n\nlet candidates;\ntry {\n  candidates = JSON.parse(text);\n  if (!Array.isArray(candidates)) candidates = [candidates];\n} catch(e) {\n  const match = text.match(/\\[[\\s\\S]*\\]/);\n  if (match) {\n    try { candidates = JSON.parse(match[0]); }\n    catch(e2) { candidates = [{ error: 'Parse failed: ' + text.slice(0, 200) }]; }\n  } else {\n    candidates = [{ error: 'No JSON array found: ' + text.slice(0, 200) }];\n  }\n}\n\nreturn [{ json: { ...upstream, candidates } }];"
+      }
+    },
+    {
+      "id": "524c22a9-bc36-457f-9bf5-970c27699a02",
+      "name": "Store Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        90
+      ],
+      "parameters": {
+        "jsCode": "// Store candidates in static data \u2014 operator must review before Phase 2 runs\nconst staticData = $getWorkflowStaticData('global');\nconst { site_id, candidates } = $json;\n\nif (!staticData.candidates) staticData.candidates = {};\n\nstaticData.candidates[site_id] = {\n  generated_at: new Date().toISOString(),\n  site_id,\n  source: 'scout',\n  items: candidates,\n};\n\nreturn [{ json: {\n  stored: true,\n  site_id,\n  candidate_count: candidates.length,\n  generated_at: staticData.candidates[site_id].generated_at,\n} }];"
+      }
+    },
+    {
+      "id": "c19b3941-1815-4e9d-93b5-06e4b9f62f9a",
+      "name": "Collect Scout Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        90
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst summary = items.map(i => ({\n  site_id: i.json.site_id,\n  candidate_count: i.json.candidate_count,\n  stored: i.json.stored,\n}));\nreturn [{ json: {\n  phase: 'scout_complete',\n  summary,\n  review_url: 'GET https://n8n.sinabarimd.com/webhook/list-research-candidates',\n  next_step: 'Review candidates, then POST to /webhook/research-deep to approve a topic',\n} }];",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "709325c4-b507-4800-bbc3-22be4dba2609",
+      "name": "Return Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        360
+      ],
+      "parameters": {
+        "jsCode": "// Return all stored candidates for operator review\nconst staticData = $getWorkflowStaticData('global');\nconst candidates = staticData.candidates || {};\n\nreturn [{ json: {\n  generated_at: new Date().toISOString(),\n  instructions: {\n    review: 'Below are the current research candidates per site.',\n    approve: 'POST to /webhook/research-deep with: { site_id, selected_topic, content_type, additional_direction }',\n    add_custom: 'POST to /webhook/add-research-topic with: { site_id, topic, content_type }',\n    skip: 'POST to /webhook/research-deep with: { site_id, selected_topic: \"any\", skip_this_week: true }',\n  },\n  sites: candidates,\n} }];"
+      }
+    },
+    {
+      "id": "ef50d67a-267b-4f15-b1d6-16a1580f8dc7",
+      "name": "Add Custom Topic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        540
+      ],
+      "parameters": {
+        "jsCode": "// Add operator-authored topic to candidate list\nconst staticData = $getWorkflowStaticData('global');\nconst body = $json;\nconst { site_id, topic, content_type = 'standard', attachment_text = null } = body;\n\nif (!site_id || !topic) {\n  return [{ json: { success: false, error: 'Required: site_id, topic' } }];\n}\n\nif (!staticData.candidates) staticData.candidates = {};\nif (!staticData.candidates[site_id]) {\n  staticData.candidates[site_id] = {\n    generated_at: new Date().toISOString(),\n    site_id,\n    source: 'operator',\n    items: [],\n  };\n}\n\nconst customCandidate = {\n  recommended_topic: topic,\n  content_type,\n  confidence: 'operator',\n  source: 'operator_added',\n  added_at: new Date().toISOString(),\n  rationale: 'Operator-specified topic',\n  novel_angle: '(to be determined by deep research)',\n  aeo_questions: [],\n  citable_sources: [],\n};\n\nif (attachment_text) {\n  customCandidate.attachment_text = attachment_text.slice(0, 30000);\n  customCandidate.has_attachment = true;\n}\n\nstaticData.candidates[site_id].items.push(customCandidate);\n\nreturn [{ json: {\n  success: true,\n  site_id,\n  added_topic: topic,\n  has_attachment: !!attachment_text,\n  total_candidates: staticData.candidates[site_id].items.length,\n} }];\n"
+      }
+    },
+    {
+      "id": "bd6a0e7f-f96d-4280-9128-f7dfbd801ee2",
+      "name": "Plan Deep Research Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        810
+      ],
+      "parameters": {
+        "jsCode": "// Expand approved topic into targeted Tavily query set\nconst body = $json.body || $json;\nconst { site_id, selected_topic, content_type = 'standard', additional_direction = '', skip_this_week = false } = body;\n\nif (!site_id || !selected_topic) {\n  throw new Error('Required: site_id and selected_topic');\n}\n\nif (skip_this_week) {\n  return [{ json: { skipped: true, site_id } }];\n}\n\nconst baseQueries = [\n  `${selected_topic} latest research 2026`,\n  `${selected_topic} expert opinion analysis`,\n  `${selected_topic} statistics data evidence`,\n  `${selected_topic} controversies challenges criticism`,\n];\n\nconst longformQueries = content_type === 'longform' ? [\n  `${selected_topic} broader implications healthcare medicine`,\n  `${selected_topic} history context background`,\n  `${selected_topic} future predictions trends`,\n  `related topics ${selected_topic} connections`,\n] : [];\n\nconst siteAngleQueries = {\n  sinabarimd:             [`Dr Sina Bari ${selected_topic}`, `physician executive ${selected_topic} perspective`],\n  sinabari_net:           [`clinical implementation ${selected_topic}`, `hospital ${selected_topic} case study`],\n  drsinabari:             [`physician commentary ${selected_topic}`, `medical ethics ${selected_topic}`],\n  sinabariplasticsurgery: [`surgical application ${selected_topic}`, `patient outcomes ${selected_topic}`],\n};\n\nreturn [{\n  json: {\n    site_id, selected_topic, content_type, additional_direction,\n    is_longform: content_type === 'longform',\n    queries: [...baseQueries, ...longformQueries, ...(siteAngleQueries[site_id] || [])],\n    phase: 'deep_research',\n  }\n}];"
+      }
+    },
+    {
+      "id": "17773bdd-65cf-4023-b55d-a3d5da5a5150",
+      "name": "IF: Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        720
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "535205ee-9efb-4ea4-a7d8-ef3a3865f4f7",
+              "leftValue": "={{ $json.skipped }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "c5583efb-054a-4984-9cd8-22dcd0537972",
+      "name": "Clear Skipped Site",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        630
+      ],
+      "parameters": {
+        "jsCode": "// Clear candidates for skipped site\nconst staticData = $getWorkflowStaticData('global');\nconst { site_id } = $json;\nif (staticData.candidates) delete staticData.candidates[site_id];\nreturn [{ json: { status: 'skipped', site_id, candidates_cleared: true } }];"
+      }
+    },
+    {
+      "id": "f6ca5cf0-93d1-4782-b8ba-7c7bcbaa8ce5",
+      "name": "Queue Academic Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        810
+      ],
+      "parameters": {
+        "jsCode": "// Queue the research \u2014 the HTTP node after this fires the API\nconst upstream = $('Plan Deep Research Queries').first().json;\nconst { site_id, selected_topic, content_type } = upstream;\n\n// Look up attachment_text from the candidate in staticData\nconst staticData = $getWorkflowStaticData('global');\nlet attachment_text = '';\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || [];\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  const match = items.find(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (match && match.attachment_text) {\n    attachment_text = match.attachment_text;\n  }\n}\n\n// NOTE: Do NOT clear candidates here \u2014 cleared only after brief successfully stores\n\nconst apiBody = { query: selected_topic, site_id, content_type, selected_topic };\nif (attachment_text) apiBody.attachment_context = attachment_text;\n\nreturn [{ json: {\n  ...upstream,\n  attachment_text,\n  research_api_body: JSON.stringify(apiBody),\n} }];\n"
+      }
+    },
+    {
+      "id": "4ecc193d-5d46-49cc-ae81-395ac129df10",
+      "name": "Return Queued Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        810
+      ],
+      "parameters": {
+        "jsCode": "// Research is queued \u2014 return immediately\nconst upstream = $('Plan Deep Research Queries').first().json;\nreturn [{ json: { \n  status: 'queued',\n  site_id: upstream.site_id,\n  selected_topic: upstream.selected_topic,\n  message: 'Academic research queued. Draft will appear in Drafts tab within 5-10 minutes.',\n} }];"
+      }
+    },
+    {
+      "id": "5a75bf9b-edd8-4fe9-ba8e-b1eec86d5272",
+      "name": "OpenClaw: Deep Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        810
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{ $json.openclawAgentId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.openclaw_request_body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "2aac93e3-3298-49cb-9558-f66ad0eebc0c",
+      "name": "Extract Research Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        810
+      ],
+      "parameters": {
+        "jsCode": "// Extract research brief JSON from OpenClaw response\nconst output = $json.output || [];\nlet text = '';\nfor (const block of output) {\n  for (const part of (block.content || [])) {\n    if (part.text) text += part.text;\n  }\n}\n\ntext = text.replace(/^```json\\s*/m, '').replace(/^```\\s*$/m, '').trim();\n\nlet brief;\ntry {\n  brief = JSON.parse(text);\n} catch(e) {\n  const match = text.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    try { brief = JSON.parse(match[0]); }\n    catch(e2) { throw new Error('Could not parse brief: ' + text.slice(0, 300)); }\n  } else {\n    throw new Error('No JSON object found in response: ' + text.slice(0, 300));\n  }\n}\n\nbrief.consumed = false;\nbrief.queued_at = new Date().toISOString();\n\nreturn [{ json: { ...($json), brief } }];"
+      }
+    },
+    {
+      "id": "eb9b001b-6997-4bae-a214-cd93ec3aadfc",
+      "name": "Clear Site Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        810
+      ],
+      "parameters": {
+        "jsCode": "// Clear the researched topic from candidates\nconst staticData = $getWorkflowStaticData('global');\nconst upstream = $('Plan Deep Research Queries').first().json;\nconst site_id = upstream.site_id || $json.site_id;\nconst selected_topic = upstream.selected_topic || '';\n\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || staticData.candidates[site_id].candidates || [];\n  // Remove the specific topic that was researched (fuzzy match on first 30 chars)\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  const remaining = items.filter(item => {\n    const topic = (item.recommended_topic || item.topic || '').toLowerCase();\n    return !topic.includes(searchStr);\n  });\n  \n  if (staticData.candidates[site_id].items) {\n    staticData.candidates[site_id].items = remaining;\n  } else if (staticData.candidates[site_id].candidates) {\n    staticData.candidates[site_id].candidates = remaining;\n  }\n}\n\nreturn [{ json: { ...($json), candidates_cleared: true, site_id } }];"
+      }
+    },
+    {
+      "id": "fb69ca28-c37f-4de0-bfd6-832948db9be2",
+      "name": "Queue Brief to Orchestrator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        810
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.sinabarimd.com/webhook/store-research-brief",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ brief: $json.brief }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "auto-gen-draft",
+      "name": "Auto Generate Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2080,
+        810
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.sinabarimd.com/webhook/content-generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ site_id: $('Plan Deep Research Queries').first().json.site_id, research_brief: $('Extract Research Brief').first().json }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 180000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "research-complete-wh",
+      "name": "Research Complete Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1200
+      ],
+      "webhookId": "research-complete",
+      "parameters": {
+        "path": "research-complete",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "build-brief-from-papers",
+      "name": "Build Brief from Papers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "// Build a research brief from academic paper results + OpenClaw synthesis\nconst body = $json.body || $json;\nconst { site_id, selected_topic, content_type, citable_sources, papers_found, report_excerpt } = body;\n\n// --- Pass 1: Structure the raw data ---\nconst sourceSummaries = (citable_sources || []).slice(0, 10).map((s, i) =>\n  `[${i+1}] ${s.title} (${s.publication || 'unknown'}, ${s.date || 'n/d'})\\n    Key fact: ${s.key_fact || 'N/A'}`\n).join('\\n');\n\n// --- Pass 2: OpenClaw synthesis for richer brief ---\nconst synthesisPrompt = `You are a research analyst preparing a content brief for a physician-authored article.\n\nTopic: ${selected_topic}\nSite: ${site_id}\nContent type: ${content_type || 'standard'}\n\nACADEMIC SOURCES FOUND (${papers_found || 0} papers):\n${sourceSummaries}\n\nRESEARCH REPORT EXCERPT:\n${(report_excerpt || '').slice(0, 3000)}\n\nBased on these sources, produce a structured research brief as a JSON object with these fields:\n- recommended_topic: refined one-sentence topic with the strongest angle from the evidence\n- novel_angle: the single most surprising or non-obvious finding from the papers\n- key_findings: array of 5-8 specific, quantitative findings (cite the source paper)\n- interconnections: array of 2-3 connections between findings that create a narrative\n- aeo_questions: array of 5 specific questions this article should answer (real patient/reader questions)\n- suggested_structure: 2-3 sentence outline of how to organize the article\n- confidence: \"high\" if 10+ relevant papers, \"medium\" if 5-10, \"low\" if <5\n- writing_hooks: array of 2-3 compelling opening lines or angles\n\nOutput JSON only. No markdown fences, no commentary.`;\n\nlet brief;\ntry {\n  const openclawResp = await $http.request({\n    method: 'POST',\n    url: 'http://host.docker.internal:18789/v1/responses',\n    headers: {\n      'Authorization': 'Bearer YOUR_OPENCLAW_KEY',\n      'Content-Type': 'application/json',\n      'x-openclaw-agent-id': 'researcher-synthesis',\n    },\n    body: { model: 'openclaw', input: synthesisPrompt },\n  });\n\n  let text = '';\n  for (const block of (openclawResp.output || [])) {\n    for (const part of (block.content || [])) {\n      if (part.text) text += part.text;\n    }\n  }\n  text = text.replace(/^```json\\s*/m, '').replace(/^```\\s*$/m, '').trim();\n  \n  try {\n    brief = JSON.parse(text);\n  } catch(e) {\n    const match = text.match(/\\{[\\s\\S]*\\}/);\n    if (match) brief = JSON.parse(match[0]);\n    else throw e;\n  }\n} catch(e) {\n  // Fallback: build brief without synthesis (original behavior)\n  brief = {\n    recommended_topic: selected_topic,\n    novel_angle: report_excerpt ? report_excerpt.split('.').slice(0, 2).join('.') + '.' : 'Based on academic literature review',\n    key_findings: (citable_sources || []).slice(0, 5).map(s => s.key_fact || s.title),\n    aeo_questions: [],\n    suggested_structure: '',\n    confidence: papers_found > 20 ? 'high' : papers_found > 5 ? 'medium' : 'low',\n  };\n}\n\n// Always attach metadata\nbrief.site_id = site_id;\nbrief.research_date = new Date().toISOString().split('T')[0];\nbrief.content_type = content_type || 'standard';\nbrief.citable_sources = citable_sources || [];\nbrief.papers_found = papers_found;\nbrief.consumed = false;\n\n// Clear consumed candidates\nconst staticData = $getWorkflowStaticData('global');\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || [];\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  staticData.candidates[site_id].items = items.filter(i => \n    !(i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n}\n\nreturn [{ json: { brief, site_id, selected_topic } }];"
+      }
+    },
+    {
+      "id": "queue-brief-callback",
+      "name": "Queue Brief to Orchestrator (Callback)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.sinabarimd.com/webhook/store-research-brief",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.brief) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "generate-draft-callback",
+      "name": "Generate Draft (Callback)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "// Fire content generation \u2014 don't wait for it to complete\nconst brief = $('Build Brief from Papers').first().json.brief;\n\n// Fire and forget with a short timeout \u2014 we don't need the response\ntry {\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://n8n.sinabarimd.com/webhook/content-generate',\n    headers: { 'Content-Type': 'application/json' },\n    body: { site_id: brief.site_id, research_brief: brief },\n    json: true,\n    timeout: 10000,  // Short timeout \u2014 we just need to fire it\n  });\n  return [{ json: { success: true, message: 'Draft generation triggered' } }];\n} catch (e) {\n  // Timeout is expected \u2014 content generation takes minutes\n  // The important thing is the request was sent\n  return [{ json: { success: true, message: 'Draft generation triggered (async)', note: String(e.message || '').slice(0, 50) } }];\n}"
+      }
+    },
+    {
+      "id": "fire-api-node",
+      "name": "Fire Deep Researcher API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        810
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18791/research",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.research_api_body }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "suggest-topic-wh",
+      "name": "Suggest Topic Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        1400
+      ],
+      "webhookId": "suggest-topic",
+      "parameters": {
+        "path": "suggest-topic",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "suggest-topic-build",
+      "name": "Build Suggest Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1400
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json.body;\nconst site_id = input.site_id || 'sinabarimd';\nconst content_type = input.content_type || 'standard';\nconst seed_text = (input.seed_text || '').trim();\n\n// Get existing candidates to avoid duplication\nconst sd = $getWorkflowStaticData('global');\nconst candidates = sd.candidates || {};\nconst existing = Object.values(candidates[site_id] || {}).map(c => typeof c === 'object' ? (c.topic || c.title || '') : String(c)).filter(Boolean);\n\nconst siteProfiles = {\n  sinabarimd: 'sinabarimd.com \u2014 canonical identity hub for Dr. Sina Bari, MD. Topics: bio, work, media, selected writing, entity consolidation. NOT a blog \u2014 only high-signal content.',\n  sinabari_net: 'sinabari.net \u2014 healthcare AI authority blog. Topics: 75% healthcare AI + 25% broader health tech (medtech, robotics, digital health, precision medicine). FORBIDDEN: plastic surgery, generic AI.',\n  sinabariplasticsurgery: 'sinabariplasticsurgery.com \u2014 plastic surgery specialty. Topics: aesthetics, aging, rejuvenation, surgery, patient education. FORBIDDEN: healthcare AI, enterprise tech.',\n  drsinabari: 'drsinabari.com \u2014 long-form editorial. Topics: medicine & technology, physician identity, clinical ethics, healthcare policy, medical humanities. Minimum 1500 words. FORBIDDEN: clinic promotion, plastic surgery, generic AI.'\n};\n\nconst contentTypes = {\n  standard: '800-1000 word article',\n  short_form: '400-600 word focused piece',\n  longform: '1500-2000 word in-depth editorial'\n};\n\nconst existingList = existing.length ? '\\nAlready suggested (DO NOT repeat these):\\n' + existing.map(t => '- ' + t).join('\\n') : '';\nconst seedContext = seed_text ? `\\n\\nThe operator has a starting idea or direction: \"${seed_text}\"\\nUse this as a seed -- riff on it, expand it, find related angles. All 3 suggestions should be inspired by or connected to this seed idea.` : '';\n\nconst prompt = `You are a content strategist for Dr. Sina Bari, MD \u2014 a Stanford-trained surgeon and healthcare AI entrepreneur based in Los Angeles/Oakland.\n\nSite profile: ${siteProfiles[site_id] || siteProfiles.sinabarimd}\nContent format: ${contentTypes[content_type] || contentTypes.standard}\n${existingList}\n\nSuggest 3 fresh, specific topic ideas that would:\n1. Strengthen Dr. Bari's authority in this domain\n2. Target search queries real people are asking\n3. Differentiate from generic AI-written content with a clinical/insider perspective\n\nFor each, provide:\n- topic: A specific, compelling title (not generic)\n- rationale: Why this topic works for SEO + authority (1 sentence)\n- angle: The unique perspective Dr. Bari brings (1 sentence)\n\n${seedContext}\\n\\nRespond as JSON array: [{\"topic\":\"...\",\"rationale\":\"...\",\"angle\":\"...\"},...]`;\n\nconst body = JSON.stringify({\n  model: \"anthropic/claude-sonnet-4-20250514\",\n  input: prompt,\n  max_output_tokens: 1500\n});\n\nreturn [{ json: { openclaw_request_body: body, openclawAgentId: 'content-research' } }];\n"
+      }
+    },
+    {
+      "id": "suggest-topic-openclaw",
+      "name": "OpenClaw: Suggest Topics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        1400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{ $json.openclawAgentId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.openclaw_request_body }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "suggest-topic-extract",
+      "name": "Extract Suggestions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        1400
+      ],
+      "parameters": {
+        "jsCode": "\nconst response = $input.first().json;\nlet text = '';\nif (response.output && Array.isArray(response.output)) {\n  for (const item of response.output) {\n    if (item.type === 'message' && item.content) {\n      for (const c of item.content) {\n        if (c.type === 'output_text') text += c.text;\n      }\n    }\n  }\n} else if (response.choices) {\n  text = response.choices[0]?.message?.content || '';\n}\nif (!text) text = JSON.stringify(response);\n\n// Extract JSON array from response\nconst match = text.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/);\nlet suggestions = [];\nif (match) {\n  try { suggestions = JSON.parse(match[0]); } catch(e) {}\n}\n\nreturn [{ json: { suggestions } }];\n"
+      }
+    },
+    {
+      "id": "prepare-attachment-001",
+      "name": "Prepare Attachment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        540
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { site_id, topic, content_type = 'standard', attachment_b64, attachment_filename } = body;\nconst slug = (topic || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50);\nconst topic_id = site_id + '_' + new Date().toISOString().split('T')[0] + '_' + slug;\n\nreturn [{ json: {\n  site_id, topic, content_type,\n  has_attachment: !!(attachment_b64 && attachment_filename),\n  extract_body: (attachment_b64 && attachment_filename)\n    ? JSON.stringify({ data: attachment_b64, filename: attachment_filename, topic_id })\n    : null,\n  topic_id,\n} }];\n"
+      }
+    },
+    {
+      "id": "if-has-attachment-001",
+      "name": "IF: Has Attachment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        340,
+        540
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.has_attachment }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "http-extract-text-001",
+      "name": "HTTP: Extract Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        580,
+        480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9913/extract",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.extract_body }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "merge-attachment-001",
+      "name": "Merge Attachment Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const upstream = $('Prepare Attachment').first().json;\nconst extractResult = $json;\nreturn [{ json: {\n  site_id: upstream.site_id,\n  topic: upstream.topic,\n  content_type: upstream.content_type,\n  attachment_text: extractResult.text || null,\n  attachment_chars: extractResult.chars || 0,\n} }];\n"
+      }
+    },
+    {
+      "id": "research-queue-gate",
+      "name": "Research Queue Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        720
+      ],
+      "parameters": {
+        "jsCode": "// Queue gate: ensures only one deep research runs at a time\nconst staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { site_id, selected_topic, content_type = 'standard', additional_direction = '', skip_this_week = false } = body;\n\nif (!site_id || !selected_topic) {\n  throw new Error('Required: site_id and selected_topic');\n}\n\n// Initialize queue structures\nif (!staticData.research_lock) staticData.research_lock = null;\nif (!staticData.pending_research) staticData.pending_research = [];\n\nconst request = { site_id, selected_topic, content_type, additional_direction, skip_this_week, queued_at: new Date().toISOString() };\n\n// Check if research is currently running (lock expires after 5 minutes as safety valve)\nconst lockAge = staticData.research_lock ? (Date.now() - new Date(staticData.research_lock).getTime()) : Infinity;\nconst isLocked = staticData.research_lock && lockAge < 300000; // 5 min timeout\n\nif (isLocked) {\n  // Queue this request and return immediately\n  staticData.pending_research.push(request);\n  return [{ json: { queued: true, position: staticData.pending_research.length, site_id, selected_topic, message: `Research queued (position ${staticData.pending_research.length}). Will run automatically after current research completes.` } }];\n}\n\n// Acquire lock and proceed\nstaticData.research_lock = new Date().toISOString();\n\nreturn [{ json: { queued: false, proceed: true, ...request } }];\n"
+      }
+    },
+    {
+      "id": "if-research-queued",
+      "name": "IF: Queued?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        240,
+        720
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "queued-check",
+              "leftValue": "={{ $json.queued }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "return-queued-response",
+      "name": "Return Queued Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        620
+      ],
+      "parameters": {
+        "jsCode": "// Return queue position to dashboard\nreturn [{ json: { \n  status: 'queued',\n  position: $json.position,\n  site_id: $json.site_id,\n  selected_topic: $json.selected_topic,\n  message: $json.message,\n} }];"
+      }
+    },
+    {
+      "id": "drain-research-queue",
+      "name": "Drain Research Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        810
+      ],
+      "parameters": {
+        "jsCode": "// Release lock and trigger next queued item\nconst staticData = $getWorkflowStaticData('global');\n\n// Release lock\nstaticData.research_lock = null;\n\n// Check if there are queued items\nif (staticData.pending_research && staticData.pending_research.length > 0) {\n  const next = staticData.pending_research.shift();\n  \n  // Fire the next research via webhook (self-trigger)\n  try {\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'https://n8n.sinabarimd.com/webhook/research-deep',\n      headers: { 'Content-Type': 'application/json' },\n      body: next,\n      json: true,\n      timeout: 5000,\n    });\n  } catch(e) {\n    // Timeout expected \u2014 the webhook fires async\n  }\n  \n  return [{ json: { drained: true, next_site: next.site_id, next_topic: next.selected_topic } }];\n}\n\nreturn [{ json: { drained: false, queue_empty: true } }];\n"
+      }
+    },
+    {
+      "id": "drain-research-queue-callback",
+      "name": "Drain Queue (Callback)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "// Release lock and trigger next queued item (callback path)\nconst staticData = $getWorkflowStaticData('global');\n\n// Release lock\nstaticData.research_lock = null;\n\n// Check if there are queued items\nif (staticData.pending_research && staticData.pending_research.length > 0) {\n  const next = staticData.pending_research.shift();\n  \n  try {\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'https://n8n.sinabarimd.com/webhook/research-deep',\n      headers: { 'Content-Type': 'application/json' },\n      body: next,\n      json: true,\n      timeout: 5000,\n    });\n  } catch(e) {}\n  \n  return [{ json: { drained: true, next_site: next.site_id, next_topic: next.selected_topic } }];\n}\n\nreturn [{ json: { drained: false, queue_empty: true } }];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Friday Scout Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Scout Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Scout Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scout Queries": {
+      "main": [
+        [
+          {
+            "node": "Split by Site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split by Site": {
+      "main": [
+        [
+          {
+            "node": "Tavily Scout Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Scout Search": {
+      "main": [
+        [
+          {
+            "node": "Build Phase1 OpenClaw Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Phase1 OpenClaw Request": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw: Synthesise Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw: Synthesise Topics": {
+      "main": [
+        [
+          {
+            "node": "Extract Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Topics": {
+      "main": [
+        [
+          {
+            "node": "Store Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Candidates": {
+      "main": [
+        [
+          {
+            "node": "Collect Scout Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Candidates Webhook": {
+      "main": [
+        [
+          {
+            "node": "Return Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Topic Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deep Research Trigger": {
+      "main": [
+        [
+          {
+            "node": "Research Queue Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Deep Research Queries": {
+      "main": [
+        [
+          {
+            "node": "IF: Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Skip?": {
+      "main": [
+        [
+          {
+            "node": "Clear Skipped Site",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue Academic Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Academic Research": {
+      "main": [
+        [
+          {
+            "node": "Fire Deep Researcher API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Queued Status": {
+      "main": [
+        []
+      ]
+    },
+    "OpenClaw: Deep Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Extract Research Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Research Brief": {
+      "main": [
+        [
+          {
+            "node": "Clear Site Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Site Candidates": {
+      "main": [
+        [
+          {
+            "node": "Queue Brief to Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Brief to Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "Auto Generate Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Complete Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Brief from Papers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Brief from Papers": {
+      "main": [
+        [
+          {
+            "node": "Queue Brief to Orchestrator (Callback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Brief to Orchestrator (Callback)": {
+      "main": [
+        [
+          {
+            "node": "Generate Draft (Callback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fire Deep Researcher API": {
+      "main": [
+        [
+          {
+            "node": "Return Queued Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suggest Topic Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Suggest Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Suggest Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw: Suggest Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw: Suggest Topics": {
+      "main": [
+        [
+          {
+            "node": "Extract Suggestions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Attachment": {
+      "main": [
+        [
+          {
+            "node": "IF: Has Attachment?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Has Attachment?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add Custom Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Merge Attachment Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Attachment Text": {
+      "main": [
+        [
+          {
+            "node": "Add Custom Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Queue Gate": {
+      "main": [
+        [
+          {
+            "node": "IF: Queued?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Queued?": {
+      "main": [
+        [
+          {
+            "node": "Return Queued Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Plan Deep Research Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto Generate Draft": {
+      "main": [
+        [
+          {
+            "node": "Drain Research Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Draft (Callback)": {
+      "main": [
+        [
+          {
+            "node": "Drain Queue (Callback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "tags": []
+}

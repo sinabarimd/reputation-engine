@@ -1,0 +1,1007 @@
+{
+  "updatedAt": "2026-03-25T16:59:28.753Z",
+  "createdAt": "2026-03-23T20:47:47.047Z",
+  "id": "K4uSeWNA29Bu84MO",
+  "name": "Reputation Engine \u2014 Site Refresh",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -3344,
+        304
+      ],
+      "id": "0fb84a62-a1b3-4772-a58d-0a8bd11594ff",
+      "name": "When clicking \u2018Execute workflow\u2019"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $json.rendered_html || '';\nconst release_id = `rel_${Date.now()}`;\n\nreturn [\n  {\n    json: {\n      site_id: $json.site_id,\n      domain: $json.domain,\n      deployPath: $json.deployPath,\n      verifyUrl: $json.verifyUrl,\n      release_id,\n      files: [\n        {\n          path: 'index.html',\n          content: html,\n        },\n        {\n          path: 'styles.css',\n          content: $json.styles_css || '',\n        },\n      ],\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        336
+      ],
+      "id": "7958a708-bb8a-4b57-8621-a045aa267167",
+      "name": "Build Deploy Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9911/deploy",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_DEPLOY_SERVICE_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        352
+      ],
+      "id": "c05d553d-c115-4340-9202-18e2e5b19345",
+      "name": "Deploy Site"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.verifyUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/html"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        416
+      ],
+      "id": "a945c1fd-cfe1-46f8-b694-b183cee32706",
+      "name": "Verify Homepage"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        304
+      ],
+      "id": "151547a3-ac7d-43ee-88aa-29f62a387439",
+      "name": "Approval Gate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{$json.openclawAgentId}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{$json.openclaw_request_body}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1424,
+        160
+      ],
+      "id": "1de329fe-3f57-4512-b1df-10f2b89853ee",
+      "name": "OpenClaw Generate Content"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json.output || [];\nlet text = '';\n\nfor (const block of output) {\n  const content = block.content || [];\n  for (const part of content) {\n    if (part.text) text += part.text + '\\n';\n  }\n}\n\nif (!text.trim()) {\n  throw new Error('No text returned from OpenClaw');\n}\n\ntext = text\n  .replace(/^```yaml\\s*$/gm, '')\n  .replace(/^```\\s*$/gm, '');\n\nconst match = text.match(/^[\\t ]*site:[\\s\\S]*$/m);\n\nif (!match) {\n  throw new Error('No YAML starting with site: found');\n}\n\nreturn [{\n  json: {\n    ...$json,\n    generated_yaml: match[0].trim()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        304
+      ],
+      "id": "8e767aa5-9feb-42ba-aca2-99cb3cd9ec84",
+      "name": "Extract + Clean YAML"
+    },
+    {
+      "parameters": {
+        "jsCode": "const yaml = $json.generated_yaml;\n\nif (!yaml.includes('site:')) {\n  throw new Error('Missing site root');\n}\n\n\nif (yaml.includes('```')) {\n  throw new Error('Markdown detected');\n}\n\nif (/<[^>]+>/.test(yaml)) {\n  throw new Error('HTML detected');\n}\n\nreturn [{\n  json: {\n    ...$json,\n    generated_yaml: yaml\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        304
+      ],
+      "id": "465fe5af-c408-4787-b013-bab7605adefe",
+      "name": "Validate YAML (light)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const site = $json.site || {};\nconst template = $json.template || '';\nconst release_id = $json.release_id || '';\n\nif (!template) {\n  throw new Error('Missing template');\n}\n\nconst safe = (v) => (v === undefined || v === null ? '' : String(v));\n\nlet html = template;\n\n// simple token replacements\nconst replacements = {\n  '{{ site.title }}': safe(site.title),\n  '{{ site.meta_description }}': safe(site.meta_description),\n  '{{ site.canonical_url }}': safe(site.canonical_url),\n  '{{ site.display_name }}': safe(site.display_name),\n  '{{ site.contact_email }}': safe(site.contact_email),\n\n  '{{ site.hero.eyebrow }}': safe(site.hero?.eyebrow),\n  '{{ site.hero.headline }}': safe(site.hero?.headline),\n  '{{ site.hero.lead }}': safe(site.hero?.lead),\n  '{{ site.hero.primary_cta_href }}': safe(site.hero?.primary_cta_href),\n  '{{ site.hero.primary_cta_text }}': safe(site.hero?.primary_cta_text),\n  '{{ site.hero.secondary_cta_href }}': safe(site.hero?.secondary_cta_href),\n  '{{ site.hero.secondary_cta_text }}': safe(site.hero?.secondary_cta_text),\n  '{{ site.hero.headshot_src }}': safe(site.hero?.headshot_src),\n  '{{ site.hero.headshot_alt }}': safe(site.hero?.headshot_alt),\n\n  '{{ site.about.eyebrow }}': safe(site.about?.eyebrow),\n  '{{ site.about.heading }}': safe(site.about?.heading),\n  '{{ site.about.paragraphs[0] }}': safe(site.about?.paragraphs?.[0]),\n  '{{ site.about.paragraphs[1] }}': safe(site.about?.paragraphs?.[1]),\n\n  '{{ site.focus.eyebrow }}': safe(site.focus?.eyebrow),\n  '{{ site.focus.heading }}': safe(site.focus?.heading),\n  '{{ site.focus.cards[0].title }}': safe(site.focus?.cards?.[0]?.title),\n  '{{ site.focus.cards[0].body }}': safe(site.focus?.cards?.[0]?.body),\n  '{{ site.focus.cards[1].title }}': safe(site.focus?.cards?.[1]?.title),\n  '{{ site.focus.cards[1].body }}': safe(site.focus?.cards?.[1]?.body),\n  '{{ site.focus.cards[2].title }}': safe(site.focus?.cards?.[2]?.title),\n  '{{ site.focus.cards[2].body }}': safe(site.focus?.cards?.[2]?.body),\n\n  '{{ site.background.eyebrow }}': safe(site.background?.eyebrow),\n  '{{ site.background.heading }}': safe(site.background?.heading),\n  '{{ site.background.paragraphs[0] }}': safe(site.background?.paragraphs?.[0]),\n  '{{ site.background.paragraphs[1] }}': safe(site.background?.paragraphs?.[1]),\n\n  '{{ site.writing.eyebrow }}': safe(site.writing?.eyebrow),\n  '{{ site.writing.heading }}': safe(site.writing?.heading),\n  '{{ site.writing.cards[0].title }}': safe(site.writing?.cards?.[0]?.title),\n  '{{ site.writing.cards[0].body }}': safe(site.writing?.cards?.[0]?.body),\n  '{{ site.writing.cards[1].title }}': safe(site.writing?.cards?.[1]?.title),\n  '{{ site.writing.cards[1].body }}': safe(site.writing?.cards?.[1]?.body),\n  '{{ site.writing.cards[2].title }}': safe(site.writing?.cards?.[2]?.title),\n  '{{ site.writing.cards[2].body }}': safe(site.writing?.cards?.[2]?.body),\n\n  '{{ site.network.eyebrow }}': safe(site.network?.eyebrow),\n  '{{ site.network.heading }}': safe(site.network?.heading),\n  '{{ site.network.body }}': safe(site.network?.body),\n\n  '{{ site.footer.heading }}': safe(site.footer?.heading),\n  '{{ site.footer.body }}': safe(site.footer?.body),\n};\n\nfor (const [token, value] of Object.entries(replacements)) {\n  html = html.split(token).join(value);\n}\n\n// inject release marker\nif (html.includes('</head>')) {\n  html = html.replace(\n    '</head>',\n    `  <meta name=\"x-release-id\" content=\"${safe(release_id)}\">\\n</head>`\n  );\n}\n\nif (html.includes('</body>')) {\n  html = html.replace(\n    '</body>',\n    `<!-- release: ${safe(release_id)} -->\\n</body>`\n  );\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      rendered_html: html\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        304
+      ],
+      "id": "12c0c522-86a3-4a0e-8234-cabe91cf6013",
+      "name": "Render"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $json.rendered_html || '';\n\nif (!html) {\n  throw new Error('QA FAIL: rendered_html missing');\n}\n\nif (/undefined/i.test(html)) {\n  throw new Error('QA FAIL: \"undefined\" detected \u2192 missing field in render');\n}\n\nif (!/<link rel=\"canonical\" href=\"https:\\/\\/[^\"]+/.test(html)) {\n  throw new Error('QA FAIL: canonical tag missing');\n}\n\nif (/<meta[^>]+name=[\"']robots[\"'][^>]+content=[\"'][^\"']*noindex/i.test(html)) {\n  throw new Error('QA FAIL: noindex detected in rendered HTML');\n}\n\nif (!/<a [^>]*href=[\"']https:\\/\\/sinabarimd\\.com[^\"']*[\"']/i.test(html)) {\n  throw new Error('QA FAIL: no outbound link to sinabarimd.com \u2014 internal link rule violated');\n}\n\nif (!/<script type=[\"']application\\/ld\\+json[\"']/i.test(html)) {\n  throw new Error('QA FAIL: Person schema (JSON-LD) missing');\n}\n\nreturn $input.all();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        304
+      ],
+      "id": "570fce38-a54e-408a-9b45-88cd0e10dc9b",
+      "name": "QA"
+    },
+    {
+      "parameters": {
+        "jsCode": "const yaml = ($json.generated_yaml || '').replace(/\\r/g, '');\n\nfunction fail(msg) {\n  throw new Error(`YAML parse failed: ${msg}`);\n}\n\nif (!yaml || typeof yaml !== 'string') {\n  fail('generated_yaml missing');\n}\n\nconst lines = yaml.split('\\n');\n\nfunction unquote(s) {\n  const t = String(s).trim();\n  if ((t.startsWith('\"') && t.endsWith('\"')) || (t.startsWith(\"'\") && t.endsWith(\"'\"))) {\n    return t.slice(1, -1);\n  }\n  return t;\n}\n\nfunction topField(name) {\n  const prefix = `  ${name}:`;\n  const line = lines.find(l => l.startsWith(prefix));\n  if (!line) fail(`missing top field: ${name}`);\n  return unquote(line.slice(prefix.length).trim());\n}\n\nfunction sectionLines(name) {\n  const start = lines.findIndex(l => l === `  ${name}:`);\n  if (start === -1) fail(`missing section: ${name}`);\n  let end = lines.length;\n  for (let i = start + 1; i < lines.length; i++) {\n    if (/^  [A-Za-z_][A-Za-z0-9_]*:\\s*$/.test(lines[i])) {\n      end = i;\n      break;\n    }\n  }\n  return lines.slice(start + 1, end);\n}\n\nfunction sectionField(sectionName, fieldName) {\n  const prefix = `    ${fieldName}:`;\n  const line = sectionLines(sectionName).find(l => l.startsWith(prefix));\n  if (!line) fail(`missing ${sectionName}.${fieldName}`);\n  return unquote(line.slice(prefix.length).trim());\n}\n\nfunction paragraphs(sectionName) {\n  const sec = sectionLines(sectionName);\n  const start = sec.findIndex(l => l.trim() === 'paragraphs:');\n  if (start === -1) fail(`missing ${sectionName}.paragraphs`);\n  const out = [];\n  for (let i = start + 1; i < sec.length; i++) {\n    const line = sec[i];\n    if (/^\\s{6}-\\s+/.test(line)) {\n      out.push(unquote(line.replace(/^\\s{6}-\\s+/, '')));\n    } else if (/^\\s{4}[A-Za-z_]/.test(line)) {\n      break;\n    }\n  }\n  if (out.length < 2) fail(`${sectionName} needs at least 2 paragraphs`);\n  return out;\n}\n\nfunction cards(sectionName) {\n  const sec = sectionLines(sectionName);\n  const start = sec.findIndex(l => l.trim() === 'cards:');\n  if (start === -1) fail(`missing ${sectionName}.cards`);\n  const out = [];\n  let current = null;\n\n  for (let i = start + 1; i < sec.length; i++) {\n    const line = sec[i];\n\n    if (/^\\s{6}-\\s+title:\\s+/.test(line)) {\n      if (current) out.push(current);\n      current = {\n        title: unquote(line.replace(/^\\s{6}-\\s+title:\\s+/, '')),\n        body: ''\n      };\n    } else if (/^\\s{8}body:\\s+/.test(line)) {\n      if (!current) fail(`${sectionName} body before title`);\n      current.body = unquote(line.replace(/^\\s{8}body:\\s+/, ''));\n    } else if (/^\\s{4}[A-Za-z_]/.test(line)) {\n      break;\n    }\n  }\n\n  if (current) out.push(current);\n  if (out.length < 3) fail(`${sectionName} needs at least 3 cards`);\n  return out;\n}\n\nconst site = {\n  slug: topField('slug'),\n  canonical_url: topField('canonical_url'),\n  display_name: topField('display_name'),\n  title: topField('title'),\n  meta_description: topField('meta_description'),\n  contact_email: topField('contact_email'),\n  hero: {\n    eyebrow: sectionField('hero', 'eyebrow'),\n    headline: sectionField('hero', 'headline'),\n    lead: sectionField('hero', 'lead'),\n    primary_cta_text: sectionField('hero', 'primary_cta_text'),\n    primary_cta_href: sectionField('hero', 'primary_cta_href'),\n    secondary_cta_text: sectionField('hero', 'secondary_cta_text'),\n    secondary_cta_href: sectionField('hero', 'secondary_cta_href'),\n    headshot_src: sectionField('hero', 'headshot_src'),\n    headshot_alt: sectionField('hero', 'headshot_alt'),\n  },\n  about: {\n    eyebrow: sectionField('about', 'eyebrow'),\n    heading: sectionField('about', 'heading'),\n    paragraphs: paragraphs('about'),\n  },\n  focus: {\n    eyebrow: sectionField('focus', 'eyebrow'),\n    heading: sectionField('focus', 'heading'),\n    cards: cards('focus'),\n  },\n  background: {\n    eyebrow: sectionField('background', 'eyebrow'),\n    heading: sectionField('background', 'heading'),\n    paragraphs: paragraphs('background'),\n  },\n  writing: {\n    eyebrow: sectionField('writing', 'eyebrow'),\n    heading: sectionField('writing', 'heading'),\n    cards: cards('writing'),\n  },\n  network: {\n    eyebrow: sectionField('network', 'eyebrow'),\n    heading: sectionField('network', 'heading'),\n    body: sectionField('network', 'body'),\n  },\n  footer: {\n    heading: sectionField('footer', 'heading'),\n    body: sectionField('footer', 'body'),\n  }\n};\n\n// enforce config-controlled fields if present upstream\nsite.slug = $json.slug || site.slug;\nsite.canonical_url = $json.canonical_url || site.canonical_url;\nsite.display_name = $json.display_name || site.display_name;\nsite.contact_email = $json.contact_email || site.contact_email;\n\n// \ud83d\udd12 CRITICAL: lock headshot\nsite.hero = site.hero || {};\nsite.hero.headshot_src = $json.headshot_src || site.hero.headshot_src;\nsite.hero.headshot_alt = $json.headshot_alt || site.hero.headshot_alt;\nreturn [{\n  json: {\n    ...$json,\n    site,\n    generated_yaml: yaml\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        304
+      ],
+      "id": "5d8ba5d4-80b8-447f-b8f4-1077724f26c3",
+      "name": "Parse YAML to Site Object"
+    },
+    {
+      "parameters": {
+        "jsCode": "const site_id = $json.site_id || 'sinabarimd';\n\nconst templates = {\n  sinabarimd: { html: `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n  <title>{{ site.title }}</title>\n  <meta name=\"description\" content=\"{{ site.meta_description }}\" />\n  <link rel=\"canonical\" href=\"{{ site.canonical_url }}\" />\n  <link rel=\"stylesheet\" href=\"styles.css\" />\n</head>\n<body>\n\n  <header class=\"site-header\">\n    <div class=\"wrap nav-wrap\">\n      <a class=\"wordmark\" href=\"/\">{{ site.display_name }}</a>\n      <nav>\n        <a href=\"#work\">Work</a>\n        <a href=\"#background\">Background</a>\n        <a href=\"#writing\">Writing</a>\n        <a href=\"#contact\">Contact</a>\n      </nav>\n    </div>\n  </header>\n\n  <main>\n\n    <!-- HERO: name + positioning -->\n    <section class=\"hero\">\n      <div class=\"wrap hero-wrap\">\n        <div class=\"hero-text\">\n          <p class=\"label\">{{ site.hero.eyebrow }}</p>\n          <h1>{{ site.hero.headline }}</h1>\n          <p class=\"lead\">{{ site.hero.lead }}</p>\n          <div class=\"hero-actions\">\n            <a class=\"btn-primary\" href=\"{{ site.hero.primary_cta_href }}\">{{ site.hero.primary_cta_text }}</a>\n            <a class=\"btn-ghost\" href=\"{{ site.hero.secondary_cta_href }}\">{{ site.hero.secondary_cta_text }}</a>\n          </div>\n        </div>\n        <figure class=\"hero-portrait\">\n          <img src=\"{{ site.hero.headshot_src }}\" alt=\"{{ site.hero.headshot_alt }}\" />\n        </figure>\n      </div>\n    </section>\n\n    <!-- ABOUT -->\n    <section id=\"about\" class=\"section\">\n      <div class=\"wrap\">\n        <p class=\"label\">{{ site.about.eyebrow }}</p>\n        <h2>{{ site.about.heading }}</h2>\n        <div class=\"prose-cols\">\n          <p>{{ site.about.paragraphs[0] }}</p>\n          <p>{{ site.about.paragraphs[1] }}</p>\n        </div>\n      </div>\n    </section>\n\n    <!-- CURRENT WORK -->\n    <section id=\"work\" class=\"section section-tinted\">\n      <div class=\"wrap\">\n        <p class=\"label\">{{ site.focus.eyebrow }}</p>\n        <h2>{{ site.focus.heading }}</h2>\n        <div class=\"feature-grid\">\n          <div class=\"feature-card\">\n            <h3>{{ site.focus.cards[0].title }}</h3>\n            <p>{{ site.focus.cards[0].body }}</p>\n          </div>\n          <div class=\"feature-card\">\n            <h3>{{ site.focus.cards[1].title }}</h3>\n            <p>{{ site.focus.cards[1].body }}</p>\n          </div>\n          <div class=\"feature-card\">\n            <h3>{{ site.focus.cards[2].title }}</h3>\n            <p>{{ site.focus.cards[2].body }}</p>\n          </div>\n        </div>\n      </div>\n    </section>\n\n    <!-- BACKGROUND -->\n    <section id=\"background\" class=\"section\">\n      <div class=\"wrap\">\n        <p class=\"label\">{{ site.background.eyebrow }}</p>\n        <h2>{{ site.background.heading }}</h2>\n        <div class=\"prose-cols\">\n          <p>{{ site.background.paragraphs[0] }}</p>\n          <p>{{ site.background.paragraphs[1] }}</p>\n        </div>\n      </div>\n    </section>\n\n    <!-- WRITING & MEDIA -->\n    <section id=\"writing\" class=\"section section-tinted\">\n      <div class=\"wrap\">\n        <p class=\"label\">{{ site.writing.eyebrow }}</p>\n        <h2>{{ site.writing.heading }}</h2>\n        <div class=\"writing-list\">\n          <div class=\"writing-item\">\n            <h3>{{ site.writing.cards[0].title }}</h3>\n            <p>{{ site.writing.cards[0].body }}</p>\n          </div>\n          <div class=\"writing-item\">\n            <h3>{{ site.writing.cards[1].title }}</h3>\n            <p>{{ site.writing.cards[1].body }}</p>\n          </div>\n          <div class=\"writing-item\">\n            <h3>{{ site.writing.cards[2].title }}</h3>\n            <p>{{ site.writing.cards[2].body }}</p>\n          </div>\n        </div>\n      </div>\n    </section>\n\n    <!-- NETWORK CALLOUT -->\n    <section class=\"section\">\n      <div class=\"wrap\">\n        <div class=\"callout-block\">\n          <p class=\"label\">{{ site.network.eyebrow }}</p>\n          <h2>{{ site.network.heading }}</h2>\n          <p>{{ site.network.body }}</p>\n        </div>\n      </div>\n    </section>\n\n  </main>\n\n  <footer id=\"contact\" class=\"site-footer\">\n    <div class=\"wrap footer-wrap\">\n      <div>\n        <p class=\"wordmark\">{{ site.display_name }}</p>\n        <p class=\"footer-sub\">{{ site.footer.body }}</p>\n      </div>\n      <div class=\"footer-links\">\n        <a href=\"mailto:{{ site.contact_email }}\">{{ site.contact_email }}</a>\n        <a href=\"{{ site.canonical_url }}\">{{ site.canonical_url }}</a>\n      </div>\n    </div>\n  </footer>\n\n</body>\n</html>`, css: `*{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --ink:#111318;--muted:#525866;--accent:#0f3f6e;--border:#dde0da;\n  --bg:#fafaf8;--card:#ffffff;--max:1100px;\n  --shadow:0 8px 32px rgba(15,30,60,.07);--r:18px;\n}\nhtml{scroll-behavior:smooth}\nbody{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.65}\na{color:var(--accent);text-decoration:none}\na:hover{text-decoration:underline}\n.wrap{width:min(calc(100% - 2.5rem),var(--max));margin:0 auto}\n\n/* NAV */\n.site-header{position:sticky;top:0;z-index:10;background:rgba(250,250,248,.9);\n  backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}\n.nav-wrap{display:flex;align-items:center;justify-content:space-between;min-height:68px;gap:1rem}\n.wordmark{font-weight:700;font-size:1.05rem;color:var(--ink);letter-spacing:-.02em}\nnav{display:flex;gap:1.5rem}\nnav a{color:var(--muted);font-size:.9rem;font-weight:500}\n\n/* HERO */\n.hero{padding:7rem 0 5rem}\n.hero-wrap{display:grid;grid-template-columns:1.4fr .6fr;gap:2.5rem;align-items:center}\n.label{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;\n  color:var(--accent);margin-bottom:.9rem}\nh1{font-size:clamp(2.8rem,5.5vw,4.8rem);letter-spacing:-.04em;line-height:1.05;\n  margin-bottom:1.1rem;font-weight:800}\nh2{font-size:clamp(1.7rem,2.8vw,2.5rem);letter-spacing:-.03em;line-height:1.1;margin-bottom:.8rem}\nh3{font-size:1.05rem;letter-spacing:-.01em;margin-bottom:.45rem;font-weight:700}\n.lead{font-size:1.12rem;color:var(--muted);max-width:40rem;line-height:1.7}\n.hero-actions{display:flex;gap:1rem;flex-wrap:wrap;margin-top:2.2rem}\n.btn-primary,.btn-ghost{\n  display:inline-flex;align-items:center;min-height:46px;padding:.7rem 1.4rem;\n  border-radius:999px;font-weight:600;font-size:.95rem;transition:opacity .15s}\n.btn-primary{background:var(--accent);color:#fff;box-shadow:var(--shadow)}\n.btn-ghost{background:var(--card);color:var(--ink);border:1px solid var(--border);box-shadow:var(--shadow)}\n.btn-primary:hover,.btn-ghost:hover{opacity:.85;text-decoration:none}\n.hero-portrait img{width:100%;max-height:420px;object-fit:cover;object-position:top;border-radius:var(--r);box-shadow:var(--shadow);display:block}\n\n/* SECTIONS */\n.section{padding:5rem 0}\n.section-tinted{background:rgba(235,236,230,.5);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}\n.prose-cols{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem}\n.prose-cols p{color:var(--muted);line-height:1.75}\n\n/* FEATURE GRID */\n.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:1.75rem}\n.feature-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);\n  padding:1.6rem;box-shadow:var(--shadow)}\n.feature-card p{color:var(--muted);margin-top:.4rem;font-size:.95rem;line-height:1.7}\n\n/* WRITING LIST */\n.writing-list{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:1.75rem}\n.writing-item{padding:1.4rem;border-left:3px solid var(--accent)}\n.writing-item p{color:var(--muted);margin-top:.4rem;font-size:.93rem}\n\n/* CALLOUT */\n.callout-block{background:var(--accent);color:#fff;border-radius:var(--r);padding:2.5rem;\n  box-shadow:var(--shadow)}\n.callout-block .label{color:rgba(255,255,255,.7)}\n.callout-block h2{color:#fff;margin-bottom:.75rem}\n.callout-block p{color:rgba(255,255,255,.85);max-width:56rem}\n\n/* FOOTER */\n.site-footer{background:#111318;padding:3rem 0}\n.footer-wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:2rem;flex-wrap:wrap}\n.footer-wrap .wordmark{color:#fff;margin-bottom:.5rem;font-size:1rem}\n.footer-sub{color:rgba(255,255,255,.5);font-size:.88rem;max-width:32rem}\n.footer-links{display:flex;flex-direction:column;gap:.5rem}\n.footer-links a{color:#8baec8;font-size:.9rem}\n\n@media(max-width:860px){\n  .hero-wrap,.prose-cols,.feature-grid,.writing-list{grid-template-columns:1fr}\n  .hero{padding:4rem 0 3rem}\n}` },\n  sinabari_net: { html: `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n  <title>{{ site.title }}</title>\n  <meta name=\"description\" content=\"{{ site.meta_description }}\" />\n  <link rel=\"canonical\" href=\"{{ site.canonical_url }}\" />\n  <link rel=\"stylesheet\" href=\"styles.css\" />\n</head>\n<body>\n\n  <!-- MASTHEAD -->\n  <header class=\"masthead\">\n    <div class=\"wrap\">\n      <div class=\"pub-name\">{{ site.display_name }}</div>\n      <div class=\"pub-tagline\">{{ site.hero.eyebrow }}</div>\n    </div>\n    <div class=\"masthead-rule\"></div>\n  </header>\n\n  <nav class=\"topic-nav\">\n    <div class=\"wrap topic-nav-inner\">\n      <a href=\"#featured\">Featured</a>\n      <a href=\"#topics\">Topics</a>\n      <a href=\"#perspective\">Perspective</a>\n      <a href=\"#about\">About</a>\n    </div>\n  </nav>\n\n  <main>\n\n    <!-- FEATURED PIECE -->\n    <section id=\"featured\" class=\"featured-section\">\n      <div class=\"wrap\">\n        <div class=\"featured-inner\">\n          <div class=\"featured-meta\">\n            <span class=\"category-tag\">{{ site.focus.eyebrow }}</span>\n          </div>\n          <h1 class=\"featured-headline\">{{ site.hero.headline }}</h1>\n          <p class=\"featured-deck\">{{ site.hero.lead }}</p>\n          <div class=\"byline-row\">\n            <span class=\"byline-name\">By <a href=\"https://sinabarimd.com/about\" rel=\"author\">Sina Bari, MD</a></span>\n            <span class=\"byline-sep\">\u00b7</span>\n            <span class=\"byline-role\">VP, Healthcare &amp; Life Sciences AI</span>\n          </div>\n          <div class=\"featured-body\">\n            <p>{{ site.about.paragraphs[0] }}</p>\n            <p>{{ site.about.paragraphs[1] }}</p>\n          </div>\n          <a class=\"read-more\" href=\"{{ site.hero.primary_cta_href }}\">{{ site.hero.primary_cta_text }} \u2192</a>\n        </div>\n      </div>\n    </section>\n\n    <div class=\"section-divider\"><div class=\"wrap\"><hr /></div></div>\n\n    <!-- TOPIC PILLARS -->\n    <section id=\"topics\" class=\"section\">\n      <div class=\"wrap\">\n        <h2 class=\"section-label\">{{ site.focus.heading }}</h2>\n        <div class=\"pillar-grid\">\n          <div class=\"pillar\">\n            <h3>{{ site.focus.cards[0].title }}</h3>\n            <p>{{ site.focus.cards[0].body }}</p>\n          </div>\n          <div class=\"pillar\">\n            <h3>{{ site.focus.cards[1].title }}</h3>\n            <p>{{ site.focus.cards[1].body }}</p>\n          </div>\n          <div class=\"pillar\">\n            <h3>{{ site.focus.cards[2].title }}</h3>\n            <p>{{ site.focus.cards[2].body }}</p>\n          </div>\n        </div>\n      </div>\n    </section>\n\n    <!-- PERSPECTIVE / BACKGROUND -->\n    <section id=\"perspective\" class=\"section section-ruled\">\n      <div class=\"wrap two-col-editorial\">\n        <div class=\"editorial-main\">\n          <p class=\"kicker\">{{ site.background.eyebrow }}</p>\n          <h2>{{ site.background.heading }}</h2>\n          <p>{{ site.background.paragraphs[0] }}</p>\n          <p>{{ site.background.paragraphs[1] }}</p>\n        </div>\n        <aside class=\"editorial-sidebar\">\n          <p class=\"sidebar-label\">{{ site.writing.eyebrow }}</p>\n          <ul class=\"sidebar-list\">\n            <li><span>{{ site.writing.cards[0].title }}</span><p>{{ site.writing.cards[0].body }}</p></li>\n            <li><span>{{ site.writing.cards[1].title }}</span><p>{{ site.writing.cards[1].body }}</p></li>\n            <li><span>{{ site.writing.cards[2].title }}</span><p>{{ site.writing.cards[2].body }}</p></li>\n          </ul>\n        </aside>\n      </div>\n    </section>\n\n    <!-- ABOUT THE AUTHOR -->\n    <section id=\"about\" class=\"section\">\n      <div class=\"wrap\">\n        <div class=\"author-panel\">\n          <p class=\"kicker\">About the Author</p>\n          <h2>{{ site.network.heading }}</h2>\n          <p>{{ site.network.body }}</p>\n          <a class=\"profile-link\" href=\"https://sinabarimd.com\">Full profile at sinabarimd.com \u2192</a>\n        </div>\n      </div>\n    </section>\n\n  </main>\n\n  <footer class=\"site-footer\">\n    <div class=\"wrap footer-inner\">\n      <div>\n        <p class=\"pub-name-sm\">{{ site.display_name }}</p>\n        <p class=\"footer-note\">{{ site.footer.body }}</p>\n      </div>\n      <div class=\"footer-right\">\n        <a href=\"mailto:{{ site.contact_email }}\">{{ site.contact_email }}</a>\n        <a href=\"{{ site.canonical_url }}\">{{ site.canonical_url }}</a>\n      </div>\n    </div>\n  </footer>\n\n</body>\n</html>`, css: `*{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --ink:#1a1c22;--muted:#52576a;--accent:#1a4a7a;--border:#cdd0cc;\n  --bg:#f8f8f5;--card:#ffffff;--max:1080px;\n  --serif:'Georgia',serif;--sans:Inter,ui-sans-serif,system-ui,sans-serif;\n}\nhtml{scroll-behavior:smooth}\nbody{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7}\na{color:var(--accent);text-decoration:none}\na:hover{text-decoration:underline}\n.wrap{width:min(calc(100% - 2.5rem),var(--max));margin:0 auto}\n\n/* MASTHEAD */\n.masthead{padding:2rem 0 1.2rem;text-align:center;background:var(--bg)}\n.pub-name{font-family:var(--serif);font-size:clamp(1.8rem,4vw,3rem);\n  font-weight:400;letter-spacing:-.02em;color:var(--ink)}\n.pub-tagline{font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;\n  color:var(--muted);margin-top:.4rem}\n.masthead-rule{border-top:3px solid var(--ink);border-bottom:1px solid var(--ink);\n  height:5px;margin-top:1.2rem}\n\n/* TOPIC NAV */\n.topic-nav{background:var(--bg);border-bottom:1px solid var(--border);\n  position:sticky;top:0;z-index:10}\n.topic-nav-inner{display:flex;gap:2rem;min-height:44px;align-items:center}\n.topic-nav a{font-size:.85rem;font-weight:600;color:var(--muted);\n  letter-spacing:.04em;text-transform:uppercase}\n.topic-nav a:hover{color:var(--ink)}\n\n/* FEATURED */\n.featured-section{padding:3.5rem 0 2.5rem;background:#fff;\n  border-bottom:1px solid var(--border)}\n.featured-inner{max-width:740px}\n.category-tag{display:inline-block;font-size:.72rem;font-weight:700;\n  letter-spacing:.14em;text-transform:uppercase;color:var(--accent);\n  border:1px solid var(--accent);padding:.2rem .55rem;border-radius:3px;margin-bottom:1rem}\n.featured-headline{font-family:var(--serif);font-size:clamp(2rem,4vw,3.2rem);\n  font-weight:400;line-height:1.2;letter-spacing:-.02em;margin-bottom:.8rem}\n.featured-deck{font-size:1.15rem;color:var(--muted);line-height:1.65;margin-bottom:1.2rem}\n.byline-row{display:flex;align-items:center;gap:.6rem;font-size:.88rem;\n  color:var(--muted);margin-bottom:1.5rem;padding-bottom:1.2rem;border-bottom:1px solid var(--border)}\n.byline-name a{color:var(--ink);font-weight:600}\n.byline-sep{color:var(--border)}\n.featured-body p{color:var(--muted);line-height:1.8;margin-bottom:1rem;max-width:680px}\n.read-more{display:inline-block;margin-top:1rem;font-weight:700;font-size:.9rem;\n  color:var(--accent);letter-spacing:.02em}\n\n/* DIVIDER */\n.section-divider hr{border:none;border-top:1px solid var(--border);margin:0}\n\n/* SECTIONS */\n.section{padding:3.5rem 0}\n.section-ruled{background:rgba(230,232,228,.4);border-top:1px solid var(--border);\n  border-bottom:1px solid var(--border)}\n.section-label{font-size:.75rem;font-weight:700;letter-spacing:.16em;\n  text-transform:uppercase;color:var(--muted);margin-bottom:1.5rem}\n.kicker{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;\n  color:var(--accent);margin-bottom:.7rem}\n\n/* PILLARS */\n.pillar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;\n  border:1px solid var(--border);border-radius:8px;overflow:hidden}\n.pillar{padding:1.6rem;border-right:1px solid var(--border);background:#fff}\n.pillar:last-child{border-right:none}\n.pillar h3{font-family:var(--serif);font-size:1.15rem;font-weight:400;\n  letter-spacing:-.01em;margin-bottom:.5rem;color:var(--ink)}\n.pillar p{color:var(--muted);font-size:.9rem;line-height:1.65}\n\n/* EDITORIAL TWO COL */\n.two-col-editorial{display:grid;grid-template-columns:1.6fr 1fr;gap:3rem;align-items:start}\n.editorial-main h2{font-family:var(--serif);font-size:clamp(1.5rem,2.5vw,2rem);\n  font-weight:400;margin-bottom:1rem}\n.editorial-main p{color:var(--muted);line-height:1.8;margin-bottom:1rem}\n.editorial-sidebar{border-left:2px solid var(--border);padding-left:2rem}\n.sidebar-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;\n  text-transform:uppercase;color:var(--muted);margin-bottom:1rem}\n.sidebar-list{list-style:none}\n.sidebar-list li{padding:.9rem 0;border-bottom:1px solid var(--border)}\n.sidebar-list li:last-child{border-bottom:none}\n.sidebar-list span{font-weight:600;font-size:.93rem;color:var(--ink)}\n.sidebar-list p{color:var(--muted);font-size:.86rem;margin-top:.3rem;line-height:1.5}\n\n/* AUTHOR PANEL */\n.author-panel{background:#fff;border:1px solid var(--border);border-radius:8px;\n  padding:2rem;max-width:680px}\n.author-panel h2{font-family:var(--serif);font-size:1.6rem;font-weight:400;margin-bottom:.8rem}\n.author-panel p{color:var(--muted);line-height:1.75;margin-bottom:1rem}\n.profile-link{font-weight:700;font-size:.9rem;color:var(--accent)}\n\n/* FOOTER */\n.site-footer{background:#1a1c22;padding:2.5rem 0}\n.footer-inner{display:flex;justify-content:space-between;gap:2rem;flex-wrap:wrap;align-items:flex-start}\n.pub-name-sm{color:#fff;font-family:var(--serif);font-size:1.1rem;margin-bottom:.4rem}\n.footer-note{color:rgba(255,255,255,.5);font-size:.85rem;max-width:36rem}\n.footer-right{display:flex;flex-direction:column;gap:.4rem}\n.footer-right a{color:#7da8cc;font-size:.88rem}\n\n@media(max-width:820px){\n  .pillar-grid,.two-col-editorial{grid-template-columns:1fr}\n  .pillar{border-right:none;border-bottom:1px solid var(--border)}\n  .editorial-sidebar{border-left:none;padding-left:0;border-top:2px solid var(--border);padding-top:1.5rem}\n}` },\n  sinabariplasticsurgery: { html: `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n  <title>{{ site.title }}</title>\n  <meta name=\"description\" content=\"{{ site.meta_description }}\" />\n  <link rel=\"canonical\" href=\"{{ site.canonical_url }}\" />\n  <link rel=\"stylesheet\" href=\"styles.css\" />\n</head>\n<body>\n\n  <header class=\"site-header\">\n    <div class=\"wrap header-inner\">\n      <div class=\"brand-block\">\n        <div class=\"brand-name\">Honest Aesthetics</div>\n        <div class=\"brand-sub\">A surgeon's unfiltered take on beauty, trends, and what actually works</div>\n      </div>\n    </div>\n    <div class=\"header-stripe\"></div>\n  </header>\n\n  <nav class=\"section-nav\">\n    <div class=\"wrap section-nav-inner\">\n      <a href=\"#featured\">Featured</a>\n      <a href=\"#topics\">Topics</a>\n      <a href=\"#reality-check\">Reality Check</a>\n      <a href=\"#about\">About</a>\n    </div>\n  </nav>\n\n  <main>\n\n    <!-- SURGEON'S OPENER -->\n    <section class=\"opener-section\">\n      <div class=\"wrap\">\n        <div class=\"opener-inner\">\n          <p class=\"opener-kicker\">{{ site.hero.eyebrow }}</p>\n          <p class=\"opener-quote\">\"{{ site.hero.lead }}\"</p>\n          <p class=\"opener-attr\">\u2014 Dr. Sina Bari, MD, Stanford-trained plastic surgeon</p>\n        </div>\n      </div>\n    </section>\n\n    <!-- FEATURED PIECE -->\n    <section id=\"featured\" class=\"section\">\n      <div class=\"wrap\">\n        <div class=\"featured-layout\">\n          <div class=\"featured-content\">\n            <p class=\"topic-pill\">{{ site.about.eyebrow }}</p>\n            <h1>{{ site.hero.headline }}</h1>\n            <p class=\"featured-intro\">{{ site.about.paragraphs[0] }}</p>\n            <p class=\"featured-body\">{{ site.about.paragraphs[1] }}</p>\n            <a class=\"cta-link\" href=\"{{ site.hero.primary_cta_href }}\">{{ site.hero.primary_cta_text }} \u2192</a>\n          </div>\n          <aside class=\"featured-aside\">\n            <div class=\"aside-card\">\n              <p class=\"aside-label\">What this site is about</p>\n              <p>{{ site.network.body }}</p>\n              <hr class=\"aside-rule\" />\n              <p class=\"aside-label\">Written by</p>\n              <p><strong>Dr. Sina Bari, MD</strong><br/>\n              Board-eligible plastic &amp; reconstructive surgeon.<br/>\n              <a href=\"https://sinabarimd.com/about\">Full profile \u2192</a></p>\n            </div>\n          </aside>\n        </div>\n      </div>\n    </section>\n\n    <!-- TOPIC INDEX -->\n    <section id=\"topics\" class=\"section section-warm\">\n      <div class=\"wrap\">\n        <h2 class=\"section-heading\">{{ site.focus.heading }}</h2>\n        <p class=\"section-sub\">{{ site.focus.eyebrow }}</p>\n        <div class=\"topic-grid\">\n          <div class=\"topic-card\">\n            <div class=\"topic-icon\">01</div>\n            <h3>{{ site.focus.cards[0].title }}</h3>\n            <p>{{ site.focus.cards[0].body }}</p>\n          </div>\n          <div class=\"topic-card\">\n            <div class=\"topic-icon\">02</div>\n            <h3>{{ site.focus.cards[1].title }}</h3>\n            <p>{{ site.focus.cards[1].body }}</p>\n          </div>\n          <div class=\"topic-card\">\n            <div class=\"topic-icon\">03</div>\n            <h3>{{ site.focus.cards[2].title }}</h3>\n            <p>{{ site.focus.cards[2].body }}</p>\n          </div>\n        </div>\n      </div>\n    </section>\n\n    <!-- REALITY CHECK -->\n    <section id=\"reality-check\" class=\"section\">\n      <div class=\"wrap\">\n        <h2 class=\"section-heading\">{{ site.background.heading }}</h2>\n        <p class=\"section-sub\">{{ site.background.eyebrow }}</p>\n        <div class=\"reality-grid\">\n          <div class=\"reality-col\">\n            <p>{{ site.background.paragraphs[0] }}</p>\n          </div>\n          <div class=\"reality-col\">\n            <p>{{ site.background.paragraphs[1] }}</p>\n          </div>\n        </div>\n      </div>\n    </section>\n\n    <!-- RECENT ENTRIES -->\n    <section class=\"section section-warm\">\n      <div class=\"wrap\">\n        <h2 class=\"section-heading\">{{ site.writing.heading }}</h2>\n        <p class=\"section-sub\">{{ site.writing.eyebrow }}</p>\n        <div class=\"entry-list\">\n          <div class=\"entry-item\">\n            <h3>{{ site.writing.cards[0].title }}</h3>\n            <p>{{ site.writing.cards[0].body }}</p>\n          </div>\n          <div class=\"entry-item\">\n            <h3>{{ site.writing.cards[1].title }}</h3>\n            <p>{{ site.writing.cards[1].body }}</p>\n          </div>\n          <div class=\"entry-item\">\n            <h3>{{ site.writing.cards[2].title }}</h3>\n            <p>{{ site.writing.cards[2].body }}</p>\n          </div>\n        </div>\n      </div>\n    </section>\n\n    <!-- DISCLAIMER -->\n    <section id=\"about\" class=\"section disclaimer-section\">\n      <div class=\"wrap\">\n        <p class=\"disclaimer-label\">Educational purposes only</p>\n        <p class=\"disclaimer-text\">{{ site.footer.body }} Content reflects the author's clinical perspective and is not a substitute for personalized medical advice. Consult a board-certified physician for any medical decisions.</p>\n        <p class=\"disclaimer-attr\">Curated by <a href=\"https://sinabarimd.com\">Dr. Sina Bari, MD</a> \u2014 Stanford-trained plastic &amp; reconstructive surgeon</p>\n      </div>\n    </section>\n\n  </main>\n\n  <footer class=\"site-footer\">\n    <div class=\"wrap footer-inner\">\n      <div>\n        <p class=\"footer-brand\">Honest Aesthetics</p>\n        <p class=\"footer-note\">by Dr. Sina Bari, MD \u00b7 <a href=\"https://sinabarimd.com\">sinabarimd.com</a></p>\n      </div>\n      <div>\n        <a class=\"footer-contact\" href=\"mailto:{{ site.contact_email }}\">{{ site.contact_email }}</a>\n      </div>\n    </div>\n  </footer>\n\n</body>\n</html>`, css: `*{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --ink:#1c1a18;--muted:#5a5650;--accent:#7a3b1e;--warm:#c4603a;\n  --border:#ddd5c8;--bg:#faf7f3;--card:#fff;--warm-bg:#f5ede3;\n  --max:1080px;--serif:'Georgia',serif;--sans:Inter,ui-sans-serif,system-ui,sans-serif;\n  --shadow:0 6px 24px rgba(60,30,10,.08);--r:12px;\n}\nhtml{scroll-behavior:smooth}\nbody{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.7}\na{color:var(--accent);text-decoration:none}\na:hover{text-decoration:underline}\n.wrap{width:min(calc(100% - 2.5rem),var(--max));margin:0 auto}\n\n/* HEADER */\n.site-header{background:var(--ink);padding:2rem 0 1.5rem}\n.brand-name{font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.8rem);\n  color:#fff;font-weight:400;letter-spacing:-.02em}\n.brand-sub{color:rgba(255,255,255,.6);font-size:.88rem;margin-top:.35rem;\n  max-width:44rem;line-height:1.5}\n.header-stripe{height:5px;background:linear-gradient(90deg,var(--warm),var(--accent))}\n\n/* SECTION NAV */\n.section-nav{background:var(--bg);border-bottom:1px solid var(--border);\n  position:sticky;top:0;z-index:10}\n.section-nav-inner{display:flex;gap:2rem;min-height:44px;align-items:center}\n.section-nav a{font-size:.83rem;font-weight:600;color:var(--muted);\n  letter-spacing:.05em;text-transform:uppercase}\n.section-nav a:hover{color:var(--ink)}\n\n/* OPENER */\n.opener-section{background:var(--warm-bg);border-bottom:1px solid var(--border);padding:2rem 0}\n.opener-inner{max-width:660px}\n.opener-kicker{font-size:.72rem;font-weight:700;letter-spacing:.16em;\n  text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}\n.opener-quote{font-family:var(--serif);font-size:clamp(1.2rem,2.5vw,1.7rem);\n  font-style:italic;color:var(--ink);line-height:1.5;margin-bottom:.7rem}\n.opener-attr{font-size:.83rem;color:var(--muted)}\n\n/* SECTION */\n.section{padding:4rem 0}\n.section-warm{background:var(--warm-bg);border-top:1px solid var(--border);\n  border-bottom:1px solid var(--border)}\n.section-heading{font-family:var(--serif);font-size:clamp(1.5rem,2.8vw,2.2rem);\n  font-weight:400;letter-spacing:-.02em;margin-bottom:.35rem}\n.section-sub{font-size:.75rem;font-weight:700;letter-spacing:.14em;\n  text-transform:uppercase;color:var(--accent);margin-bottom:2rem}\n\n/* FEATURED LAYOUT */\n.featured-layout{display:grid;grid-template-columns:1.5fr .9fr;gap:3rem;align-items:start}\n.topic-pill{display:inline-block;background:var(--accent);color:#fff;\n  font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;\n  padding:.2rem .6rem;border-radius:3px;margin-bottom:1rem}\nh1{font-family:var(--serif);font-size:clamp(2rem,3.5vw,3rem);font-weight:400;\n  line-height:1.2;letter-spacing:-.02em;margin-bottom:1rem}\nh2{font-size:clamp(1.3rem,2vw,1.8rem)}\nh3{font-size:1rem;font-weight:700;letter-spacing:-.01em;margin-bottom:.4rem}\n.featured-intro{font-size:1.1rem;color:var(--muted);line-height:1.75;margin-bottom:.9rem}\n.featured-body{color:var(--muted);line-height:1.8;margin-bottom:1.2rem}\n.cta-link{font-weight:700;font-size:.9rem;color:var(--accent)}\n\n.aside-card{background:var(--card);border:1px solid var(--border);\n  border-radius:var(--r);padding:1.5rem;box-shadow:var(--shadow)}\n.aside-label{font-size:.72rem;font-weight:700;letter-spacing:.12em;\n  text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}\n.aside-card p{font-size:.9rem;color:var(--muted);line-height:1.65;margin-bottom:.8rem}\n.aside-rule{border:none;border-top:1px solid var(--border);margin:.8rem 0}\n.aside-card a{color:var(--accent);font-weight:600;font-size:.88rem}\n\n/* TOPIC GRID */\n.topic-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:.5rem}\n.topic-card{background:var(--card);border:1px solid var(--border);\n  border-radius:var(--r);padding:1.5rem;box-shadow:var(--shadow)}\n.topic-icon{font-size:.72rem;font-weight:700;letter-spacing:.1em;\n  color:var(--warm);margin-bottom:.7rem}\n.topic-card h3{margin-bottom:.4rem}\n.topic-card p{color:var(--muted);font-size:.88rem;line-height:1.65}\n\n/* REALITY CHECK */\n.reality-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:.5rem}\n.reality-col p{color:var(--muted);line-height:1.8}\n\n/* ENTRY LIST */\n.entry-list{display:flex;flex-direction:column;gap:0;margin-top:.5rem}\n.entry-item{padding:1.3rem 0;border-bottom:1px solid var(--border)}\n.entry-item:last-child{border-bottom:none}\n.entry-item h3{margin-bottom:.3rem;font-size:1rem}\n.entry-item p{color:var(--muted);font-size:.9rem;line-height:1.6}\n\n/* DISCLAIMER */\n.disclaimer-section{background:#f0ece6;border-top:2px solid var(--border);padding:2.5rem 0}\n.disclaimer-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;\n  text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}\n.disclaimer-text{color:var(--muted);font-size:.88rem;line-height:1.7;\n  max-width:640px;margin-bottom:.8rem}\n.disclaimer-attr{font-size:.86rem;color:var(--muted)}\n.disclaimer-attr a{color:var(--accent);font-weight:600}\n\n/* FOOTER */\n.site-footer{background:var(--ink);padding:2rem 0}\n.footer-inner{display:flex;justify-content:space-between;align-items:center;\n  gap:2rem;flex-wrap:wrap}\n.footer-brand{font-family:var(--serif);font-size:1.1rem;color:#fff;font-weight:400}\n.footer-note{color:rgba(255,255,255,.5);font-size:.85rem;margin-top:.25rem}\n.footer-note a{color:rgba(255,255,255,.6)}\n.footer-contact{color:#c4a385;font-size:.88rem}\n\n@media(max-width:820px){\n  .featured-layout,.reality-grid,.topic-grid{grid-template-columns:1fr}\n  .opener-section{padding:1.5rem 0}\n}` },\n  drsinabari: { html: `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n  <title>{{ site.title }}</title>\n  <meta name=\"description\" content=\"{{ site.meta_description }}\" />\n  <link rel=\"canonical\" href=\"{{ site.canonical_url }}\" />\n  <link rel=\"stylesheet\" href=\"styles.css\" />\n</head>\n<body>\n\n  <!-- NAMEPLATE -->\n  <header class=\"nameplate\">\n    <div class=\"wrap nameplate-inner\">\n      <div class=\"nameplate-line\"></div>\n      <h1 class=\"nameplate-title\">{{ site.display_name }}</h1>\n      <p class=\"nameplate-descriptor\">{{ site.hero.eyebrow }}</p>\n      <div class=\"nameplate-line\"></div>\n    </div>\n  </header>\n\n  <main class=\"main-content\">\n    <div class=\"wrap content-wrap\">\n\n      <!-- EDITOR'S NOTE -->\n      <section class=\"editors-note\">\n        <p class=\"note-label\">Editor's Note</p>\n        <blockquote class=\"note-body\">\n          <p>{{ site.about.paragraphs[0] }}</p>\n          <p>{{ site.about.paragraphs[1] }}</p>\n        </blockquote>\n        <p class=\"note-attr\">\u2014 Dr. Sina Bari, MD</p>\n      </section>\n\n      <hr class=\"essay-rule\" />\n\n      <!-- LEAD ESSAY -->\n      <article class=\"lead-essay\">\n        <div class=\"essay-meta\">\n          <span class=\"essay-category\">{{ site.focus.eyebrow }}</span>\n        </div>\n        <h2 class=\"essay-title\">{{ site.hero.headline }}</h2>\n        <p class=\"essay-deck\">{{ site.hero.lead }}</p>\n        <div class=\"essay-byline\">\n          By <a href=\"https://sinabarimd.com/about\" rel=\"author\">Sina Bari, MD</a>\n        </div>\n        <div class=\"essay-body\">\n          <p>{{ site.focus.cards[0].body }}</p>\n          <h3>{{ site.focus.cards[1].title }}</h3>\n          <p>{{ site.focus.cards[1].body }}</p>\n          <h3>{{ site.focus.cards[2].title }}</h3>\n          <p>{{ site.focus.cards[2].body }}</p>\n        </div>\n      </article>\n\n      <hr class=\"essay-rule\" />\n\n      <!-- RECENT PIECES -->\n      <section class=\"recent-pieces\">\n        <h2 class=\"recent-heading\">{{ site.writing.heading }}</h2>\n        <div class=\"piece-stack\">\n          <div class=\"piece\">\n            <p class=\"piece-kicker\">{{ site.writing.eyebrow }}</p>\n            <h3 class=\"piece-title\">{{ site.writing.cards[0].title }}</h3>\n            <p class=\"piece-excerpt\">{{ site.writing.cards[0].body }}</p>\n          </div>\n          <div class=\"piece\">\n            <h3 class=\"piece-title\">{{ site.writing.cards[1].title }}</h3>\n            <p class=\"piece-excerpt\">{{ site.writing.cards[1].body }}</p>\n          </div>\n          <div class=\"piece\">\n            <h3 class=\"piece-title\">{{ site.writing.cards[2].title }}</h3>\n            <p class=\"piece-excerpt\">{{ site.writing.cards[2].body }}</p>\n          </div>\n        </div>\n      </section>\n\n      <hr class=\"essay-rule\" />\n\n      <!-- BACKGROUND / CONTEXT -->\n      <section class=\"background-section\">\n        <h2 class=\"section-hed\">{{ site.background.heading }}</h2>\n        <p class=\"section-kicker\">{{ site.background.eyebrow }}</p>\n        <p>{{ site.background.paragraphs[0] }}</p>\n        <p>{{ site.background.paragraphs[1] }}</p>\n      </section>\n\n      <hr class=\"essay-rule\" />\n\n      <!-- NETWORK NOTE -->\n      <section class=\"network-note\">\n        <p class=\"note-label\">{{ site.network.eyebrow }}</p>\n        <p class=\"network-body\">{{ site.network.body }}</p>\n        <a class=\"hub-link\" href=\"https://sinabarimd.com\">sinabarimd.com \u2192</a>\n      </section>\n\n    </div>\n  </main>\n\n  <footer class=\"site-footer\">\n    <div class=\"wrap footer-inner\">\n      <div class=\"nameplate-line footer-rule\"></div>\n      <div class=\"footer-content\">\n        <p class=\"footer-title\">{{ site.display_name }}</p>\n        <p class=\"footer-note\">{{ site.footer.body }}</p>\n        <p class=\"footer-links\">\n          <a href=\"mailto:{{ site.contact_email }}\">{{ site.contact_email }}</a>\n          &nbsp;\u00b7&nbsp;\n          <a href=\"https://sinabarimd.com\">sinabarimd.com</a>\n        </p>\n      </div>\n    </div>\n  </footer>\n\n</body>\n</html>`, css: `*{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --ink:#1a1814;--muted:#5c584f;--accent:#2c4a2e;--border:#ccc8be;\n  --bg:#faf9f6;--max:720px;\n  --serif:'Georgia',serif;--sans:Inter,ui-sans-serif,system-ui,sans-serif;\n}\nhtml{scroll-behavior:smooth}\nbody{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.75}\na{color:var(--accent);text-decoration:none}\na:hover{text-decoration:underline}\n.wrap{width:min(calc(100% - 2.5rem),var(--max));margin:0 auto}\n\n/* NAMEPLATE */\n.nameplate{padding:2.5rem 0;text-align:center}\n.nameplate-inner{display:flex;flex-direction:column;align-items:center;gap:.9rem}\n.nameplate-line{width:100%;border-top:1px solid var(--ink)}\n.nameplate-title{font-family:var(--serif);font-size:clamp(2.2rem,5vw,3.8rem);\n  font-weight:400;letter-spacing:-.03em;color:var(--ink)}\n.nameplate-descriptor{font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;\n  color:var(--muted)}\n\n/* MAIN */\n.main-content{padding:2rem 0 4rem}\n.content-wrap{display:flex;flex-direction:column;gap:0}\n\n/* EDITOR'S NOTE */\n.editors-note{padding:2.5rem 0}\n.note-label{font-size:.72rem;font-weight:700;letter-spacing:.16em;\n  text-transform:uppercase;color:var(--muted);margin-bottom:1rem}\n.note-body{border-left:3px solid var(--border);padding-left:1.5rem;margin:0}\n.note-body p{font-family:var(--serif);font-style:italic;font-size:1.05rem;\n  color:var(--muted);line-height:1.8;margin-bottom:.8rem}\n.note-body p:last-child{margin-bottom:0}\n.note-attr{margin-top:.9rem;font-size:.88rem;color:var(--muted);font-style:italic}\n\n/* RULE */\n.essay-rule{border:none;border-top:1px solid var(--border);margin:0}\n\n/* LEAD ESSAY */\n.lead-essay{padding:3rem 0}\n.essay-meta{margin-bottom:1rem}\n.essay-category{font-size:.72rem;font-weight:700;letter-spacing:.14em;\n  text-transform:uppercase;color:var(--accent)}\n.essay-title{font-family:var(--serif);font-size:clamp(1.8rem,3.5vw,2.8rem);\n  font-weight:400;line-height:1.2;letter-spacing:-.02em;margin-bottom:.75rem}\n.essay-deck{font-size:1.08rem;color:var(--muted);line-height:1.65;margin-bottom:1rem;\n  font-style:italic;font-family:var(--serif)}\n.essay-byline{font-size:.88rem;color:var(--muted);padding:.8rem 0;\n  border-top:1px solid var(--border);border-bottom:1px solid var(--border);\n  margin-bottom:1.8rem}\n.essay-byline a{color:var(--ink);font-weight:600}\n.essay-body p{color:var(--muted);line-height:1.85;margin-bottom:1.1rem;font-size:1rem}\n.essay-body h3{font-family:var(--serif);font-size:1.2rem;font-weight:400;\n  color:var(--ink);margin:1.8rem 0 .6rem;font-style:italic}\n\n/* RECENT PIECES */\n.recent-pieces{padding:3rem 0}\n.recent-heading{font-family:var(--serif);font-size:1.4rem;font-weight:400;\n  margin-bottom:1.5rem;color:var(--ink)}\n.piece-stack{display:flex;flex-direction:column;gap:0}\n.piece{padding:1.4rem 0;border-bottom:1px solid var(--border)}\n.piece:last-child{border-bottom:none}\n.piece-kicker{font-size:.7rem;font-weight:700;letter-spacing:.14em;\n  text-transform:uppercase;color:var(--accent);margin-bottom:.5rem}\n.piece-title{font-family:var(--serif);font-size:1.15rem;font-weight:400;\n  letter-spacing:-.01em;margin-bottom:.4rem}\n.piece-excerpt{color:var(--muted);font-size:.9rem;line-height:1.65}\n\n/* BACKGROUND */\n.background-section{padding:3rem 0}\n.section-hed{font-family:var(--serif);font-size:1.4rem;font-weight:400;margin-bottom:.3rem}\n.section-kicker{font-size:.72rem;font-weight:700;letter-spacing:.14em;\n  text-transform:uppercase;color:var(--muted);margin-bottom:1.2rem}\n.background-section p{color:var(--muted);line-height:1.8;margin-bottom:.9rem}\n\n/* NETWORK NOTE */\n.network-note{padding:2.5rem 0}\n.network-body{color:var(--muted);line-height:1.75;margin:.6rem 0 .9rem;max-width:600px}\n.hub-link{font-weight:700;font-size:.9rem;color:var(--accent)}\n\n/* FOOTER */\n.site-footer{border-top:1px solid var(--border);padding:2rem 0}\n.footer-rule{margin-bottom:1.5rem}\n.footer-title{font-family:var(--serif);font-size:1.1rem;color:var(--ink);margin-bottom:.4rem}\n.footer-note{color:var(--muted);font-size:.85rem;line-height:1.6;max-width:36rem;margin-bottom:.6rem}\n.footer-links{font-size:.85rem;color:var(--muted)}\n.footer-links a{color:var(--accent)}` },\n};\n\nconst t = templates[site_id] || templates.sinabarimd;\n\nreturn [{ json: { ...$json, template: t.html, styles_css: t.css } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        304
+      ],
+      "id": "07f77003-d0d3-4c02-94b8-06640ad70775",
+      "name": "Load Template"
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $json.profile || {};\nconst site = $json;\nconst list = (arr) => (arr && arr.length ? arr.map(x => `- ${x}`).join('\\n') : '- none');\n\n// \u2500\u2500 CONTENT AGENT MODE (Orchestrator dispatch with research brief) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nif ($json.research_brief || $json.variation_seed) {\n  const { seo_context, media_context, research_brief, variation_seed } = $json;\n\n  const mediaStr = (media_context || []).map(m =>\n    `- ${m.type.toUpperCase()}: \"${m.title}\" (${m.url}) \u2014 ${m.summary}`\n  ).join('\\n') || 'No recent media items.';\n\n  const researchStr = research_brief ? `\nAPPROVED TOPIC: ${research_brief.recommended_topic || research_brief.novel_angle || '(see brief)'}\nNOVEL ANGLE: ${research_brief.novel_angle || 'not specified'}\nAEO QUESTIONS TO ADDRESS:\n${(research_brief.aeo_questions || []).map(q => `  - ${q}`).join('\\n')}\nCITABLE SOURCES (use these only, do not fabricate):\n${(research_brief.citable_sources || []).map(s =>\n  `  - ${s.title} | ${s.publication} | ${s.date} | ${s.url}`\n).join('\\n')}\n` : 'No research brief provided \u2014 use site profile and media context only.';\n\n  const openingMap = {\n    narrative:        'Open with a brief narrative or personal observation relevant to the topic.',\n    question:         'Open with a specific, direct question that the content will answer.',\n    direct_statement: 'Open with a clear, confident factual or opinion statement.',\n    data_point:       'Open with a specific statistic or data point, cited from the sources provided.',\n  };\n  const seed = variation_seed || { opening_type: 'direct_statement', target_word_count: 500, heading_depth: 2 };\n\n  const prompt = `You are the Content Agent for the Reputation Engine.\nReturn only valid YAML.\nHard rules:\n- Never output the word \"undefined\"\n- Never leave any field empty\n- The first line must be exactly: site:\n- Do not output markdown, code fences, commentary, HTML, or any text before/after the YAML\n- Keep output role-pure for this site \u2014 do not cross topic boundaries\n- Respect forbidden topics exactly\n\nSite: ${site.domain} (site_id: ${site.site_id || site.slug})\nRole: ${profile.role || 'N/A'}\nAllowed topics: ${list(profile.allowed_topics)}\nForbidden topics: ${list(profile.forbidden_topics)}\nAuthor: Dr. Sina Bari, MD\nAuthor URL: https://sinabarimd.com/about\n\nVARIATION INSTRUCTIONS:\n- ${openingMap[seed.opening_type] || openingMap.direct_statement}\n- Target word count for article/insight content: approximately ${seed.target_word_count} words (\u00b115%)\n- Use ${seed.heading_depth} levels of heading hierarchy\n- Vary paragraph lengths \u2014 mix short and long\n\nCONTENT DIRECTION:\n${researchStr}\n\nMEDIA CONTEXT (reference where relevant, do not fabricate):\n${mediaStr}\n\nSEO CONTEXT:\n${seo_context || 'No SEO alerts this week.'}\n\nMANDATORY REQUIREMENTS:\n- Include at least one contextual link to https://sinabarimd.com (satellite sites only)\n- Include a 3-5 item FAQ section addressing the AEO questions above (in writing.cards or a standalone field)\n- Include the author byline: \"Dr. Sina Bari, MD\"\n- Do not fabricate citations \u2014 only reference sources listed above\n\nPreserve exactly:\n- site.slug: ${site.slug}\n- site.canonical_url: ${site.canonical_url}\n- site.display_name: ${site.display_name}\n- site.contact_email: ${site.contact_email}\n- site.hero.headshot_src: ${site.headshot_src}\n- site.hero.headshot_alt: ${site.headshot_alt}\n\nRequired YAML structure:\nsite:\n  slug: string\n  canonical_url: string\n  display_name: string\n  title: string\n  meta_description: string\n  contact_email: string\n  hero:\n    eyebrow: string\n    headline: string\n    lead: string\n    primary_cta_text: string\n    primary_cta_href: string\n    secondary_cta_text: string\n    secondary_cta_href: string\n    headshot_src: string\n    headshot_alt: string\n  about:\n    eyebrow: string\n    heading: string\n    paragraphs:\n      - string\n      - string\n  focus:\n    eyebrow: string\n    heading: string\n    cards:\n      - title: string\n        body: string\n      - title: string\n        body: string\n      - title: string\n        body: string\n  background:\n    eyebrow: string\n    heading: string\n    paragraphs:\n      - string\n      - string\n  writing:\n    eyebrow: string\n    heading: string\n    cards:\n      - title: string\n        body: string\n      - title: string\n        body: string\n      - title: string\n        body: string\n  network:\n    eyebrow: string\n    heading: string\n    body: string\n  footer:\n    heading: string\n    body: string`;\n\n  return [{ json: { ...site, prompt } }];\n}\n\n// \u2500\u2500 ORIGINAL MODE (Manual trigger / no research brief) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst roleSpecificRules = {\n  identity_hub: [\n    '- Emphasize entity clarity, biography, current work, and branded query ownership.',\n    '- Do not turn this into a generic blog homepage.'\n  ],\n  ai_authority: [\n    '- This site is NOT the canonical identity hub.',\n    '- Do not write a long biography-driven homepage.',\n    '- The homepage must read as a healthcare AI thought-leadership property.',\n    '- Use healthcare AI, workflow, governance, diagnostics, validation, and adoption language.',\n    '- Do not mention plastic surgery, aesthetics, patient services, consultations, or local practice claims.'\n  ],\n  editorial: [\n    '- This site should feel like an editorial publication, not a clinic or consulting page.'\n  ],\n  legacy_specialty: [\n    '- This site should remain about legacy aesthetics / surgery expertise and should not contain healthcare AI content.'\n  ]\n};\n\nconst prompt = `\nReturn only valid YAML.\nHard rules:\n- Never output the word \"undefined\"\n- Never leave any field empty\n- If unsure, generate a conservative placeholder that stays within profile rules\n- The first line must be exactly: site:\n- Do not output markdown\n- Do not output code fences\n- Do not output commentary\n- Do not explain anything\n- Do not output HTML\n- Do not output any text before or after the YAML\n- Keep the output role-pure for this site\n- Do not clone another owned site's homepage\n- Do not reuse biography-heavy copy unless this site is the identity hub\n- Respect forbidden topics exactly\n\nSite context:\n- domain: ${site.domain}\n- canonical_url: ${site.canonical_url}\n- display_name: ${site.display_name}\n- contact_email: ${site.contact_email}\n- site_role: ${site.site_role}\n\nRole:\n${profile.role || 'N/A'}\n\nObjective:\n${profile.objective || 'N/A'}\n\nPositioning:\n${profile.positioning || 'N/A'}\n\nAllowed topics:\n${list(profile.allowed_topics)}\n\nForbidden topics:\n${list(profile.forbidden_topics)}\n\nPrimary keywords:\n${list(profile.primary_keywords)}\n\nContent types:\n${list(profile.content_types)}\n\nCore pages:\n${list(profile.core_pages)}\n\nTone:\n- credible\n- restrained\n- expert\n- clear\n\nRole-specific rules:\n${(roleSpecificRules[site.site_role] || []).join('\\n') || '- none'}\n\nInstructions:\nGenerate structured YAML content for ${site.domain}.\n\nPreserve exactly:\n- site.slug: ${site.slug}\n- site.canonical_url: ${site.canonical_url}\n- site.display_name: ${site.display_name}\n- site.contact_email: ${site.contact_email}\n- site.hero.headshot_src: ${site.headshot_src}\n- site.hero.headshot_alt: ${site.headshot_alt}\n\nRequired structure:\nsite:\n  slug: string\n  canonical_url: string\n  display_name: string\n  title: string\n  meta_description: string\n  contact_email: string\n  hero:\n    eyebrow: string\n    headline: string\n    lead: string\n    primary_cta_text: string\n    primary_cta_href: string\n    secondary_cta_text: string\n    secondary_cta_href: string\n    headshot_src: string\n    headshot_alt: string\n  about:\n    eyebrow: string\n    heading: string\n    paragraphs:\n      - string\n      - string\n  focus:\n    eyebrow: string\n    heading: string\n    cards:\n      - title: string\n        body: string\n      - title: string\n        body: string\n      - title: string\n        body: string\n  background:\n    eyebrow: string\n    heading: string\n    paragraphs:\n      - string\n      - string\n  writing:\n    eyebrow: string\n    heading: string\n    cards:\n      - title: string\n        body: string\n      - title: string\n        body: string\n      - title: string\n        body: string\n  network:\n    eyebrow: string\n    heading: string\n    body: string\n  footer:\n    heading: string\n    body: string\n`;\n\nreturn [{ json: { ...site, prompt } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1904,
+        304
+      ],
+      "id": "b9687236-2860-4f32-af19-b075cc7bf479",
+      "name": "Inject Prompt"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: $json.prompt\n    })\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1696,
+        304
+      ],
+      "id": "956bdf14-532a-4cb1-ba74-713ffcedb034",
+      "name": "Build OpenClaw Request Body"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1152,
+        304
+      ],
+      "id": "d8f3d289-7103-402b-9ac5-50c22798a588",
+      "name": "Merge Site Config Back"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      ...$json,\n      statusCode: $json.statusCode,\n      headers: $json.headers,\n      body: $json.body,\n      sent_site_id: $json.site_id,\n      sent_deployPath: $json.deployPath,\n      sent_release_id: $json.release_id,\n      verifyUrl: $('Build Deploy Payload').item.json.verifyUrl,\n      domain: $('Build Deploy Payload').item.json.domain,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        160
+      ],
+      "id": "10669dbf-ebb0-43be-b74a-cc8d05d9147f",
+      "name": "Summarize Deploy Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseBody = String($json.body || $json.data || '');\nconst expected = String($json.sent_release_id || '');\n\nreturn [\n  {\n    json: {\n      site_id: $json.sent_site_id || $json.site_id,\n      verifyUrl: $json.verifyUrl,\n      statusCode: $json.statusCode,\n      body_length: responseBody.length,\n      has_release_marker: responseBody.includes('x-release-id') || responseBody.includes('<!-- release:'),\n      has_current_release_id: expected ? responseBody.includes(expected) : false,\n      preview: responseBody.slice(0, 500),\n      sent_release_id: expected\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        304
+      ],
+      "id": "797e25b8-19e8-4a54-b8e3-81a1f3c2fce8",
+      "name": "Parse Verify Result"
+    },
+    {
+      "parameters": {
+        "url": "={{ \n  $json.site_id === 'sinabarimd' ? 'http://172.17.0.1:9911/profiles/sinabarimd_com.yaml' :\n  $json.site_id === 'sinabari_net' ? 'http://172.17.0.1:9911/profiles/sinabari_net.yaml' :\n  $json.site_id === 'drsinabari' ? 'http://172.17.0.1:9911/profiles/drsinabari_com.yaml' :\n  $json.site_id === 'sinabariplasticsurgery' ? 'http://172.17.0.1:9911/profiles/sinabariplasticsurgery_com.yaml' :\n  'http://172.17.0.1:9911/profiles/README.txt'\n}}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2960,
+        160
+      ],
+      "id": "5fd9705e-3cd8-4db7-a340-4f5b1aa062c6",
+      "name": "Load Site Profile"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.data || '';\n\nfunction parseSimpleYaml(yaml) {\n  const lines = yaml.split('\\n');\n  const result = {};\n  let currentKey = null;\n\n  for (let line of lines) {\n    if (!line.trim()) continue;\n\n    if (!line.startsWith(' ') && line.includes(':')) {\n      const [key, ...rest] = line.split(':');\n      const value = rest.join(':').trim();\n\n      if (value === '') {\n        currentKey = key.trim();\n        result[currentKey] = [];\n      } else {\n        result[key.trim()] = value;\n        currentKey = null;\n      }\n    } else if (line.startsWith('- ') && currentKey) {\n      result[currentKey].push(line.replace('- ', '').trim());\n    }\n  }\n\n  return result;\n}\n\nconst parsedProfile = parseSimpleYaml(raw);\n\nreturn [\n  {\n    json: {\n      site_id: $json.site_id,           // \u2705 PRESERVE\n      data: raw,\n      profile_yaml: raw,               // \u2705 PRESERVE\n      profile: parsedProfile           // \u2705 OUTPUT\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2336,
+        304
+      ],
+      "id": "c23d5923-3ec3-40ed-8d01-94772acb8883",
+      "name": "Parse Profile YAML"
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $json.profile || {};\nconst raw = $json.profile_yaml || '';\nconst site_id = $json.site_id;\n\nif (!site_id) {\n  throw new Error('Missing site_id');\n}\n\nconst SITE_MAP = {\n  sinabarimd: {\n    slug: 'sinabarimd',\n    domain: 'sinabarimd.com',\n    canonical_url: 'https://sinabarimd.com/',\n    deployPath: '/srv/sites/sinabarimd',\n    verifyUrl: 'https://sinabarimd.com',\n    openclawAgentId: 'publisher-sinabarimd',\n    technicalSeoAgentId: 'technical-seo-sinabarimd',\n    display_name: 'Sina Bari, MD',\n    contact_email: 'sinabari@gmail.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'identity_hub',\n    required_topic_tokens: ['sina bari', 'medical ai', 'current work'],\n    forbidden_phrase_bundles: ['book a consultation', 'best plastic surgeon near me', 'schedule an appointment']\n  },\n  sinabari_net: {\n    slug: 'sinabari-net',\n    domain: 'sinabari.net',\n    canonical_url: 'https://sinabari.net/',\n    deployPath: '/srv/sites/sinabari-net',\n    verifyUrl: 'https://sinabari.net',\n    openclawAgentId: 'publisher-sinabari-net',\n    technicalSeoAgentId: 'technical-seo-sinabari-net',\n    display_name: 'Sina Bari',\n    contact_email: 'sinabari@gmail.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'ai_authority',\n    required_topic_tokens: ['healthcare ai', 'medical ai', 'clinical workflow', 'governance'],\n    forbidden_phrase_bundles: [\n      'aesthetics philosophy',\n      'plastic surgery',\n      'facial rejuvenation',\n      'cosmetic surgery',\n      'selected media and speaking',\n      'connect surgery aesthetics and healthcare technology'\n    ]\n  },\n  drsinabari: {\n    slug: 'drsinabari',\n    domain: 'drsinabari.com',\n    canonical_url: 'https://drsinabari.com/',\n    deployPath: '/srv/sites/drsinabari',\n    verifyUrl: 'https://drsinabari.com',\n    openclawAgentId: 'publisher-drsinabari',\n    technicalSeoAgentId: 'technical-seo-drsinabari',\n    display_name: 'Dr. Sina Bari',\n    contact_email: 'sinabari@gmail.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Dr. Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'editorial',\n    required_topic_tokens: ['essay', 'commentary', 'writing'],\n    forbidden_phrase_bundles: ['book a consultation', 'healthcare ai thought leadership']\n  },\n  sinabariplasticsurgery: {\n    slug: 'sinabariplasticsurgery',\n    domain: 'sinabariplasticsurgery.com',\n    canonical_url: 'https://sinabariplasticsurgery.com/',\n    deployPath: '/srv/sites/sinabariplasticsurgery',\n    verifyUrl: 'https://sinabariplasticsurgery.com',\n    openclawAgentId: 'publisher-sinabariplasticsurgery',\n    technicalSeoAgentId: 'technical-seo-sinabariplasticsurgery',\n    display_name: 'Sina Bari, MD',\n    contact_email: 'sinabari@gmail.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'legacy_specialty',\n    required_topic_tokens: ['aesthetics', 'aging', 'rejuvenation'],\n    forbidden_phrase_bundles: ['healthcare ai', 'enterprise ai', 'clinical workflow']\n  }\n};\n\nconst site = SITE_MAP[site_id];\n\nif (!site) {\n  throw new Error(`Unknown site_id: ${site_id}`);\n}\n\nreturn [\n  {\n    json: {\n      site_id,\n      ...site,\n      profile_yaml: raw,\n      profile,\n      role: profile.role || '',\n      objective: profile.objective || '',\n      positioning: profile.positioning || '',\n      allowed_topics: profile.allowed_topics || [],\n      forbidden_topics: profile.forbidden_topics || [],\n      primary_keywords: profile.primary_keywords || [],\n      content_types: profile.content_types || [],\n      core_pages: profile.core_pages || [],\n      schema_type: (profile.schema || [])[0] || 'Person',\n      tone: ['credible', 'restrained', 'expert', 'clear'],\n      content_focus: profile.allowed_topics || [],\n      content_rules: profile.forbidden_topics || [],\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2128,
+        304
+      ],
+      "id": "0d6e9071-54dd-42b6-ae73-584d014163d0",
+      "name": "Build Runtime Site Config"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "79501d1b-9403-4ef0-b44f-00e12766f8be",
+              "name": "site_id",
+              "value": "={{ $json.body?.site_id || $json.site_id || 'sinabari_net' }}",
+              "type": "string"
+            },
+            {
+              "id": "aa001122-0000-0000-0000-000000000001",
+              "name": "research_brief",
+              "value": "={{ $json.body?.research_brief || $json.research_brief || null }}",
+              "type": "object"
+            },
+            {
+              "id": "aa001122-0000-0000-0000-000000000002",
+              "name": "variation_seed",
+              "value": "={{ $json.body?.variation_seed || $json.variation_seed || null }}",
+              "type": "object"
+            },
+            {
+              "id": "aa001122-0000-0000-0000-000000000003",
+              "name": "media_context",
+              "value": "={{ $json.body?.media_context || $json.media_context || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "aa001122-0000-0000-0000-000000000004",
+              "name": "seo_context",
+              "value": "={{ $json.body?.seo_context || $json.seo_context || null }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3136,
+        304
+      ],
+      "id": "2ad48426-1a56-4de5-b686-076ac09ee271",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -2768,
+        304
+      ],
+      "id": "99a34d0d-fee2-47e1-a962-ba5f96e129d2",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const yaml = String($json.generated_yaml || '');\nconst lower = yaml.toLowerCase();\n\nconst forbiddenTopics = ($json.forbidden_topics || []).map(x => String(x).toLowerCase()).filter(Boolean);\nconst forbiddenBundles = ($json.forbidden_phrase_bundles || []).map(x => String(x).toLowerCase()).filter(Boolean);\n\nconst genericBans = [\n  'lorem ipsum',\n  'coming soon',\n  'under construction',\n  'tbd',\n  'book an appointment',\n  'schedule a consultation'\n];\n\nfor (const term of [...forbiddenTopics, ...forbiddenBundles, ...genericBans]) {\n  if (term && lower.includes(term)) {\n    throw new Error(`PROFILE FAIL: forbidden phrase detected: ${term}`);\n  }\n}\n\nif ($json.site_role === 'ai_authority') {\n  const requiredHits = ['healthcare ai', 'medical ai', 'clinical workflow', 'governance', 'diagnostics', 'adoption']\n    .filter(term => lower.includes(term)).length;\n\n  if (requiredHits < 2) {\n    throw new Error('PROFILE FAIL: ai_authority page is not topically specific enough');\n  }\n}\n\nif (!$json.canonical_url || !lower.includes(String($json.canonical_url).toLowerCase())) {\n  throw new Error('PROFILE FAIL: canonical_url missing from YAML');\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        144
+      ],
+      "id": "ef2a0c69-9d61-471f-babb-b433e773e2b2",
+      "name": "Enforce Profile Rules"
+    },
+    {
+      "parameters": {
+        "jsCode": "const list = (arr) => (arr && arr.length ? arr.map(x => `- ${x}`).join('\\n') : '- none');\n\nconst prompt = `\nYou are the Technical SEO Agent for ${$json.domain}.\nReturn only valid YAML in the exact same schema already provided.\nDo not output commentary.\nDo not output markdown.\nDo not add or remove sections.\nMake only minimal corrections needed for:\n- role purity\n- metadata quality\n- canonical consistency\n- internal/outbound link hygiene\n- avoiding site overlap\n- removing forbidden-topic drift\n\nSite role: ${$json.site_role}\nAllowed topics:\n${list($json.allowed_topics)}\nForbidden topics:\n${list($json.forbidden_topics)}\n\nCanonical URL (must preserve exactly):\n${$json.canonical_url}\n\nDisplay name (must preserve exactly):\n${$json.display_name}\n\nInput YAML to review and minimally correct:\n${$json.generated_yaml}\n`;\n\nreturn [{\n  json: {\n    ...$json,\n    technical_seo_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: prompt\n    })\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        144
+      ],
+      "id": "68156507-2c89-469d-98c7-fc848d5bd9fd",
+      "name": "Build Technical SEO Request Body"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        208,
+        144
+      ],
+      "id": "85eb1539-bb38-4896-8b00-d138fc2326b2",
+      "name": "Merge Runtime Config Back (SEO)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{$json.technicalSeoAgentId || $json.openclawAgentId}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{$json.technical_seo_request_body}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0d0c4d09-69a7-4ed6-a78b-4540f0d34f69",
+      "name": "Technical SEO Review"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json.output || [];\nlet text = '';\n\nfor (const block of output) {\n  const content = block.content || [];\n  for (const part of content) {\n    if (part.text) text += part.text + '\\n';\n  }\n}\n\nif (!text.trim()) {\n  throw new Error('No text returned from OpenClaw');\n}\n\ntext = text\n  .replace(/^```yaml\\s*$/gm, '')\n  .replace(/^```\\s*$/gm, '');\n\nconst match = text.match(/^[\\t ]*site:[\\s\\S]*$/m);\n\nif (!match) {\n  throw new Error('No YAML starting with site: found');\n}\n\nreturn [{\n  json: {\n    ...$json,\n    generated_yaml: match[0].trim()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        144
+      ],
+      "id": "0229d62a-ba03-4839-a610-8224a81b3b50",
+      "name": "Extract + Clean YAML (SEO)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const yaml = $json.generated_yaml;\n\nif (!yaml.includes('site:')) {\n  throw new Error('Missing site root');\n}\n\n\nif (yaml.includes('```')) {\n  throw new Error('Markdown detected');\n}\n\nif (/<[^>]+>/.test(yaml)) {\n  throw new Error('HTML detected');\n}\n\nreturn [{\n  json: {\n    ...$json,\n    generated_yaml: yaml\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        144
+      ],
+      "id": "8d6e0a82-28b8-42ca-b71f-06794ffaa937",
+      "name": "Validate YAML (SEO light)"
+    },
+    {
+      "parameters": {
+        "jsCode": "let yaml = String($json.generated_yaml || '').replace(/\\r/g, '').trim();\n\nif (!yaml.startsWith('site:')) {\n  throw new Error('Normalize FAIL: YAML does not start with site:');\n}\n\nfunction setScalar(field, value) {\n  const esc = String(value).replace(/\"/g, '\\\\\"');\n  const re = new RegExp(`(^\\\\s{2}${field}:\\\\s*).*$`, 'm');\n  if (re.test(yaml)) {\n    yaml = yaml.replace(re, `$1\"${esc}\"`);\n  } else {\n    yaml = yaml.replace(/^site:\\s*$/m, `site:\\n  ${field}: \"${esc}\"`);\n  }\n}\n\nfunction setHeroField(field, value) {\n  const esc = String(value).replace(/\"/g, '\\\\\"');\n  const re = new RegExp(`(^\\\\s{4}${field}:\\\\s*).*$`, 'm');\n  if (re.test(yaml)) {\n    yaml = yaml.replace(re, `$1\"${esc}\"`);\n  }\n}\n\nsetScalar('slug', $json.slug);\nsetScalar('canonical_url', $json.canonical_url);\nsetScalar('display_name', $json.display_name);\nsetScalar('contact_email', $json.contact_email);\nsetHeroField('headshot_src', $json.headshot_src);\nsetHeroField('headshot_alt', $json.headshot_alt);\n\nif (/undefined|null/i.test(yaml)) {\n  throw new Error('Normalize FAIL: undefined or null detected after normalization');\n}\n\nreturn [{\n  json: {\n    ...$json,\n    generated_yaml: yaml\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        144
+      ],
+      "id": "0ff45883-7313-4d67-bb8c-4b39f1eecb00",
+      "name": "Normalize Structured Output"
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalize(s) {\n  return String(s || '')\n    .toLowerCase()\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction overlapScore(a, b) {\n  const A = new Set(normalize(a).split(' ').filter(Boolean));\n  const B = new Set(normalize(b).split(' ').filter(Boolean));\n  if (!A.size || !B.size) return 0;\n  const inter = [...A].filter(x => B.has(x)).length;\n  return inter / Math.min(A.size, B.size);\n}\n\nconst site = $json.site || {};\nconst text = [\n  site.title,\n  site.meta_description,\n  site.hero?.eyebrow,\n  site.hero?.headline,\n  site.hero?.lead,\n  ...(site.about?.paragraphs || []),\n  ...(site.background?.paragraphs || []),\n  ...((site.focus?.cards || []).flatMap(c => [c.title, c.body])),\n  ...((site.writing?.cards || []).flatMap(c => [c.title, c.body]))\n].join('\\n');\n\nconst identityReference = `Sina Bari MD surgeon medical AI leader writer healthcare technology aesthetics biography credentials current work media speaking selected essays official site`;\n\nconst score = overlapScore(text, identityReference);\n\nif ($json.site_role === 'ai_authority') {\n  const bannedPatterns = [\n    'surgeon medical ai leader and writer on healthcare technology and aesthetics',\n    'selected media and speaking',\n    'connect surgery aesthetics and healthcare technology',\n    'official personal site'\n  ];\n\n  for (const pattern of bannedPatterns) {\n    if (normalize(text).includes(normalize(pattern))) {\n      throw new Error(`DUPLICATION FAIL: identity-hub phrase detected: ${pattern}`);\n    }\n  }\n\n  if (score > 0.62) {\n    throw new Error(`DUPLICATION FAIL: overlap score too high vs identity hub (${score.toFixed(2)})`);\n  }\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        448
+      ],
+      "id": "6c9c3254-6189-49b7-9f37-ac1a8c54194a",
+      "name": "Cross-Site Duplication Check"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1552,
+        304
+      ],
+      "id": "51074d32-f9ba-4f68-b2f2-cb998e614be2",
+      "name": "Merge Verify Context"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sinabari-publish",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3544,
+        200
+      ],
+      "id": "dd78086d-e72b-4f06-a4c1-832fbc581c6c",
+      "name": "Webhook Trigger",
+      "webhookId": "sinabari-publish"
+    },
+    {
+      "id": "c78dc48c-7d81-48d3-92c9-2fb549672588",
+      "name": "Inject Schema + Author",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        304
+      ],
+      "parameters": {
+        "jsCode": "\nconst html = $json.rendered_html || '';\nconst site = $json.site || {};\nconst site_id = $json.site_id || '';\n\n// \u2500\u2500 Person schema (consistent across all sites) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst SAME_AS = [\n  'https://sinabarimd.com',\n  'https://sinabari.net',\n  'https://sinabariplasticsurgery.com',\n  'https://drsinabari.com',\n  'https://www.linkedin.com/in/sinabarimd/',\n  'https://scholar.google.com/citations?user=ue5DG5IAAAAJ',\n  'https://www.wikidata.org/wiki/Q138774674',\n  'https://techcrunch.com/author/sina-bari-md/',\n  'https://www.doximity.com/cv/sinabarimd',\n  'https://www.crunchbase.com/person/sina-bari-md-f5c7',\n  'https://muckrack.com/sinabarimd',\n];\n\nconst personSchema = {\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Person\",\n  \"name\": \"Sina Bari\",\n  \"honorificPrefix\": \"Dr.\",\n  \"honorificSuffix\": \"MD\",\n  \"jobTitle\": \"VP, Healthcare and Life Sciences AI\",\n  \"description\": \"Physician-technologist and executive. Stanford-trained surgeon. VP, Healthcare and Life Sciences AI at iMerit. Expert in medical AI, clinical workflows, and healthcare data.\",\n  \"url\": \"https://sinabarimd.com\",\n  \"sameAs\": SAME_AS,\n  \"knowsAbout\": [\n    \"Healthcare Artificial Intelligence\",\n    \"Medical Imaging AI\",\n    \"Clinical Workflow Design\",\n    \"Plastic and Reconstructive Surgery\",\n    \"Post-Acute Care Medicine\"\n  ]\n};\n\n// sinabarimd.com also gets WebSite + ProfilePage schema\nlet schemaBlocks = [personSchema];\nif (site_id === 'sinabarimd') {\n  schemaBlocks.push({\n    \"@context\": \"https://schema.org\",\n    \"@type\": \"WebSite\",\n    \"name\": \"Sina Bari, MD\",\n    \"url\": \"https://sinabarimd.com\"\n  });\n  schemaBlocks.push({\n    \"@context\": \"https://schema.org\",\n    \"@type\": \"ProfilePage\",\n    \"name\": \"Sina Bari, MD \u2014 Official Site\",\n    \"url\": \"https://sinabarimd.com\",\n    \"mainEntity\": { \"@type\": \"Person\", \"name\": \"Sina Bari\" }\n  });\n}\n\nconst schemaTag = schemaBlocks\n  .map(s => `<script type=\"application/ld+json\">\\n${JSON.stringify(s, null, 2)}\\n</script>`)\n  .join('\\n');\n\n// \u2500\u2500 Author byline (visible, linked back to sinabarimd.com) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst authorByline = `\n<footer class=\"author-credit\" style=\"text-align:center;padding:12px 0;font-size:0.85em;color:#888;border-top:1px solid #eee;margin-top:32px;\">\n  Written and maintained by <a href=\"https://sinabarimd.com/about\" rel=\"author\" style=\"color:inherit;text-decoration:underline;\">Dr. Sina Bari, MD</a>\n</footer>`;\n\n// \u2500\u2500 Inject into HTML \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nlet updated = html\n  .replace('</head>', schemaTag + '\\n</head>')\n  .replace('</body>', authorByline + '\\n</body>');\n\nif (updated === html) {\n  throw new Error('Schema/author injection failed \u2014 </head> or </body> not found in rendered HTML');\n}\n\nreturn [{ json: { ...$json, rendered_html: updated } }];\n"
+      }
+    },
+    {
+      "id": "a2f4d6e8-b0c1-4389-9d7e-f5a8b3c0d1e2",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -3544,
+        440
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c3e5f7a9-d2b4-4c67-8f1a-e9c0d4a7b6e3",
+      "name": "Apply Publish Delay",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        584,
+        336
+      ],
+      "parameters": {
+        "jsCode": "// Apply Publish Delay \u2014 records timing metadata; actual Wait node added in Phase 2\nconst delayMinutes = Math.floor(Math.random() * 30);\nconst now = new Date();\nconst publishTime = new Date(now.getTime() + delayMinutes * 60000);\n\nconst month = now.getUTCMonth() + 1;\nconst pacificOffset = (month >= 3 && month <= 11) ? -7 : -8;\nconst pacificHour = (publishTime.getUTCHours() + pacificOffset + 24) % 24;\n\nlet finalDelayMinutes = delayMinutes;\nif (pacificHour < 8) {\n  finalDelayMinutes += (8 - pacificHour) * 60;\n} else if (pacificHour >= 18) {\n  finalDelayMinutes += (24 - pacificHour + 8) * 60;\n}\n\nconst scheduledAt = new Date(now.getTime() + finalDelayMinutes * 60000);\n\nreturn [{\n  json: {\n    ...$json,\n    publish_delay_minutes: finalDelayMinutes,\n    scheduled_publish_at: scheduledAt.toISOString(),\n  }\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \u2018Execute workflow\u2019": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Deploy Payload": {
+      "main": [
+        [
+          {
+            "node": "Deploy Site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deploy Site": {
+      "main": [
+        [
+          {
+            "node": "Summarize Deploy Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Gate": {
+      "main": [
+        [
+          {
+            "node": "Apply Publish Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw Generate Content": {
+      "main": [
+        [
+          {
+            "node": "Merge Site Config Back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract + Clean YAML": {
+      "main": [
+        [
+          {
+            "node": "Validate YAML (light)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate YAML (light)": {
+      "main": [
+        [
+          {
+            "node": "Enforce Profile Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render": {
+      "main": [
+        [
+          {
+            "node": "Inject Schema + Author",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA": {
+      "main": [
+        [
+          {
+            "node": "Approval Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse YAML to Site Object": {
+      "main": [
+        [
+          {
+            "node": "Cross-Site Duplication Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Template": {
+      "main": [
+        [
+          {
+            "node": "Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Prompt": {
+      "main": [
+        [
+          {
+            "node": "Build OpenClaw Request Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build OpenClaw Request Body": {
+      "main": [
+        [
+          {
+            "node": "Merge Site Config Back",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "OpenClaw Generate Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Site Config Back": {
+      "main": [
+        [
+          {
+            "node": "Extract + Clean YAML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Homepage": {
+      "main": [
+        [
+          {
+            "node": "Merge Verify Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Site Profile": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Profile YAML": {
+      "main": [
+        [
+          {
+            "node": "Build Runtime Site Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Runtime Site Config": {
+      "main": [
+        [
+          {
+            "node": "Inject Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Load Site Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Parse Profile YAML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enforce Profile Rules": {
+      "main": [
+        [
+          {
+            "node": "Build Technical SEO Request Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Technical SEO Request Body": {
+      "main": [
+        [
+          {
+            "node": "Merge Runtime Config Back (SEO)",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Technical SEO Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technical SEO Review": {
+      "main": [
+        [
+          {
+            "node": "Merge Runtime Config Back (SEO)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Runtime Config Back (SEO)": {
+      "main": [
+        [
+          {
+            "node": "Extract + Clean YAML (SEO)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract + Clean YAML (SEO)": {
+      "main": [
+        [
+          {
+            "node": "Validate YAML (SEO light)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate YAML (SEO light)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Structured Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Structured Output": {
+      "main": [
+        [
+          {
+            "node": "Parse YAML to Site Object",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cross-Site Duplication Check": {
+      "main": [
+        [
+          {
+            "node": "Load Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Deploy Response": {
+      "main": [
+        [
+          {
+            "node": "Merge Verify Context",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Verify Homepage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Verify Context": {
+      "main": [
+        [
+          {
+            "node": "Parse Verify Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Schema + Author": {
+      "main": [
+        [
+          {
+            "node": "QA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Publish Delay": {
+      "main": [
+        [
+          {
+            "node": "Build Deploy Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "tags": []
+}

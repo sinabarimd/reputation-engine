@@ -1,0 +1,1438 @@
+{
+  "updatedAt": "2026-04-16T23:27:21.065Z",
+  "createdAt": "2026-03-23T23:42:43.957Z",
+  "id": "orzgeCjPL81pIqar",
+  "name": "Portfolio Orchestrator",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "c3a479f6-8898-4af4-b370-a5876d9129d5",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "publish-portfolio",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "publish-portfolio"
+    },
+    {
+      "id": "f1e2d3c4-b5a6-4789-9012-345678901234",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        160
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a0b1c2d3-e4f5-4678-8901-234567890123",
+      "name": "Cron Trigger \u2014 Mon sinabarimd",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        440
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 16 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555501",
+      "name": "Initialize State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (e.g. manual force-run)\nconst body = $json.body || $json || {};\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555502",
+      "name": "Evaluate Site Eligibility",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Evaluate Site Eligibility \u2014 ramp-up schedule + per-site cadence + publish day check\nconst {\n  publish_log, weeks_since_launch, ramp_up_active, requested_sites, force\n} = $json;\n\n// Full-production minimum days between publishes per site\nconst MIN_INTERVALS = {\n  sinabarimd:             7,   // weekly\n  sinabari_net:           3,   // twice/week (Tue + Fri)\n  drsinabari:             14,  // bi-weekly (long-form editorial)\n  sinabariplasticsurgery: 7,   // weekly\n};\n\n// Designated publish day per site (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu)\n// Mon 09:00 PST \u00b7 Tue 10:00 PST \u00b7 Wed 11:00 PST \u00b7 Thu 14:00 PST\nconst PUBLISH_DAYS = {\n  sinabarimd:             1,\n  sinabari_net:           2,\n  drsinabari:             4,\n  sinabariplasticsurgery: 3,\n};\n\n// Ramp-up site allowlist by week (week 6+ = all four sites)\nconst RAMP_SCHEDULE = {\n  1: ['sinabarimd'],\n  2: ['sinabarimd'],\n  3: ['sinabarimd', 'sinabari_net'],\n  4: ['sinabarimd', 'sinabari_net'],\n  5: ['sinabarimd', 'sinabari_net', 'drsinabari'],\n  6: ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'],\n};\n\nconst ALL_SITES = Object.keys(MIN_INTERVALS);\nconst now = Date.now();\nconst todayDay = new Date().getDay(); // 0=Sun ... 6=Sat\n\n// Determine candidate list\nlet candidates;\nif (Array.isArray(requested_sites) && requested_sites.length > 0) {\n  // Operator override: bypass day-of-week check, respect cadence only\n  candidates = requested_sites.filter(s => ALL_SITES.includes(s));\n} else if (ramp_up_active) {\n  const week = Math.min(weeks_since_launch, 6);\n  const rampCandidates = RAMP_SCHEDULE[week] || ['sinabarimd'];\n  // Still respect publish day during ramp\n  candidates = rampCandidates.filter(s => PUBLISH_DAYS[s] === todayDay);\n} else {\n  // Full production: only the site(s) whose day it is\n  candidates = ALL_SITES.filter(s => PUBLISH_DAYS[s] === todayDay);\n}\n\n// Check per-site cadence (skip if force=true)\nconst eligible = [];\nconst skipped = [];\n\nfor (const site_id of candidates) {\n  if (force) {\n    eligible.push(site_id);\n    continue;\n  }\n  const lastPublish = publish_log[site_id];\n  if (!lastPublish) {\n    eligible.push(site_id);\n    continue;\n  }\n  const daysSince = (now - new Date(lastPublish).getTime()) / (1000 * 60 * 60 * 24);\n  const minDays = MIN_INTERVALS[site_id];\n  if (daysSince >= minDays) {\n    eligible.push(site_id);\n  } else {\n    skipped.push({ site_id, days_since: Math.floor(daysSince), min_days: minDays, next_eligible_in: Math.ceil(minDays - daysSince) });\n  }\n}\n\nreturn [{\n  json: {\n    ...$json,\n    eligible_sites: eligible,\n    skipped_sites: skipped,\n    eligible_count: eligible.length,\n    today_day: todayDay,\n  }\n}];"
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555503",
+      "name": "IF: Any Eligible?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        360,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-001",
+              "leftValue": "={{ $json.eligible_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555504",
+      "name": "Assemble Briefs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        160
+      ],
+      "parameters": {
+        "jsCode": "// Assemble Briefs \u2014 check for approved drafts first, then generate new\nconst upstream = $('Evaluate Site Eligibility').first().json;\nconst {\n  eligible_sites, seo_intel, media_queue, research_queue, content_exec_count\n} = upstream;\n\n// Get approved drafts from the Fetch Approved Drafts response\nconst draftsResponse = $json;\nconst approvedDrafts = draftsResponse.approved_drafts || [];\n\nconst OPENING_TYPES = ['narrative', 'question', 'direct_statement', 'data_point'];\nconst BASE_WORD_COUNTS = {\n  sinabarimd: 750, sinabari_net: 1200,\n  drsinabari: 1500, sinabariplasticsurgery: 900,\n};\n\nconst briefs = eligible_sites.map(site_id => {\n  // Check if there's an approved draft waiting for this site\n  const approvedDraft = approvedDrafts.find(d => d.site_id === site_id);\n  \n  if (approvedDraft) {\n    return {\n      action: 'auto_publish',\n      site_id,\n      draft_id: approvedDraft.draft_id,\n    };\n  }\n  \n  // No approved draft \u2014 generate new content\n  const researchBrief = (research_queue || [])\n    .find(r => r.site_id === site_id && !r.consumed) || null;\n  const mediaBrief = (media_queue || [])\n    .filter(m => m.target_site_id === site_id && !m.consumed)\n    .slice(0, 3);\n\n  return {\n    action: 'generate',\n    site_id,\n    seo_context: seo_intel?.latest_brief || null,\n    media_context: mediaBrief,\n    research_brief: researchBrief,\n    variation_seed: {\n      opening_type: OPENING_TYPES[content_exec_count % 4],\n      target_word_count: Math.round((BASE_WORD_COUNTS[site_id] || 900) * (0.85 + Math.random() * 0.3)),\n      heading_depth: content_exec_count % 2 === 0 ? 2 : 3,\n    },\n  };\n});\n\nreturn briefs.map(brief => ({ json: brief }));"
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555505",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        160
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555506",
+      "name": "Execute Content Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1160,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.sinabarimd.com/webhook/content-generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Orchestrator",
+              "value": "portfolio-orchestrator"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555507",
+      "name": "Increment Exec Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        160
+      ],
+      "parameters": {
+        "jsCode": "// Increment exec count after Content Generator dispatch (draft stored, not yet published)\nconst staticData = $getWorkflowStaticData('global');\nstaticData.content_exec_count = (staticData.content_exec_count || 0) + 1;\n\n// Pass through for batch loop\nreturn [{ json: { ...$json, dispatched: true } }];"
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555508",
+      "name": "No Sites Eligible",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        440
+      ],
+      "parameters": {
+        "jsCode": "// No Eligible Sites \u2014 build response for when nothing qualifies\nreturn [{\n  json: {\n    summary: 'No sites eligible for publishing this run',\n    dispatched: [],\n    skipped: $json.skipped_sites || [],\n    eligible_count: 0,\n    run_at: new Date().toISOString(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "11111111-2222-3333-4444-555555555509",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Collect Results \u2014 aggregate all dispatched sites into summary\nconst items = $input.all();\n\nconst dispatched = items\n  .filter(i => i.json.publish_logged)\n  .map(i => ({ site_id: i.json.publish_logged, publish_date: i.json.publish_date }));\n\nconst skipped = items[0]?.json?._state?.skipped_sites || [];\nconst eligible_count = items[0]?.json?._state?.eligible_count || dispatched.length;\n\nreturn [{\n  json: {\n    summary: dispatched.length > 0\n      ? `${dispatched.length} site(s) dispatched for publishing`\n      : 'No eligible sites this run',\n    dispatched,\n    skipped,\n    eligible_count,\n    run_at: new Date().toISOString(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "78c85637-b12f-43c3-886a-bd67390e7ea5",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "a4394ae8-26df-442c-b71a-ab01fd288384",
+      "name": "Receive Research Brief",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2180,
+        -40
+      ],
+      "parameters": {
+        "path": "store-research-brief",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "store-research-brief"
+    },
+    {
+      "id": "49e8e363-d642-4271-9bae-e945721b666c",
+      "name": "Store Research Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2380,
+        -40
+      ],
+      "parameters": {
+        "jsCode": "// Store Research Brief \u2014 adds incoming brief to research_queue in static data\nconst body = $json.body || $json;\nconst brief = body.brief || body;\n\nif (!brief || !brief.site_id) {\n  return [{ json: { success: false, error: 'Missing required field: site_id' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nconst queue = staticData.research_queue || [];\n\n// Remove any existing unconsumed brief for the same site (replace with latest)\nconst filtered = queue.filter(b => !(b.site_id === brief.site_id && !b.consumed));\nfiltered.push({ ...brief, consumed: false, queued_at: new Date().toISOString() });\nstaticData.research_queue = filtered;\n\nreturn [{ json: {\n  success: true,\n  site_id: brief.site_id,\n  topic: brief.recommended_topic || brief.approved_topic || '(no topic)',\n  queue_depth: filtered.filter(b => !b.consumed).length,\n} }];"
+      }
+    },
+    {
+      "id": "2ddb3d6c-6ca4-473b-851c-26eabf764067",
+      "name": "Cron Trigger \u2014 Tue sinabari.net",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        620
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cef247ad-443b-4acc-ab72-c546de6bf359",
+      "name": "Cron Trigger \u2014 Wed sinabariplasticsurgery",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        800
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * 3"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a122b0b9-49d0-4392-b9bc-bdc11329cde7",
+      "name": "Cron Trigger \u2014 Thu drsinabari",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        980
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * 4"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b0fe2a28-3066-4075-a421-3f976f23c2f9",
+      "name": "Cron Trigger \u2014 Fri sinabari.net",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        1160
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a6155e83-4204-43a3-b60c-fd4c22dfc874",
+      "name": "Log Publish Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1340
+      ],
+      "webhookId": "log-publish",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "log-publish",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "b37dde4a-71c2-444f-adda-4133118b8fea",
+      "name": "Update Publish Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        1340
+      ],
+      "parameters": {
+        "jsCode": "// Update Publish Log \u2014 called by Content Publisher after successful deploy\nconst body = $json.body || $json;\nconst site_id = body.site_id;\nconst publish_date = body.publish_date || new Date().toISOString().split('T')[0];\n\nif (!site_id) {\n  return [{ json: { success: false, error: 'site_id required' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.publish_log) staticData.publish_log = {};\nstaticData.publish_log[site_id] = publish_date;\n\nreturn [{ json: {\n  success: true,\n  site_id,\n  publish_date,\n  publish_log: staticData.publish_log,\n} }];"
+      }
+    },
+    {
+      "id": "04da5bf8-569f-4c5b-a1ff-e43a401ad9c4",
+      "name": "Deploy Files Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1520
+      ],
+      "webhookId": "deploy-files",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deploy-files",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "3175ad0a-54cb-4498-926c-a77fa4368a12",
+      "name": "Forward to Deploy Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -260,
+        1520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9911/deploy",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_DEPLOY_SERVICE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ JSON.stringify($json.body || $json) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fetch-approved-drafts-001",
+      "name": "Fetch Approved Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        160
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://n8n.sinabarimd.com/webhook/list-drafts",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "if-auto-publish-001",
+      "name": "IF: Auto Publish?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auto-pub-check",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "auto_publish",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "auto-publish-001",
+      "name": "Auto Publish Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        10
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.sinabarimd.com/webhook/publish-draft",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ draft_id: $json.draft_id, site_id: $json.site_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "publish-log-get-001",
+      "name": "Get Publish Log Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1540
+      ],
+      "webhookId": "publish-log",
+      "parameters": {
+        "path": "publish-log",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "publish-log-get-002",
+      "name": "Return Publish Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        1540
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst publish_log = staticData.publish_log || {};\nconst launch_date = staticData.launch_date || null;\nconst ramp_up_active = staticData.ramp_up_active !== false;\n\n// Compute next scheduled cron for each site\nconst CRON_SCHEDULE = {\n  sinabarimd:             { days: [1], hour: 9, tz: 'PST' },\n  sinabari_net:           { days: [2, 5], hour: 10, tz: 'PST' },\n  sinabariplasticsurgery: { days: [3], hour: 11, tz: 'PST' },\n  drsinabari:             { days: [4], hour: 14, tz: 'PST' },\n};\n\nconst MIN_INTERVALS = {\n  sinabarimd: 7, sinabari_net: 3,\n  sinabariplasticsurgery: 7, drsinabari: 14,\n};\n\nconst now = new Date();\nconst schedule = {};\n\nfor (const [site_id, cron] of Object.entries(CRON_SCHEDULE)) {\n  if (cron.suspended) {\n    schedule[site_id] = { next_cron: null, status: 'suspended' };\n    continue;\n  }\n  \n  const lastPub = publish_log[site_id] ? new Date(publish_log[site_id]) : null;\n  const minDays = MIN_INTERVALS[site_id];\n  const earliestEligible = lastPub \n    ? new Date(lastPub.getTime() + minDays * 24 * 60 * 60 * 1000) \n    : now;\n  \n  // Find next cron day (PST = UTC-7 roughly, but use UTC offset of 7h)\n  let nextCron = null;\n  for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {\n    const candidate = new Date(now);\n    candidate.setDate(candidate.getDate() + dayOffset);\n    const dayOfWeek = candidate.getDay(); // 0=Sun\n    if (cron.days.includes(dayOfWeek === 0 ? 7 : dayOfWeek)) {\n      candidate.setUTCHours(cron.hour + 7, 0, 0, 0); // PST\u2192UTC rough\n      if (candidate > now && candidate >= earliestEligible) {\n        nextCron = candidate.toISOString();\n        break;\n      }\n    }\n  }\n  \n  schedule[site_id] = {\n    last_published: publish_log[site_id] || null,\n    min_interval_days: minDays,\n    earliest_eligible: earliestEligible.toISOString(),\n    next_cron: nextCron,\n    cron_days: cron.days,\n    cron_hour_pst: cron.hour,\n  };\n}\n\nreturn [{ json: {\n  publish_log,\n  launch_date,\n  ramp_up_active,\n  schedule,\n} }];"
+      }
+    },
+    {
+      "id": "publish-log-get-003",
+      "name": "Respond Publish Log",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        120,
+        1540
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "store-seo-intel-wh",
+      "name": "Store SEO Intel Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1740
+      ],
+      "webhookId": "store-seo-intel",
+      "parameters": {
+        "path": "store-seo-intel",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "store-seo-intel-code",
+      "name": "Store SEO Intel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        1740
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData.seo_intel) staticData.seo_intel = {};\nstaticData.seo_intel.latest_brief = body;\nstaticData.seo_intel.updated_at = new Date().toISOString();\n\nreturn [{ json: { success: true, research_date: body.research_date, summary: body.summary } }];"
+      }
+    },
+    {
+      "id": "store-seo-intel-respond",
+      "name": "Respond SEO Intel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        120,
+        1740
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "store-media-wh",
+      "name": "Store Media Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1940
+      ],
+      "webhookId": "store-media",
+      "parameters": {
+        "path": "store-media",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "store-media-code",
+      "name": "Store Media Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        1940
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst incomingItems = body.media_items || [];\nconst staticData = $getWorkflowStaticData('global');\nstaticData.media_queue = incomingItems;\nreturn [{ json: { success: true, queue_depth: incomingItems.length, updated_at: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "store-media-respond",
+      "name": "Respond Store Media",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        120,
+        1940
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "spotlight-get-wh",
+      "name": "Get Spotlight Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1200
+      ],
+      "webhookId": "spotlight",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "spotlight",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "spotlight-return",
+      "name": "Return Spotlight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst spotlight = staticData.spotlight || null;\nconst history = (staticData.spotlight_history || []).map(h => ({\n  slug: h.slug,\n  title: h.title,\n  excerpt: h.excerpt,\n  publish_date: h.publish_date,\n  article_html: h.article_html || null,\n}));\nreturn [{ json: { spotlight, history } }];\n"
+      }
+    },
+    {
+      "id": "spotlight-get-respond",
+      "name": "Respond Spotlight GET",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        1200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "spotlight-set-wh",
+      "name": "Set Spotlight Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1360
+      ],
+      "webhookId": "spotlight-set",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "spotlight-set",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "spotlight-store",
+      "name": "Store Spotlight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1360
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { title, excerpt, slug, article_html, publish_date } = body;\n\nif (!title || !slug) {\n  return [{ json: { success: false, error: 'Required: title, slug' } }];\n}\n\n// Archive current spotlight to history before replacing\nif (!staticData.spotlight_history) staticData.spotlight_history = [];\nif (staticData.spotlight && staticData.spotlight.slug) {\n  const prev = staticData.spotlight;\n  // Only add if not already in history\n  if (!staticData.spotlight_history.some(h => h.slug === prev.slug)) {\n    staticData.spotlight_history.push({\n      slug: prev.slug,\n      title: prev.title,\n      excerpt: prev.excerpt || '',\n      publish_date: prev.publish_date || '',\n      article_html: prev.article_html || null,\n      archived_at: new Date().toISOString(),\n    });\n  }\n}\n\nstaticData.spotlight = {\n  title,\n  excerpt: excerpt || '',\n  slug,\n  article_path: 'articles/' + slug + '.html',\n  article_html: article_html || null,\n  publish_date: publish_date || new Date().toISOString().split('T')[0],\n  set_at: new Date().toISOString(),\n};\n\nreturn [{ json: {\n  success: true,\n  spotlight: { ...staticData.spotlight, article_html: '(stored, ' + (article_html||'').length + ' chars)' },\n  history_count: staticData.spotlight_history.length,\n} }];\n"
+      }
+    },
+    {
+      "id": "spotlight-set-respond",
+      "name": "Respond Spotlight SET",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        1360
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "spotlight-campaign-get-wh",
+      "name": "Get Spotlight Campaign",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1520
+      ],
+      "webhookId": "spotlight-campaign",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "spotlight-campaign",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "spotlight-campaign-return",
+      "name": "Return Spotlight Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1520
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst campaign = staticData.spotlight_campaign || null;\nreturn [{ json: { campaign } }];\n"
+      }
+    },
+    {
+      "id": "spotlight-campaign-get-respond",
+      "name": "Respond Campaign GET",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        1520
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "spotlight-campaign-set-wh",
+      "name": "Set Spotlight Campaign",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1680
+      ],
+      "webhookId": "spotlight-campaign-set",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "spotlight-campaign-set",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "spotlight-campaign-store",
+      "name": "Store Spotlight Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1680
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { title, slug, article_url, tasks } = body;\n\nif (!title || !tasks || !Array.isArray(tasks)) {\n  return [{ json: { success: false, error: 'Required: title, tasks[]' } }];\n}\n\nstaticData.spotlight_campaign = {\n  title,\n  slug: slug || '',\n  article_url: article_url || '',\n  launched_at: new Date().toISOString(),\n  tasks: tasks.map((t, i) => ({\n    ...t,\n    task_id: 'sc_' + Date.now() + '_' + i,\n    status: t.status || 'pending',\n    spotlight: true,\n  })),\n};\n\nreturn [{ json: { success: true, total_tasks: tasks.length, campaign_title: title } }];\n"
+      }
+    },
+    {
+      "id": "spotlight-campaign-set-respond",
+      "name": "Respond Campaign SET",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        1680
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "spotlight-campaign-action-wh",
+      "name": "Spotlight Campaign Action",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1840
+      ],
+      "webhookId": "spotlight-campaign-action",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "spotlight-campaign-action",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "spotlight-campaign-action-handle",
+      "name": "Handle Campaign Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1840
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { task_id, action } = body;\n\nif (!staticData.spotlight_campaign || !task_id) {\n  return [{ json: { success: false, error: 'No campaign or task_id' } }];\n}\n\nconst task = staticData.spotlight_campaign.tasks.find(t => t.task_id === task_id);\nif (!task) return [{ json: { success: false, error: 'Task not found' } }];\n\ntask.status = action || 'completed';\ntask.completed_at = new Date().toISOString();\n\nreturn [{ json: { success: true, task_id, status: task.status } }];\n"
+      }
+    },
+    {
+      "id": "spotlight-campaign-action-respond",
+      "name": "Respond Campaign Action",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        1840
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "campaign-prepare-prompt",
+      "name": "Prepare Campaign Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1520
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst spotlight = staticData.spotlight;\n\nif (!spotlight || !spotlight.title) {\n  return [{ json: { skip: true, reason: 'No spotlight data' } }];\n}\n\n// Strip HTML from article to get plain text for the prompt\nconst html = spotlight.article_html || '';\nconst plainText = html\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<[^>]+>/g, '\\n')\n  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n  .replace(/&nbsp;/g, ' ').replace(/&#39;/g, \"'\").replace(/&quot;/g, '\"')\n  .split('\\n').map(l => l.trim()).filter(l => l).join('\\n')\n  .substring(0, 8000);\n\nconst articleUrl = 'https://sinabarimd.com/' + spotlight.article_path;\nconst githubUrl = 'https://github.com/sinabarimd/reputation-engine';\n\nconst prompt = `You are a social media content strategist for Dr. Sina Bari, MD -- a Stanford-trained plastic surgeon and healthcare AI executive.\n\nGiven the following spotlight article, generate a 15-task social media campaign. Each task is a ready-to-post piece of content adapted for a specific platform.\n\nARTICLE TITLE: ${spotlight.title}\nARTICLE EXCERPT: ${spotlight.excerpt}\nARTICLE URL: ${articleUrl}\nGITHUB REPO: ${githubUrl}\n\nARTICLE TEXT (first 8000 chars):\n${plainText}\n\nCAMPAIGN SCHEDULE (15 tasks across 3 weeks):\n\nDay 1: LinkedIn - article_post (professional announcement, 150-200 words, hashtags)\nDay 2: Twitter/X - thread (5-tweet thread, key insights, link at end)\nDay 3: Medium - article_repost (500-word excerpt adapted for Medium audience, note to set canonical URL to ${articleUrl}, include GitHub link at end)\nDay 4: Facebook - share (conversational tone, 100-150 words, link)\nDay 5: WordPress (sinabarimd0) - excerpt_post (300-word excerpt with backlink)\nDay 6: Quora - answer (find relevant questions about personal SEO/reputation/AI agents, write 200-word answer referencing the article)\nDay 7: WordPress (sinabarimd) - excerpt_post (300-word different angle excerpt)\nDay 8: Tumblr - reflection (200-word personal reflection on why you built this)\nDay 9: LinkedIn - follow_up (follow-up post referencing response to original, 100-150 words)\nDay 10: YouTube - description_update (update channel description to reference the article/project)\nDay 11: Twitter/X - insight (single tweet with one surprising finding/stat from the article)\nDay 12: Strikingly - content_update (section update text, 100 words + link)\nDay 13: Instagram - story_or_post (caption for graphic/screenshot, 100 words)\nDay 14: LinkedIn - featured_update (instructions to add article to Featured section + GitHub repo)\nDay 15: Medium - follow_up (400-word companion piece: \"3 Things I Learned Building an AI Reputation Engine\")\n\nRULES:\n- Write from Dr. Bari's first-person perspective\n- Never claim board certification\n- Never use em-dashes (use -- instead)\n- Every post must include a link back to sinabarimd.com or the article URL\n- Adapt tone and format to each platform's conventions\n- LinkedIn: professional but not stiff, use line breaks\n- Twitter: concise, punchy, use thread format where specified\n- Medium: longer form, editorial quality, always mention canonical URL\n- Facebook: conversational, personal\n- Quora: helpful expert answering a real question\n- Instagram: visual-first caption style\n- For platform updates (YouTube, Strikingly, LinkedIn Featured): provide the exact text/instructions to paste\n\nReturn ONLY a JSON array of 15 objects, each with these exact fields:\n{\n  \"platform_id\": \"linkedin|twitter|medium|facebook|wordpress0|quora|wordpress_sinabarimd|tumblr|youtube|mystrikingly|instagram\",\n  \"platform_name\": \"Display Name\",\n  \"post_type\": \"article_post|thread|article_repost|share|excerpt_post|answer|reflection|follow_up|description_update|insight|content_update|story_or_post|featured_update\",\n  \"content\": \"The full ready-to-post text\"\n}\n\nReturn ONLY the JSON array, no markdown fencing, no explanation.`;\n\nconst requestBody = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: { skip: false, openclaw_request_body: requestBody, articleUrl, spotlight_title: spotlight.title, spotlight_slug: spotlight.slug } }];"
+      }
+    },
+    {
+      "id": "campaign-if-skip",
+      "name": "IF: Campaign Generate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        1520
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "campaign-skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "campaign-openclaw-gen",
+      "name": "OpenClaw Generate Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        1480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.openclaw_request_body }}",
+        "options": {
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "campaign-parse-store",
+      "name": "Parse & Store Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1480
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst spotlight = staticData.spotlight;\nconst upstream = $('Prepare Campaign Prompt').first().json;\n\n// Parse OpenClaw response\nlet responseText = '';\nconst output = $json.output || [];\nfor (const item of output) {\n  if (item.type === 'message' && item.content) {\n    for (const block of item.content) {\n      if (block.type === 'output_text') {\n        responseText += block.text;\n      }\n    }\n  }\n}\n\n// Clean up response - strip markdown fencing if present\nresponseText = responseText.trim();\nif (responseText.startsWith('```')) {\n  responseText = responseText.replace(/^```(?:json)?\\n?/, '').replace(/\\n?```$/, '');\n}\n\nlet tasks;\ntry {\n  tasks = JSON.parse(responseText);\n} catch (e) {\n  return [{ json: { success: false, error: 'Failed to parse OpenClaw response: ' + e.message, raw: responseText.substring(0, 500) } }];\n}\n\nif (!Array.isArray(tasks) || tasks.length === 0) {\n  return [{ json: { success: false, error: 'OpenClaw returned empty or non-array', raw: responseText.substring(0, 500) } }];\n}\n\n// Build the campaign with dates spread across 15 days starting tomorrow\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() + 1);\n\nconst campaignTasks = tasks.map((t, i) => {\n  const taskDate = new Date(startDate);\n  taskDate.setDate(taskDate.getDate() + i);\n  const dateStr = taskDate.toISOString().split('T')[0];\n\n  return {\n    date: dateStr,\n    platform_id: t.platform_id || 'unknown',\n    platform_name: t.platform_name || t.platform_id || 'Unknown',\n    post_type: t.post_type || 'post',\n    content: t.content || '',\n    link: upstream.articleUrl || '',\n    task_id: 'sc_' + Date.now() + '_' + i,\n    status: 'pending',\n    spotlight: true,\n  };\n});\n\n// Store in staticData\nstaticData.spotlight_campaign = {\n  title: spotlight.title || upstream.spotlight_title,\n  slug: spotlight.slug || upstream.spotlight_slug,\n  article_url: upstream.articleUrl,\n  launched_at: new Date().toISOString(),\n  generated: true,\n  tasks: campaignTasks,\n};\n\nreturn [{ json: {\n  success: true,\n  total_tasks: campaignTasks.length,\n  campaign_title: staticData.spotlight_campaign.title,\n  generated: true,\n} }];"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize State": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Site Eligibility",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Site Eligibility": {
+      "main": [
+        [
+          {
+            "node": "IF: Any Eligible?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Any Eligible?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Approved Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Sites Eligible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Briefs": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF: Auto Publish?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Content Agent": {
+      "main": [
+        [
+          {
+            "node": "Increment Exec Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Sites Eligible": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Research Brief": {
+      "main": [
+        [
+          {
+            "node": "Store Research Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Trigger \u2014 Tue sinabari.net": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Trigger \u2014 Wed sinabariplasticsurgery": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Trigger \u2014 Thu drsinabari": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Trigger \u2014 Mon sinabarimd": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Trigger \u2014 Fri sinabari.net": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Exec Count": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Publish Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update Publish Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deploy Files Webhook": {
+      "main": [
+        [
+          {
+            "node": "Forward to Deploy Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Approved Drafts": {
+      "main": [
+        [
+          {
+            "node": "Assemble Briefs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Auto Publish?": {
+      "main": [
+        [
+          {
+            "node": "Auto Publish Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Content Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto Publish Draft": {
+      "main": [
+        [
+          {
+            "node": "Increment Exec Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Publish Log Webhook": {
+      "main": [
+        [
+          {
+            "node": "Return Publish Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Publish Log": {
+      "main": [
+        [
+          {
+            "node": "Respond Publish Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store SEO Intel Webhook": {
+      "main": [
+        [
+          {
+            "node": "Store SEO Intel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store SEO Intel": {
+      "main": [
+        [
+          {
+            "node": "Respond SEO Intel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Media Webhook": {
+      "main": [
+        [
+          {
+            "node": "Store Media Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Media Queue": {
+      "main": [
+        [
+          {
+            "node": "Respond Store Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Spotlight Webhook": {
+      "main": [
+        [
+          {
+            "node": "Return Spotlight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Spotlight": {
+      "main": [
+        [
+          {
+            "node": "Respond Spotlight GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Spotlight Webhook": {
+      "main": [
+        [
+          {
+            "node": "Store Spotlight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Spotlight": {
+      "main": [
+        [
+          {
+            "node": "Respond Spotlight SET",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Campaign Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Spotlight Campaign": {
+      "main": [
+        [
+          {
+            "node": "Return Spotlight Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Spotlight Campaign": {
+      "main": [
+        [
+          {
+            "node": "Respond Campaign GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Spotlight Campaign": {
+      "main": [
+        [
+          {
+            "node": "Store Spotlight Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Spotlight Campaign": {
+      "main": [
+        [
+          {
+            "node": "Respond Campaign SET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spotlight Campaign Action": {
+      "main": [
+        [
+          {
+            "node": "Handle Campaign Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Campaign Action": {
+      "main": [
+        [
+          {
+            "node": "Respond Campaign Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Campaign Prompt": {
+      "main": [
+        [
+          {
+            "node": "IF: Campaign Generate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Campaign Generate?": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw Generate Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "OpenClaw Generate Campaign": {
+      "main": [
+        [
+          {
+            "node": "Parse & Store Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "tags": []
+}

@@ -1,0 +1,578 @@
+{
+  "updatedAt": "2026-03-26T20:13:59.324Z",
+  "createdAt": "2026-03-26T19:19:46.965Z",
+  "id": "1m5QjQ2KsF9Q6s6U",
+  "name": "Reputation Engine \u2014 Technical SEO Implementer",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "impl-webhook",
+      "name": "SEO Implement Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "seo-implement",
+      "parameters": {
+        "path": "seo-implement",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "fetch-brief",
+      "name": "Fetch SEO Brief",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://n8n.sinabarimd.com/webhook/seo-intel",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "build-impl-prompt",
+      "name": "Build Implementation Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const briefData = $json;\nconst brief = briefData.latest_brief;\n\nif (!brief || !brief.summary) {\n  return [{ json: { error: true, message: 'No valid SEO brief found. Run SEO Research Agent first.' } }];\n}\n\nconst prompt = `You are the Technical SEO Implementer for the Reputation Engine.\n\nLATEST SEO BRIEF:\n${JSON.stringify(brief, null, 2)}\n\nCURRENT SYSTEM STATE:\n- sinabarimd.com: Person+ProfilePage schema, canonical identity hub, has author headshot\n- sinabari.net: WebSite schema, healthcare AI authority site\n- sinabariplasticsurgery.com: WebSite+MedicalWebPage schema, plastic surgery education, 3 published articles with author bylines\n- All article pages have: og:type article, og:site_name, article:published_time, twitter:card, meta author, Schema Article/MedicalWebPage with @id author, FAQPage schema (when FAQ present), author byline block\n- Content Generator prompt includes FAQ format instructions (<h3>Q?</h3><p>A</p>)\n\nTASK TYPES:\n- \"site_change\": HTML/schema/meta changes to homepage \u2014 auto-executable after approval\n- \"prompt_change\": Content Generator prompt modifications \u2014 human-gated\n- \"config_change\": Cadence or scheduling changes \u2014 human-gated\n- \"new_content\": New pages needed \u2014 human-gated\n\nFor \"site_change\" tasks, provide:\n- search_pattern: exact string to find in the homepage HTML\n- replacement: exact replacement string\n- change_target: \"index.html\"\n- change_method: \"replace\" or \"inject_before\" or \"inject_after\"\n\nFor other types, describe the change clearly but do NOT provide HTML.\n\nOUTPUT JSON ONLY:\n{\n  \"tasks\": [\n    {\n      \"type\": \"site_change|prompt_change|config_change|new_content\",\n      \"risk_level\": \"low|medium|high\",\n      \"site_id\": \"sinabarimd|sinabari_net|sinabariplasticsurgery\",\n      \"title\": \"Short title (under 80 chars)\",\n      \"description\": \"What and why\",\n      \"change_target\": \"index.html\",\n      \"change_method\": \"replace|inject_before|inject_after\",\n      \"search_pattern\": \"exact string to find\",\n      \"replacement\": \"exact replacement\",\n      \"brief_item\": \"which brief recommendation triggered this\"\n    }\n  ],\n  \"skipped_items\": [\"items that don't need action and why\"],\n  \"summary\": \"One paragraph summary\"\n}\n\nRULES:\n- Max 8 tasks. Prioritize by impact.\n- Do NOT expand site_id \"all\" \u2014 create separate tasks per site.\n- Never remove existing content \u2014 only add or modify.\n- Schema changes must preserve existing valid schema.\n- Author: Dr. Sina Bari, MD | URL: https://sinabarimd.com/about`;\n\nreturn [{ json: { brief, openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }) } }];"
+      }
+    },
+    {
+      "id": "openclaw-tasks",
+      "name": "OpenClaw Generate Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "seo-implementer"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.openclaw_request_body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "parse-store-tasks",
+      "name": "Parse and Store Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const rawResponse = $json.output?.[0]?.content?.[0]?.text || '';\n\nlet parsed;\ntry {\n  const jsonMatch = rawResponse.match(/```json\\s*([\\s\\S]*?)```/) || [null, rawResponse];\n  const cleaned = jsonMatch[1].trim();\n  const objMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(objMatch ? objMatch[0] : cleaned);\n} catch (e) {\n  return [{ json: { error: true, message: 'Failed to parse tasks: ' + e.message, raw: rawResponse.slice(0, 500) } }];\n}\n\nconst now = Date.now();\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.pending_actions) staticData.pending_actions = {};\n\nconst SAFE_TYPES = ['site_change'];\nconst tasks = (parsed.tasks || []).map((task, i) => {\n  const action_id = `seo_action_${now}_${i}`;\n  const auto_executable = SAFE_TYPES.includes(task.type) && task.risk_level !== 'high';\n  const action = {\n    action_id, created_at: new Date().toISOString(), type: task.type,\n    status: 'pending', risk_level: task.risk_level || 'medium',\n    auto_executable, site_id: task.site_id || 'all',\n    title: task.title, description: task.description,\n    change_target: task.change_target || null,\n    change_method: task.change_method || null,\n    search_pattern: task.search_pattern || null,\n    replacement: task.replacement || null,\n    brief_item: task.brief_item || null,\n    approved_at: null, executed_at: null, execution_result: null,\n  };\n  staticData.pending_actions[action_id] = action;\n  return action;\n});\n\nreturn [{ json: {\n  success: true, tasks_created: tasks.length,\n  summary: parsed.summary || '',\n  skipped: parsed.skipped_items || [],\n  tasks: tasks.map(t => ({ action_id: t.action_id, type: t.type, title: t.title, site_id: t.site_id, risk_level: t.risk_level, auto_executable: t.auto_executable })),\n} }];"
+      }
+    },
+    {
+      "id": "list-webhook",
+      "name": "SEO Actions Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        600
+      ],
+      "webhookId": "seo-actions",
+      "parameters": {
+        "path": "seo-actions",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "list-actions",
+      "name": "List Actions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        600
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst actions = Object.values(staticData.pending_actions || {});\nconst log = staticData.action_log || [];\nactions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));\nconst summary = {\n  pending: actions.filter(a => a.status === 'pending').length,\n  approved: actions.filter(a => a.status === 'approved').length,\n  completed: log.filter(a => a.status === 'completed').length,\n  dismissed: log.filter(a => a.status === 'dismissed').length,\n};\nreturn [{ json: { summary, actions, recent_log: log.slice(0, 10) } }];"
+      }
+    },
+    {
+      "id": "list-respond",
+      "name": "Respond Actions",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "approve-webhook",
+      "name": "Approve Action Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        800
+      ],
+      "webhookId": "approve-seo-action",
+      "parameters": {
+        "path": "approve-seo-action",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "approve-action",
+      "name": "Approve Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { action_id } = body;\nif (!action_id) return [{ json: { error: true, message: 'Missing action_id' } }];\nconst staticData = $getWorkflowStaticData('global');\nconst action = (staticData.pending_actions || {})[action_id];\nif (!action) return [{ json: { error: true, message: 'Action not found' } }];\nif (action.status !== 'pending') return [{ json: { error: true, message: `Action is ${action.status}` } }];\naction.status = 'approved';\naction.approved_at = new Date().toISOString();\nreturn [{ json: { success: true, action_id, title: action.title, status: 'approved', auto_executable: action.auto_executable } }];"
+      }
+    },
+    {
+      "id": "approve-respond",
+      "name": "Respond Approve",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "dismiss-webhook",
+      "name": "Dismiss Action Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1000
+      ],
+      "webhookId": "dismiss-seo-action",
+      "parameters": {
+        "path": "dismiss-seo-action",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "dismiss-action",
+      "name": "Dismiss Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { action_id, status: requestedStatus } = body;\nif (!action_id) return [{ json: { error: true, message: 'Missing action_id' } }];\nconst staticData = $getWorkflowStaticData('global');\nconst action = (staticData.pending_actions || {})[action_id];\nif (!action) return [{ json: { error: true, message: 'Action not found' } }];\nconst finalStatus = requestedStatus === 'completed' ? 'completed' : 'dismissed';\naction.status = finalStatus;\nif (!staticData.action_log) staticData.action_log = [];\nstaticData.action_log.unshift({ ...action, executed_at: new Date().toISOString() });\nstaticData.action_log = staticData.action_log.slice(0, 50);\ndelete staticData.pending_actions[action_id];\nreturn [{ json: { success: true, action_id, title: action.title, status: finalStatus } }];"
+      }
+    },
+    {
+      "id": "dismiss-respond",
+      "name": "Respond Dismiss",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        1000
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "exec-webhook",
+      "name": "Execute Action Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1200
+      ],
+      "webhookId": "execute-seo-action",
+      "parameters": {
+        "path": "execute-seo-action",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "load-action",
+      "name": "Load Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { action_id } = body;\nif (!action_id) return [{ json: { error: true, message: 'Missing action_id' } }];\nconst staticData = $getWorkflowStaticData('global');\nconst action = (staticData.pending_actions || {})[action_id];\nif (!action) return [{ json: { error: true, message: 'Action not found' } }];\nif (action.status !== 'approved') return [{ json: { error: true, message: `Must be approved first (currently ${action.status})` } }];\nif (!action.auto_executable) {\n  return [{ json: { error: false, human_gated: true, message: `This ${action.type} action requires manual implementation.`, action } }];\n}\nconst SITE_MAP = {\n  sinabarimd: { domain: 'sinabarimd.com', deployPath: '/srv/sites/sinabarimd', verifyUrl: 'https://sinabarimd.com' },\n  sinabari_net: { domain: 'sinabari.net', deployPath: '/srv/sites/sinabari-net', verifyUrl: 'https://sinabari.net' },\n  sinabariplasticsurgery: { domain: 'sinabariplasticsurgery.com', deployPath: '/srv/sites/sinabariplasticsurgery', verifyUrl: 'https://sinabariplasticsurgery.com' },\n};\nconst siteConfig = SITE_MAP[action.site_id];\nif (!siteConfig) return [{ json: { error: true, message: 'Unknown site: ' + action.site_id } }];\nreturn [{ json: { action, siteConfig, fetch_url: 'https://' + siteConfig.domain + '/' } }];"
+      }
+    },
+    {
+      "id": "fetch-page",
+      "name": "Fetch Current Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        1200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.fetch_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "apply-and-deploy",
+      "name": "Apply Change and Deploy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "const upstream = $('Load Action').first().json;\nconst action = upstream.action;\nconst siteConfig = upstream.siteConfig;\nconst currentHtml = typeof $json.data === 'string' ? $json.data : ($json || '');\n\nif (!currentHtml || currentHtml.length < 100) {\n  return [{ json: { error: true, message: 'Could not fetch current page HTML' } }];\n}\n\n// Apply the change\nlet updatedHtml = currentHtml;\nif (action.change_method === 'replace' && action.search_pattern && action.replacement) {\n  if (updatedHtml.includes(action.search_pattern)) {\n    updatedHtml = updatedHtml.replace(action.search_pattern, action.replacement);\n  } else {\n    return [{ json: { error: true, message: 'Search pattern not found in current HTML: ' + action.search_pattern.slice(0, 100) } }];\n  }\n} else if (action.change_method === 'inject_before' && action.search_pattern && action.replacement) {\n  if (updatedHtml.includes(action.search_pattern)) {\n    updatedHtml = updatedHtml.replace(action.search_pattern, action.replacement + action.search_pattern);\n  } else {\n    return [{ json: { error: true, message: 'Injection point not found' } }];\n  }\n} else if (action.change_method === 'inject_after' && action.search_pattern && action.replacement) {\n  if (updatedHtml.includes(action.search_pattern)) {\n    updatedHtml = updatedHtml.replace(action.search_pattern, action.search_pattern + action.replacement);\n  } else {\n    return [{ json: { error: true, message: 'Injection point not found' } }];\n  }\n} else {\n  return [{ json: { error: true, message: 'Missing change_method, search_pattern, or replacement' } }];\n}\n\nif (updatedHtml === currentHtml) {\n  return [{ json: { error: true, message: 'No change detected \u2014 replacement same as original' } }];\n}\nif (updatedHtml.length < currentHtml.length * 0.8) {\n  return [{ json: { error: true, message: 'Safety halt: HTML shrunk by ' + Math.round((1 - updatedHtml.length / currentHtml.length) * 100) + '%' } }];\n}\n\n// Build deploy payload \u2014 homepage only for v1\n// We need to also include styles.css and articles to avoid full-sync wipe\nreturn [{ json: {\n  updatedHtml,\n  action,\n  siteConfig,\n  styles_url: 'https://' + siteConfig.domain + '/styles.css',\n  articles_index_url: 'https://' + siteConfig.domain + '/articles/index.html',\n} }];"
+      }
+    },
+    {
+      "id": "fetch-styles",
+      "name": "Fetch Styles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        1200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.styles_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "fetch-articles-idx",
+      "name": "Fetch Articles Index",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        1200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Apply Change and Deploy').first().json.articles_index_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "build-deploy",
+      "name": "Build and Deploy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "const ctx = $('Apply Change and Deploy').first().json;\nconst stylesResp = $('Fetch Styles').first().json;\nconst articlesIdxResp = $json;\n\nconst action = ctx.action;\nconst sc = ctx.siteConfig;\n\nconst files = [{ path: 'index.html', content: ctx.updatedHtml }];\n\nconst stylesCss = typeof stylesResp.data === 'string' ? stylesResp.data : null;\nif (stylesCss && stylesCss.length > 10) {\n  files.push({ path: 'styles.css', content: stylesCss });\n}\n\nconst articlesIdx = typeof articlesIdxResp.data === 'string' ? articlesIdxResp.data : null;\nif (articlesIdx && articlesIdx.length > 10) {\n  files.push({ path: 'articles/index.html', content: articlesIdx });\n  // Parse article slugs from the index and note them\n  const slugs = [...articlesIdx.matchAll(/href=\"([^\"]*\\.html)\"/g)].map(m => m[1]).filter(s => s !== 'index.html');\n  // We'll fetch these article pages in the deploy step\n  // For now, store slugs for reference\n}\n\n// For sinabarimd.com, also include dashboard.html if it exists\nif (action.site_id === 'sinabarimd') {\n  // dashboard.html needs to be preserved \u2014 fetch it\n  files.push({ path: '__fetch_dashboard', content: 'https://' + sc.domain + '/dashboard.html' });\n}\n\nreturn [{ json: {\n  deploy_payload: { domain: sc.domain, deployPath: sc.deployPath, verifyUrl: sc.verifyUrl, release_id: 'seo-impl-' + action.action_id, files },\n  action_id: action.action_id,\n  site_id: action.site_id,\n} }];"
+      }
+    },
+    {
+      "id": "deploy-and-record",
+      "name": "Deploy and Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "// For v1, we flag that execution needs the full file fetch\n// and return instructions rather than deploying automatically.\n// This is safer given the full-sync constraint.\nconst { deploy_payload, action_id, site_id } = $json;\nconst staticData = $getWorkflowStaticData('global');\nconst action = staticData.pending_actions[action_id];\n\n// Mark as completed (the change was validated, operator can deploy manually or we can enhance later)\naction.status = 'completed';\naction.executed_at = new Date().toISOString();\naction.execution_result = {\n  validated: true,\n  files_count: deploy_payload.files.length,\n  message: 'Change validated. Deploy payload prepared.',\n};\n\nif (!staticData.action_log) staticData.action_log = [];\nstaticData.action_log.unshift({ ...action });\nstaticData.action_log = staticData.action_log.slice(0, 50);\ndelete staticData.pending_actions[action_id];\n\nreturn [{ json: {\n  success: true,\n  action_id,\n  site_id,\n  title: action.title,\n  status: 'completed',\n  message: 'Change validated and staged. Full deploy requires article file preservation \u2014 use dashboard Publish or manual deploy.',\n} }];"
+      }
+    }
+  ],
+  "connections": {
+    "SEO Implement Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch SEO Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch SEO Brief": {
+      "main": [
+        [
+          {
+            "node": "Build Implementation Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Implementation Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw Generate Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw Generate Tasks": {
+      "main": [
+        [
+          {
+            "node": "Parse and Store Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Actions Webhook": {
+      "main": [
+        [
+          {
+            "node": "List Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Actions": {
+      "main": [
+        [
+          {
+            "node": "Respond Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve Action Webhook": {
+      "main": [
+        [
+          {
+            "node": "Approve Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve Action": {
+      "main": [
+        [
+          {
+            "node": "Respond Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dismiss Action Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dismiss Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dismiss Action": {
+      "main": [
+        [
+          {
+            "node": "Respond Dismiss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Action Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Action": {
+      "main": [
+        [
+          {
+            "node": "Fetch Current Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Current Page": {
+      "main": [
+        [
+          {
+            "node": "Apply Change and Deploy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Change and Deploy": {
+      "main": [
+        [
+          {
+            "node": "Fetch Styles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Styles": {
+      "main": [
+        [
+          {
+            "node": "Fetch Articles Index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Articles Index": {
+      "main": [
+        [
+          {
+            "node": "Build and Deploy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build and Deploy": {
+      "main": [
+        [
+          {
+            "node": "Deploy and Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "tags": []
+}

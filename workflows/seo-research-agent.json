@@ -1,0 +1,414 @@
+{
+  "updatedAt": "2026-03-26T17:49:29.875Z",
+  "createdAt": "2026-03-26T17:41:55.475Z",
+  "id": "SbGN3pzCdy0asKxY",
+  "name": "Reputation Engine \u2014 SEO Research Agent",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "seo-cron",
+      "name": "Monday Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 14 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "seo-manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "seo-webhook",
+      "name": "SEO Research Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        500
+      ],
+      "webhookId": "seo-research",
+      "parameters": {
+        "path": "seo-research",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "build-queries",
+      "name": "Build Search Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\n\nconst query = `Google algorithm updates SEO changes ${year}, healthcare medical website ranking, E-E-A-T author authority, Schema.org structured data, Answer Engine Optimization, personal brand SERP strategy`;\n\nreturn [{ json: {\n  is_monthly: isFirstMonday,\n  research_date: today.toISOString().split('T')[0],\n  tavily_query: query,\n} }];"
+      }
+    },
+    {
+      "id": "tavily-search",
+      "name": "Tavily SEO Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ api_key: \"YOUR_TAVILY_API_KEY\", query: $json.tavily_query, search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "build-openclaw",
+      "name": "Build OpenClaw Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\n\nconst answer = tavily.answer || 'No summary available.';\nconst results = (tavily.results || []).map(r =>\n  `- \"${r.title}\" (${r.url})\\n  ${(r.content || '').slice(0, 300)}`\n).join('\\n');\n\nconst total_sources = (tavily.results || []).length;\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nTavily summary: ${answer}\n\nSearch results:\n${results}\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"algorithm_updates\": [{ \"update\": \"description\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies\", \"priority\": \"high/medium/low\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery\", \"urgency\": \"immediate/next_cycle/backlog\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\" }],\n  \"competitive_intel\": \"brief summary\",\n  \"aeo_opportunities\": [\"opportunities\"],\n  \"summary\": \"2-3 sentence executive summary\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
+      }
+    },
+    {
+      "id": "openclaw-synth",
+      "name": "OpenClaw Synthesize",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{ $json.openclawAgentId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.openclaw_request_body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "extract-brief",
+      "name": "Extract Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const ctx = $('Build OpenClaw Request').first().json;\nconst rawContent = $json.output?.[0]?.content?.[0]?.text || '';\n\nlet brief;\ntry {\n  // Try direct JSON parse\n  brief = JSON.parse(rawContent);\n} catch (e) {\n  // Try extracting JSON from markdown code block\n  const jsonMatch = rawContent.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    brief = JSON.parse(jsonMatch[1].trim());\n  } else {\n    // Try finding JSON object in the text\n    const objMatch = rawContent.match(/\\{[\\s\\S]*\\}/);\n    if (objMatch) {\n      brief = JSON.parse(objMatch[0]);\n    } else {\n      return [{ json: { error: true, message: 'Could not parse brief from OpenClaw response', raw: rawContent.slice(0, 500) } }];\n    }\n  }\n}\n\nbrief.research_date = ctx.research_date;\nbrief.is_monthly = ctx.is_monthly;\nbrief.total_sources = ctx.total_sources;\nbrief.generated_at = new Date().toISOString();\n\nreturn [{ json: brief }];"
+      }
+    },
+    {
+      "id": "store-brief",
+      "name": "Store Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const brief = $json;\nconst staticData = $getWorkflowStaticData('global');\n\n// Store latest brief\nstaticData.latest_brief = brief;\n\n// Keep history (last 12 briefs)\nif (!staticData.brief_history) staticData.brief_history = [];\nstaticData.brief_history.push({\n  research_date: brief.research_date,\n  brief_type: brief.brief_type,\n  summary: brief.summary,\n  generated_at: brief.generated_at,\n  algorithm_updates_count: (brief.algorithm_updates || []).length,\n  recommendations_count: (brief.content_recommendations || []).length,\n});\nif (staticData.brief_history.length > 12) staticData.brief_history = staticData.brief_history.slice(-12);\n\nreturn [{ json: brief }];"
+      }
+    },
+    {
+      "id": "queue-to-orch",
+      "name": "Queue to Orchestrator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2300,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.sinabarimd.com/webhook/store-seo-intel",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "seo-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const brief = $('Store Brief').first().json;\nreturn [{ json: {\n  success: true,\n  research_date: brief.research_date,\n  brief_type: brief.brief_type,\n  summary: brief.summary,\n  algorithm_updates: (brief.algorithm_updates || []).length,\n  recommendations: (brief.content_recommendations || []).length,\n  generated_at: brief.generated_at,\n} }];"
+      }
+    },
+    {
+      "id": "get-intel-webhook",
+      "name": "Get Intel Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        700
+      ],
+      "webhookId": "seo-intel",
+      "parameters": {
+        "path": "seo-intel",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "return-intel",
+      "name": "Return Intel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        700
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nreturn [{ json: {\n  latest_brief: staticData.latest_brief || null,\n  brief_history: staticData.brief_history || [],\n} }];"
+      }
+    },
+    {
+      "id": "respond-intel",
+      "name": "Respond Intel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        700
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "Monday Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Research Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Queries": {
+      "main": [
+        [
+          {
+            "node": "Tavily SEO Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily SEO Search": {
+      "main": [
+        [
+          {
+            "node": "Build OpenClaw Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build OpenClaw Request": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw Synthesize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw Synthesize": {
+      "main": [
+        [
+          {
+            "node": "Extract Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Brief": {
+      "main": [
+        [
+          {
+            "node": "Store Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Brief": {
+      "main": [
+        [
+          {
+            "node": "Queue to Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue to Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Intel Webhook": {
+      "main": [
+        [
+          {
+            "node": "Return Intel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Intel": {
+      "main": [
+        [
+          {
+            "node": "Respond Intel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "tags": []
+}

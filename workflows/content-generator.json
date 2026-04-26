@@ -1,0 +1,745 @@
+{
+  "updatedAt": "2026-04-25T17:23:06.735Z",
+  "createdAt": "2026-03-25T17:07:27.211Z",
+  "id": "8sibaEgEYW106llR",
+  "name": "Reputation Engine \u2014 Content Generator",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "886c460f-33f1-40b5-9e4f-455fd4bfa561",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "996867c8-4c6d-42ed-89ed-c88fe0824c05",
+      "name": "Content Generator Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "content-generate",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "content-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "b82f584b-da96-4770-af08-6426f5b9b5be",
+      "name": "Extract Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst site_id = body.site_id || 'sinabarimd';\nconst domain_map = {\n  sinabarimd: 'sinabarimd.com',\n  sinabari_net: 'sinabari.net',\n  drsinabari: 'drsinabari.com',\n  sinabariplasticsurgery: 'sinabariplasticsurgery.com',\n};\nreturn [{\n  json: {\n    site_id,\n    domain: body.domain || domain_map[site_id] || 'sinabarimd.com',\n    research_brief: body.research_brief || null,\n    variation_seed: body.variation_seed || null,\n    media_context: body.media_context || [],\n    seo_context: body.seo_context || null,\n  }\n}];"
+      }
+    },
+    {
+      "id": "35a120b1-75ef-40f4-970b-87ae3042f2be",
+      "name": "Load Site Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ \n  $json.site_id === 'sinabarimd' ? 'http://172.17.0.1:9911/profiles/sinabarimd_com.yaml' :\n  $json.site_id === 'sinabari_net' ? 'http://172.17.0.1:9911/profiles/sinabari_net.yaml' :\n  $json.site_id === 'drsinabari' ? 'http://172.17.0.1:9911/profiles/drsinabari_com.yaml' :\n  $json.site_id === 'sinabariplasticsurgery' ? 'http://172.17.0.1:9911/profiles/sinabariplasticsurgery_com.yaml' :\n  'http://172.17.0.1:9911/profiles/README.txt'\n}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f2a1b985-c7da-48e3-a386-44160e9f125e",
+      "name": "Parse Profile YAML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Profile YAML comes from HTTP response; original fields from Extract Fields node\nconst profileText = $json.data || $json.body || '';\n\n// Parse YAML key: value lines\nconst fields = {};\nconst lines = profileText.split('\\n');\nlet currentKey = null;\nlet multilineBuffer = [];\nlet inMultiline = false;\n\nfor (const line of lines) {\n  const keyMatch = line.match(/^([\\w_]+):\\s*(.*)$/);\n  if (keyMatch && !line.startsWith(' ') && !line.startsWith('\\t')) {\n    if (inMultiline && currentKey) {\n      fields[currentKey] = multilineBuffer.join('\\n').trim();\n      multilineBuffer = [];\n      inMultiline = false;\n    }\n    currentKey = keyMatch[1];\n    const val = keyMatch[2].trim();\n    if (val === '|' || val === '>') {\n      inMultiline = true;\n    } else {\n      fields[currentKey] = val.replace(/^[\"']|[\"']$/g, '');\n      currentKey = null;\n    }\n  } else if (inMultiline) {\n    multilineBuffer.push(line.replace(/^  /, ''));\n  }\n}\nif (inMultiline && currentKey) {\n  fields[currentKey] = multilineBuffer.join('\\n').trim();\n}\n\n// Pull original payload from Extract Fields node\nconst origin = $('Extract Fields').first().json;\n\nreturn [{\n  json: {\n    ...origin,\n    profile: fields,\n  }\n}];"
+      }
+    },
+    {
+      "id": "696a13c9-18e0-4cff-9e6e-e75494b760ad",
+      "name": "Build Runtime Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const profile = $json.profile || {};\nconst site_id = $json.site_id;\n\nconst SITE_MAP = {\n  sinabarimd: {\n    domain: 'sinabarimd.com',\n    openclawAgentId: 'publisher-sinabarimd',\n    site_role: 'identity_hub',\n  },\n  sinabari_net: {\n    domain: 'sinabari.net',\n    openclawAgentId: 'publisher-sinabari-net',\n    site_role: 'health_tech_authority',\n  },\n  drsinabari: {\n    domain: 'drsinabari.com',\n    openclawAgentId: 'publisher-drsinabari',\n    site_role: 'editorial',\n  },\n  sinabariplasticsurgery: {\n    domain: 'sinabariplasticsurgery.com',\n    openclawAgentId: 'publisher-sinabariplasticsurgery',\n    site_role: 'legacy_specialty',\n  },\n};\n\n// Explicit topic overrides per site (override profile YAML if set)\nconst TOPIC_OVERRIDES = {\n  sinabarimd: {\n    allowed_topics: 'Professional identity, career highlights, selected publications, clinical leadership, medical executive perspective, Stanford training, surgical expertise',\n    forbidden_topics: 'Thin blog spam, clinic impersonation, generic health tips, anything not related to Dr. Bari personally',\n  },\n  sinabari_net: {\n    allowed_topics: 'Healthcare AI (clinical AI, hospital AI governance, AI diagnostics, AI in radiology/pathology, LLMs in medicine, AI safety in healthcare, AI workflow automation, operational AI) ~75%. Health technology broadly (medical devices, surgical robotics, digital health platforms, EHR innovation, telemedicine, remote patient monitoring, wearable health tech, pharma technology, precision medicine, genomics platforms, health data interoperability, clinical decision support) ~25%. Always from a physician-executive perspective.',\n    forbidden_topics: 'Plastic surgery, aesthetic procedures, reconstructive surgery, facial rejuvenation, any surgical procedures, generic consumer AI (ChatGPT tips, prompt engineering), cryptocurrency, anything not healthcare/medtech',\n  },\n  drsinabari: {\n    allowed_topics: 'Long-form editorial: medicine and technology, physician identity in the AI age, clinical ethics, healthcare policy, medical humanities, the future of the profession, personal essays on practice and innovation',\n    forbidden_topics: 'Generic health tips, listicles, short-form clickbait, anything not editorial/opinion in nature',\n  },\n  sinabariplasticsurgery: {\n    allowed_topics: 'Plastic surgery, reconstructive surgery, facial rejuvenation, aesthetic medicine, skin science, surgical technique education, patient safety, recovery guidance',\n    forbidden_topics: 'Healthcare AI, enterprise technology, business commentary, anything not related to plastic/reconstructive surgery',\n  },\n};\n\nconst site = SITE_MAP[site_id] || { domain: $json.domain, openclawAgentId: 'publisher-sinabarimd', site_role: 'unknown' };\nconst topicOverride = TOPIC_OVERRIDES[site_id] || {};\n\nreturn [{\n  json: {\n    ...$json,\n    ...site,\n    openclawAgentId: site.openclawAgentId,\n    runtime: {\n      site_id,\n      domain: site.domain,\n      role: topicOverride.allowed_topics ? site.site_role : (profile.role || ''),\n      tone: profile.tone || 'professional, analytical, clinician-perspective',\n      allowed_topics: topicOverride.allowed_topics || profile.allowed_topics || '',\n      forbidden_topics: topicOverride.forbidden_topics || profile.forbidden_topics || '',\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "2282d4f9-6ccd-4381-b1c6-3b9489062ac4",
+      "name": "Inject Content Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const { site_id, domain, research_brief, variation_seed, media_context, seo_context, runtime } = $json;\n\nconst mediaStr = (media_context || []).map(m =>\n  `- ${(m.type||'').toUpperCase()}: \"${m.title}\" (${m.url}) \u2014 ${m.summary}`\n).join('\\n') || 'No recent media items.';\n\nconst researchStr = research_brief ? `\nAPPROVED TOPIC: ${research_brief.recommended_topic}\nNOVEL ANGLE: ${research_brief.novel_angle || 'not specified'}\nAEO QUESTIONS TO ADDRESS:\n${(research_brief.aeo_questions || []).map(q => `  - ${q}`).join('\\n')}\nCITABLE SOURCES (use these, do not fabricate others):\n${(research_brief.citable_sources || []).map(s =>\n  `  - ${s.title} | ${s.publication} | ${s.date} | ${s.url}`\n).join('\\n')}\n` : 'No research brief provided. Use site profile and media context only.';\n\nconst openingMap = {\n  narrative: 'Open with a brief narrative or personal observation relevant to the topic.',\n  question: 'Open with a specific, direct question that the content will answer.',\n  direct_statement: 'Open with a clear, confident factual or opinion statement.',\n  data_point: 'Open with a specific statistic or data point, cited from the sources provided.',\n};\n\nconst DEFAULT_WORD_COUNTS = {\n  sinabarimd: 750, sinabari_net: 1200, drsinabari: 1500, sinabariplasticsurgery: 900,\n};\nconst seed = variation_seed || {\n  opening_type: 'direct_statement',\n  target_word_count: DEFAULT_WORD_COUNTS[site_id] || 900,\n  heading_depth: site_id === 'drsinabari' ? 3 : 2,\n};\n\n// Retrieve recent dismissal feedback for this site\nconst genStaticData = $getWorkflowStaticData('global');\nconst recentFeedback = (genStaticData.dismissal_feedback || [])\n  .filter(f => f.site_id === site_id || f.site_id === 'all')\n  .slice(-5)\n  .map(f => `- Dismissed \"${f.dismissed_title}\": ${f.feedback}`)\n  .join('\\n');\nconst feedbackStr = recentFeedback\n  ? `\\nOPERATOR FEEDBACK ON PRIOR DRAFTS (avoid these issues):\\n${recentFeedback}\\n`\n  : '';\n\nconst prompt = `You are the Content Agent for the Reputation Engine.\nGenerate a structured YAML article object for: ${domain} (site_id: ${site_id})\nRole: ${runtime.role}\nAllowed topics: ${runtime.allowed_topics}\nForbidden topics: ${runtime.forbidden_topics}\nTone: ${runtime.tone}\nAuthor: Dr. Sina Bari, MD\nAuthor URL: https://sinabarimd.com/about\n\nVARIATION INSTRUCTIONS:\n- ${openingMap[seed.opening_type] || openingMap.direct_statement}\n- Target word count: approximately ${seed.target_word_count} words (\u00b115%)\n- Use ${seed.heading_depth} levels of heading hierarchy\n- Vary paragraph lengths \u2014 mix short and long\n\nCONTENT DIRECTION:\n${researchStr}\n\nMEDIA CONTEXT (reference where relevant, do not fabricate):\n${mediaStr}\n\nOPERATOR FEEDBACK:\n${feedbackStr || \"No prior feedback.\"}\n\nSEO CONTEXT:\n${seo_context || 'No SEO alerts this week.'}\n\nMANDATORY REQUIREMENTS:\n- Include at least one contextual link to https://sinabarimd.com (satellite sites only \u2014 skip for sinabarimd site)\n- For sinabarimd.com articles: include at least one link to https://sinabarimd.com/about (credentials page) using anchor text that includes \"Dr. Sina Bari\" or \"Stanford-trained surgeon\"\n- All links to sinabarimd.com should use descriptive anchor text referencing credentials, expertise, or identity \u2014 never generic \"click here\" or \"learn more\"\n- Include a 3-5 item FAQ section at the end of the article.\n- FAQ QUALITY RULES:\n  - Questions must sound like what a real patient or clinician would type into Google \u2014 not generic filler.\n  - BAD: \"What is plastic surgery?\" or \"Why is AI important in healthcare?\"\n  - GOOD: \"How does glycolic acid concentration affect peel depth?\" or \"What happens if a hospital deploys an AI triage tool without clinician oversight?\"\n  - Each answer must be 2-4 sentences, specific, and directly useful \u2014 no padding or restating the question.\n  - Include at least one question that names Dr. Sina Bari or references sinabarimd.com (e.g., \"What is Dr. Bari's approach to...?\")\n  - Answers should be extractable by AI Overviews \u2014 lead with the direct answer, then add context.\n- FAQ format MUST use this exact HTML structure for each Q&A pair:\n  <h3>Question text here?</h3>\n  <p>Answer text here.</p>\n- Do NOT use <strong> for FAQ questions \u2014 always use <h3> tags\n- Include the author byline: \"Dr. Sina Bari, MD\" \u2014 reference Stanford training where contextually appropriate. Do NOT claim board certification.\n- OUTBOUND SOURCE LINKS:\n  - Include 2-3 contextual outbound links to authoritative external sources within the article body.\n  - If a research_brief is provided and contains citable_sources, you MUST link to at least 2 of them using natural anchor text within the article prose.\n  - If no research_brief is provided, include at least 1 outbound link to a reputable source relevant to the article topic (e.g., FDA.gov, NIH, peer-reviewed journals, established tech publications).\n  - Never use \"click here\" or \"source\" as anchor text. Anchor text must describe what the reader will find.\n  - Links must open in the same tab (no target=\"_blank\" needed \u2014 these are static pages).\n  - Do NOT link to competitor personal brand sites or reputation management services.\n- Do not include any forbidden topics\n\nSCIENTIFIC RIGOR (sinabari_net and sinabariplasticsurgery only):\n- Bias toward primary literature: prefer citing peer-reviewed journal articles (PubMed, JAMA, NEJM, Lancet, Annals of Surgery, Plastic and Reconstructive Surgery journal) over news articles or opinion pieces.\n- When making a clinical claim, reference the specific study, trial name, or publication year \u2014 e.g., \"A 2024 meta-analysis in the Journal of Clinical and Aesthetic Dermatology found...\" not \"studies show.\"\n- Avoid generic AI phrasing: no \"it is widely known,\" \"experts agree,\" \"research suggests\" without specifics. Name the research.\n- Include at least one quantitative data point per article (a percentage, sample size, timeframe, or dosage range) to ground the content in evidence.\n- For sinabariplasticsurgery.com: reference anatomical specifics, technique names, and recovery data. Write like a surgeon educating a colleague, then simplify for patient comprehension.\n- For sinabari.net: reference regulatory frameworks (FDA 510(k), De Novo, PMA), standards bodies (AMA, WHO, NIST), and specific AI systems or vendors where relevant. Write like a physician-executive briefing a hospital board.\n- Every article should read as if a peer reviewer could check the claims. If a claim cannot be sourced, qualify it explicitly (\"Clinical experience suggests...\" or \"Anecdotal reports indicate...\").\n\nAI CONTENT DIFFERENTIATION (sinabari_net especially):\n- Every article MUST include at least one first-person clinical observation or opinion from Dr. Bari's perspective as a physician-executive. E.g., \"In my experience deploying clinical AI tools...\" or \"When I evaluate an AI vendor's claims, the first question I ask is...\"\n- Include at least one concrete, specific example that could NOT be written by someone without clinical experience \u2014 a real workflow problem, a specific failure mode witnessed in practice, or a non-obvious implication only a clinician would recognize.\n- Connect every AI trend to a specific patient outcome or clinical workflow impact. Do not describe what AI \"could\" do abstractly \u2014 describe what it IS doing in specific settings, and what goes wrong.\n- Avoid the following generic AI phrases entirely: \"revolutionize healthcare,\" \"transform the industry,\" \"unlock new possibilities,\" \"cutting-edge,\" \"game-changing,\" \"paradigm shift.\" These signal AI-generated content to both readers and Google.\n- NEVER use em-dashes (\u2014). Em-dashes are one of the strongest AI content tells. Use commas, colons, semicolons, periods, or parentheses instead. If you need a dash for a parenthetical break, use a regular hyphen with spaces on both sides (\" - \"), the way a human types it on a standard keyboard. Rewrite any sentence that would naturally use an em-dash.\n- The article should pass this test: if you removed the byline, a reader should still be able to tell it was written by a physician who has personally used or evaluated the technology being discussed.\n- Do not fabricate citations \u2014 only reference sources listed above\n\nOutput valid YAML with these fields:\ntitle: (article title)\nslug: (url-safe slug)\nexcerpt: (1-2 sentence summary)\ndate: (today YYYY-MM-DD)\nauthor: Dr. Sina Bari, MD\nauthor_url: https://sinabarimd.com/about\ncontent_html: |\n  (full article HTML \u2014 h2/h3 headings, p tags, faq section at end)\nword_count: (integer)\n`;\n\nreturn [{ json: { ...$json, injected_prompt: prompt } }];"
+      }
+    },
+    {
+      "id": "15b9077c-9601-421e-a1c9-6805a9f1cbd1",
+      "name": "Build OpenClaw Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: 'openclaw',\n      input: $json.injected_prompt,\n    })\n  }\n}];"
+      }
+    },
+    {
+      "id": "554cead4-f779-40a0-9eba-a386855cb1a9",
+      "name": "OpenClaw Generate Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{$json.openclawAgentId}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{$json.openclaw_request_body}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "e7cf039b-349b-4794-924e-3c0f285d0f51",
+      "name": "Extract Content YAML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const response = $json;\nlet rawText = '';\nif (response.output && Array.isArray(response.output)) {\n  for (const block of response.output) {\n    if (block.type === 'message' && block.content) {\n      for (const c of block.content) {\n        if (c.type === 'output_text') rawText += c.text;\n      }\n    }\n  }\n} else if (response.choices) {\n  rawText = response.choices[0]?.message?.content || '';\n} else if (typeof response === 'string') {\n  rawText = response;\n}\n\n// Strip markdown fencing\nrawText = rawText.replace(/^```ya?ml\\s*/im, '').replace(/```\\s*$/im, '').trim();\n\n// Strip reasoning/thinking preamble \u2014 find where the YAML actually starts\n// Look for the first line that matches a YAML key pattern like \"title:\" at the start\nconst titleMatch = rawText.match(/^title:\\s*.+/m);\nif (titleMatch) {\n  rawText = rawText.substring(rawText.indexOf(titleMatch[0]));\n}\n\n// Parse basic YAML fields\nconst fields = {};\nconst lines = rawText.split('\\n');\nlet currentKey = null;\nlet multilineBuffer = [];\nlet inMultiline = false;\n\nfor (const line of lines) {\n  const keyMatch = line.match(/^([\\w_]+):\\s*(.*)$/);\n  if (keyMatch && !line.startsWith(' ') && !line.startsWith('\\t')) {\n    if (inMultiline && currentKey) {\n      fields[currentKey] = multilineBuffer.join('\\n').trim();\n      multilineBuffer = [];\n      inMultiline = false;\n    }\n    currentKey = keyMatch[1];\n    const val = keyMatch[2].trim();\n    if (val === '|' || val === '>') {\n      inMultiline = true;\n    } else {\n      fields[currentKey] = val.replace(/^[\"']|[\"']$/g, '');\n      currentKey = null;\n    }\n  } else if (inMultiline) {\n    multilineBuffer.push(line.replace(/^  /, ''));\n  }\n}\nif (inMultiline && currentKey) {\n  fields[currentKey] = multilineBuffer.join('\\n').trim();\n}\n\nif (!fields.title) throw new Error('Content YAML missing title field');\n\n// Pull pipeline data from upstream node\nconst origin = $('Build OpenClaw Request').first().json;\n\nreturn [{\n  json: {\n    ...origin,\n    article: {\n      title: fields.title || '',\n      slug: (fields.slug || fields.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')),\n      excerpt: fields.excerpt || '',\n      date: fields.date || new Date().toISOString().split('T')[0],\n      author: fields.author || 'Dr. Sina Bari, MD',\n      author_url: fields.author_url || 'https://sinabarimd.com/about',\n      content_html: fields.content_html || '',\n      word_count: parseInt(fields.word_count) || 0,\n    },\n    raw_yaml: rawText,\n  }\n}];"
+      }
+    },
+    {
+      "id": "18bb63ad-4ab4-445e-b91d-48c3d343952d",
+      "name": "Store Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst drafts = staticData.drafts || {};\nconst { site_id, article } = $json;\n\nconst draftId = `${site_id}_${Date.now()}`;\ndrafts[draftId] = {\n  draft_id: draftId,\n  site_id,\n  generated_at: new Date().toISOString(),\n  status: 'pending_review',\n  article,\n  research_brief: $json.research_brief || null,\n  variation_seed: $json.variation_seed || null,\n};\nstaticData.drafts = drafts;\n\nreturn [{\n  json: {\n    ...$json,\n    draft_id: draftId,\n    status: 'pending_review',\n    review_instruction: `Review draft at GET /webhook/list-drafts. Approve by POST to /webhook/approve-draft with { draft_id: \"${draftId}\", site_id: \"${site_id}\" }`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "b3286350-5e9b-4df1-abc0-1cc3df376e0e",
+      "name": "Respond to Generator",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, draft_id: $json.draft_id, site_id: $json.site_id, title: $json.article.title, status: $json.status, review_instruction: $json.review_instruction }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f3abafda-3fb1-4897-aeb5-abe3c9517c88",
+      "name": "List Drafts Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        500
+      ],
+      "webhookId": "list-drafts",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "list-drafts",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "ff1a5646-0b51-42cb-a205-ee6a3fb4ebad",
+      "name": "Return Drafts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        500
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst drafts = staticData.drafts || {};\n\nconst pending = Object.values(drafts).filter(d => d.status === 'pending_review');\nconst approved = Object.values(drafts).filter(d => d.status === 'approved');\n\nreturn [{\n  json: {\n    generated_at: new Date().toISOString(),\n    instructions: 'POST to /webhook/approve-draft with { draft_id, site_id } to approve. Then POST to /webhook/publish-draft to deploy.',\n    pending_count: pending.length,\n    approved_count: approved.length,\n    pending_drafts: pending.map(d => ({\n      draft_id: d.draft_id,\n      site_id: d.site_id,\n      generated_at: d.generated_at,\n      title: d.article?.title,\n      excerpt: d.article?.excerpt,\n      word_count: d.article?.word_count,\n      slug: d.article?.slug,\n    })),\n    approved_drafts: approved.map(d => ({\n      draft_id: d.draft_id,\n      site_id: d.site_id,\n      title: d.article?.title,\n      approved_at: d.approved_at,\n    })),\n  }\n}];"
+      }
+    },
+    {
+      "id": "989247ab-909c-4f84-b261-5636dc0a6b3a",
+      "name": "Get Draft Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        700
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "get-draft",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "get-draft"
+    },
+    {
+      "id": "e5282540-aab2-437a-8bff-73ff9f0c710e",
+      "name": "Return Full Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        700
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst drafts = staticData.drafts || {};\nconst draft_id = $json.query?.draft_id || $json.draft_id;\n\nif (!draft_id) {\n  return [{ json: { error: 'draft_id query param required' } }];\n}\n\nconst draft = drafts[draft_id];\nif (!draft) {\n  return [{ json: { error: 'Draft not found', draft_id } }];\n}\n\nreturn [{ json: draft }];"
+      }
+    },
+    {
+      "id": "update-draft-webhook-001",
+      "name": "Update Draft Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        900
+      ],
+      "webhookId": "update-draft",
+      "parameters": {
+        "path": "update-draft",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "update-draft-code-001",
+      "name": "Apply Draft Edits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        900
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { draft_id, title, excerpt, content_html, site_id, status } = body;\n\nif (!draft_id) {\n  return [{ json: { error: true, message: 'draft_id is required' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.drafts) staticData.drafts = {};\nconst draft = staticData.drafts[draft_id];\n\nif (!draft) {\n  return [{ json: { error: true, message: 'Draft not found: ' + draft_id } }];\n}\n\n// Track edit history\nif (!draft.edit_history) draft.edit_history = [];\nconst changedFields = [\n  ...(title !== undefined ? ['title'] : []),\n  ...(excerpt !== undefined ? ['excerpt'] : []),\n  ...(content_html !== undefined ? ['content_html'] : []),\n  ...(site_id !== undefined && site_id !== draft.site_id ? ['site_id'] : []),\n    ...(status !== undefined ? ['status'] : []),\n];\ndraft.edit_history.push({\n  edited_at: new Date().toISOString(),\n  fields_changed: changedFields,\n  ...(site_id !== undefined && site_id !== draft.site_id ? { rerouted_from: draft.site_id, rerouted_to: site_id } : {}),\n});\n\n// Reroute site if changed\nif (site_id !== undefined && site_id !== draft.site_id) {\n  const old_site = draft.site_id;\n  draft.site_id = site_id;\n\n  // Update draft_id to reflect new site\n  const new_draft_id = site_id + '_' + draft_id.split('_').pop();\n  delete staticData.drafts[draft_id];\n  draft.draft_id = new_draft_id;\n  staticData.drafts[new_draft_id] = draft;\n\n  // Update author_url to always point to sinabarimd.com\n  draft.article.author_url = 'https://sinabarimd.com/about';\n}\n\n// Apply edits\nif (title !== undefined) draft.article.title = title;\nif (excerpt !== undefined) draft.article.excerpt = excerpt;\nif (content_html !== undefined) draft.article.content_html = content_html;\n\n// Recompute word count if content changed\nif (content_html !== undefined) {\n  const text = content_html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n  draft.article.word_count = text.split(' ').filter(w => w.length > 0).length;\n}\n\n// Recompute slug if title changed\nif (title !== undefined) {\n  draft.article.slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\n}\n\ndraft.last_edited = new Date().toISOString();\n\n// Update status if provided (e.g., 'published' after deploy)\nif (status) {\n  draft.status = status;\n  if (status === 'published') draft.published_at = new Date().toISOString();\n}\n\nreturn [{ json: {\n  success: true,\n  draft_id: draft.draft_id,\n  site_id: draft.site_id,\n  title: draft.article.title,\n  excerpt: draft.article.excerpt,\n  word_count: draft.article.word_count,\n  slug: draft.article.slug,\n  edit_count: draft.edit_history.length,\n  last_edited: draft.last_edited,\n} }];"
+      }
+    },
+    {
+      "id": "update-draft-respond-001",
+      "name": "Respond to Update",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        600,
+        900
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "approve-draft-gen-001",
+      "name": "Approve Draft Webhook (Gen)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1100
+      ],
+      "webhookId": "approve-draft-gen",
+      "parameters": {
+        "path": "approve-draft-gen",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "approve-draft-gen-002",
+      "name": "Set Draft Approved",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        1100
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { draft_id } = body;\n\nif (!draft_id) {\n  return [{ json: { error: true, message: 'draft_id is required' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.drafts) staticData.drafts = {};\nconst draft = staticData.drafts[draft_id];\n\nif (!draft) {\n  return [{ json: { error: true, message: 'Draft not found: ' + draft_id } }];\n}\n\ndraft.status = 'approved';\ndraft.approved_at = new Date().toISOString();\nstaticData.drafts[draft_id] = draft;\n\nreturn [{ json: {\n  success: true,\n  draft_id,\n  site_id: draft.site_id,\n  title: draft.article.title,\n  status: 'approved',\n  approved_at: draft.approved_at,\n} }];"
+      }
+    },
+    {
+      "id": "approve-draft-gen-003",
+      "name": "Respond to Approve",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        600,
+        1100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "dismiss-draft-wh",
+      "name": "Dismiss Draft Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1300
+      ],
+      "webhookId": "dismiss-draft",
+      "parameters": {
+        "path": "dismiss-draft",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "dismiss-draft-code",
+      "name": "Dismiss Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        1300
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst { draft_id, feedback } = body;\n\nif (!draft_id) {\n  return [{ json: { error: true, message: 'draft_id is required' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.drafts) staticData.drafts = {};\nif (!staticData.dismissal_feedback) staticData.dismissal_feedback = [];\n\nconst draft = staticData.drafts[draft_id];\nif (!draft) {\n  return [{ json: { error: true, message: 'Draft not found: ' + draft_id } }];\n}\n\n// Store feedback for future drafting context\nif (feedback && feedback.trim()) {\n  staticData.dismissal_feedback.push({\n    site_id: draft.site_id,\n    dismissed_title: draft.article?.title || '',\n    feedback: feedback.trim(),\n    dismissed_at: new Date().toISOString(),\n  });\n  // Keep last 20 feedback items\n  if (staticData.dismissal_feedback.length > 20) {\n    staticData.dismissal_feedback = staticData.dismissal_feedback.slice(-20);\n  }\n}\n\n// Remove the draft\nconst title = draft.article?.title || draft_id;\nconst site_id = draft.site_id;\ndelete staticData.drafts[draft_id];\n\nreturn [{ json: {\n  success: true,\n  draft_id,\n  site_id,\n  title,\n  feedback: feedback || null,\n  message: 'Draft dismissed' + (feedback ? ' with feedback recorded' : ''),\n  total_feedback: staticData.dismissal_feedback.length,\n} }];"
+      }
+    },
+    {
+      "id": "dismiss-draft-respond",
+      "name": "Respond Dismiss Draft",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        600,
+        1300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "rewrite-draft-wh",
+      "name": "Rewrite Draft Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1200
+      ],
+      "webhookId": "rewrite-draft",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rewrite-draft",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "build-rewrite-prompt",
+      "name": "Build Rewrite Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { draft_id, suggestions } = body;\n\nif (!draft_id || !suggestions) {\n  return [{ json: { success: false, error: 'Required: draft_id, suggestions' } }];\n}\n\nconst draft = staticData.drafts?.[draft_id];\nif (!draft) {\n  return [{ json: { success: false, error: 'Draft not found: ' + draft_id } }];\n}\n\nconst article = draft.article || {};\nconst agentMap = {\"sinabarimd\": \"publisher-sinabarimd\", \"sinabari_net\": \"publisher-sinabari-net\", \"drsinabari\": \"publisher-drsinabari\", \"sinabariplasticsurgery\": \"publisher-sinabariplasticsurgery\"};\nconst prompt = `You are rewriting an article draft based on operator feedback.\n\nCURRENT DRAFT:\nTitle: ${article.title}\nExcerpt: ${article.excerpt}\nSite: ${draft.site_id}\n\nContent:\n${article.content_html}\n\nOPERATOR SUGGESTIONS FOR REWRITE:\n${suggestions}\n\nRULES:\n- Preserve the topic, site assignment, and general structure unless the suggestions explicitly ask to change them.\n- Apply the suggestions thoughtfully - improve the draft, don't just mechanically insert changes.\n- Maintain the same first-person physician voice and clinical perspective.\n- NEVER use em-dashes. Use commas, colons, semicolons, periods, or \" - \" (space-dash-space) instead.\n- NEVER claim board certification.\n- Keep approximately the same word count unless suggestions ask for more or less.\n- Output valid YAML with these fields:\ntitle: (revised title)\nslug: (url-safe slug)\nexcerpt: (1-2 sentence excerpt)\ncontent_html: |\n  (full article HTML)\nword_count: (approximate)`;\n\nreturn [{ json: {\n  draft_id,\n  site_id: draft.site_id,\n  openclawAgentId: agentMap[draft.site_id] || 'publisher-drsinabari',\n  rewrite_body: JSON.stringify({\n    model: 'openclaw',\n    input: prompt,\n  }),\n} }];\n"
+      }
+    },
+    {
+      "id": "rewrite-openclaw",
+      "name": "OpenClaw Rewrite",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENCLAW_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-openclaw-agent-id",
+              "value": "={{ $json.openclawAgentId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.rewrite_body }}",
+        "options": {
+          "timeout": 120000
+        }
+      }
+    },
+    {
+      "id": "parse-rewrite",
+      "name": "Parse Rewrite Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        1200
+      ],
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst upstream = $('Build Rewrite Prompt').first().json;\nconst draft_id = upstream.draft_id;\n\nconst output = $json.output || [];\nlet text = '';\nfor (const block of output) {\n  for (const part of (block.content || [])) {\n    if (part.text) text += part.text;\n  }\n}\n\n// Parse YAML response\ntext = text.replace(/^```yaml\\s*/m, '').replace(/^```\\s*$/m, '').trim();\n\nlet title = '', excerpt = '', content_html = '', slug = '', word_count = 0;\ntry {\n  // Extract fields from YAML\n  const titleM = text.match(/^title:\\s*(.+)$/m);\n  const slugM = text.match(/^slug:\\s*(.+)$/m);\n  const excerptM = text.match(/^excerpt:\\s*(.+)$/m);\n  const wcM = text.match(/^word_count:\\s*(\\d+)/m);\n  title = titleM ? titleM[1].replace(/^[\"']|[\"']$/g, '').trim() : '';\n  slug = slugM ? slugM[1].trim() : '';\n  excerpt = excerptM ? excerptM[1].replace(/^[\"']|[\"']$/g, '').trim() : '';\n  word_count = wcM ? parseInt(wcM[1]) : 0;\n\n  // Extract content_html (everything between content_html: | and the next top-level key or end)\n  const contentM = text.match(/content_html:\\s*\\|\\n([\\s\\S]*?)(?=\\n\\w+:|$)/);\n  if (contentM) {\n    content_html = contentM[1].split('\\n').map(l => l.replace(/^  /, '')).join('\\n').trim();\n  }\n} catch(e) {\n  return [{ json: { success: false, error: 'Failed to parse rewrite: ' + e.message, raw: text.slice(0, 500) } }];\n}\n\nif (!content_html || content_html.length < 100) {\n  return [{ json: { success: false, error: 'Rewrite produced empty content', raw: text.slice(0, 500) } }];\n}\n\n// Update the draft\nconst draft = staticData.drafts[draft_id];\nconst article = draft.article || {};\narticle.title = title || article.title;\narticle.excerpt = excerpt || article.excerpt;\narticle.slug = slug || article.slug;\narticle.content_html = content_html;\narticle.word_count = word_count || article.word_count;\ndraft.article = article;\ndraft.rewrite_count = (draft.rewrite_count || 0) + 1;\ndraft.last_rewrite = new Date().toISOString();\ndraft.status = 'pending_review';\n\nreturn [{ json: {\n  success: true,\n  draft_id,\n  title: draft.article.title,\n  word_count: draft.article.word_count,\n  rewrite_count: draft.rewrite_count,\n} }];\n"
+      }
+    },
+    {
+      "id": "rewrite-respond",
+      "name": "Respond Rewrite",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        900,
+        1200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Content Generator Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fields": {
+      "main": [
+        [
+          {
+            "node": "Load Site Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Site Profile": {
+      "main": [
+        [
+          {
+            "node": "Parse Profile YAML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Profile YAML": {
+      "main": [
+        [
+          {
+            "node": "Build Runtime Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Runtime Config": {
+      "main": [
+        [
+          {
+            "node": "Inject Content Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject Content Prompt": {
+      "main": [
+        [
+          {
+            "node": "Build OpenClaw Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build OpenClaw Request": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw Generate Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw Generate Content": {
+      "main": [
+        [
+          {
+            "node": "Extract Content YAML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Content YAML": {
+      "main": [
+        [
+          {
+            "node": "Store Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Draft": {
+      "main": [
+        [
+          {
+            "node": "Respond to Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Drafts Webhook": {
+      "main": [
+        [
+          {
+            "node": "Return Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Draft Webhook": {
+      "main": [
+        [
+          {
+            "node": "Return Full Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Draft Webhook": {
+      "main": [
+        [
+          {
+            "node": "Apply Draft Edits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Draft Edits": {
+      "main": [
+        [
+          {
+            "node": "Respond to Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve Draft Webhook (Gen)": {
+      "main": [
+        [
+          {
+            "node": "Set Draft Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Draft Approved": {
+      "main": [
+        [
+          {
+            "node": "Respond to Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dismiss Draft Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dismiss Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dismiss Draft": {
+      "main": [
+        [
+          {
+            "node": "Respond Dismiss Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rewrite Draft Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Rewrite Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Rewrite Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw Rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw Rewrite": {
+      "main": [
+        [
+          {
+            "node": "Parse Rewrite Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Rewrite Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "tags": []
+}
