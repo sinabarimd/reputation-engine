@@ -6,6 +6,9 @@
 # Service account credentials
 *-service-account.json
 
+# Dashboard config (contains API keys, password hash)
+dashboard-config.js
+
 # OS
 .DS_Store
 Thumbs.db

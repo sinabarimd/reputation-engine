@@ -626,9 +626,10 @@
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
+<script src="dashboard-config.js"></script>
 <script>
-const N8N = 'https://YOUR_N8N_DOMAIN';
-const PW_HASH = 'YOUR_PASSWORD_SHA256_HASH';
+const N8N = CONFIG.N8N_BASE_URL;
+const PW_HASH = CONFIG.PW_HASH;
 let currentModalDraft = null;
 let editMode = false;
 let suppressedChecks = {};
@@ -2676,8 +2677,8 @@ async function loadMetrics() {
 
     // GitHub repo traffic
     try {
-      const GH_TOKEN = 'YOUR_GITHUB_TOKEN';
-      const GH_REPO = 'sinabarimd/reputation-engine';
+      const GH_TOKEN = CONFIG.GH_TOKEN;
+      const GH_REPO = CONFIG.GH_REPO;
       const [ghViews, ghClones, ghReferrers] = await Promise.all([
         fetch(`https://api.github.com/repos/${GH_REPO}/traffic/views`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>({})),
         fetch(`https://api.github.com/repos/${GH_REPO}/traffic/clones`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>({})),
