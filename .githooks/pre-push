@@ -1,0 +1,48 @@
+#!/bin/bash
+# Pre-push hook: scan for secrets before pushing to public repo
+# Install: git config core.hooksPath .githooks
+
+echo "Running secret scan..."
+
+FOUND=0
+
+# Patterns to check (exclude .git/ and binary files)
+check_pattern() {
+  local pattern="$1"
+  local label="$2"
+  local matches=$(grep -rn "$pattern" --include='*.json' --include='*.js' --include='*.py' --include='*.html' --include='*.sh' --include='*.md' --include='*.yaml' --include='*.yml' . 2>/dev/null | grep -v '.git/' | grep -v 'YOUR_' | grep -v '.example.' | grep -v 'pre-push' | grep -v '.gitignore')
+  if [ -n "$matches" ]; then
+    echo "BLOCKED: Found $label"
+    echo "$matches"
+    echo ""
+    FOUND=1
+  fi
+}
+
+check_pattern 'ghp_[A-Za-z0-9]\{20,\}' "GitHub Personal Access Token"
+check_pattern 'gho_[A-Za-z0-9]\{20,\}' "GitHub OAuth Token"
+check_pattern 'github_pat_[A-Za-z0-9]\{20,\}' "GitHub PAT"
+check_pattern 'tvly-dev-[A-Za-z0-9_-]\{10,\}' "Tavily API Key"
+check_pattern 'sk-or-v1-[a-f0-9]\{10,\}' "OpenRouter API Key"
+check_pattern 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.' "JWT Token (n8n API key)"
+check_pattern 'sinabari@gmail\.com' "Personal email address"
+
+# Check for long hex strings that look like API keys (40+ chars)
+HEX_MATCHES=$(grep -rnoE '[a-f0-9]{40,}' --include='*.json' --include='*.js' --include='*.py' --include='*.html' . 2>/dev/null | grep -v '.git/' | grep -v 'YOUR_')
+if [ -n "$HEX_MATCHES" ]; then
+  echo "WARNING: Found long hex strings (possible API keys):"
+  echo "$HEX_MATCHES"
+  echo ""
+  FOUND=1
+fi
+
+if [ $FOUND -eq 1 ]; then
+  echo "====================================="
+  echo "PUSH BLOCKED: Secrets detected above."
+  echo "Replace with YOUR_* placeholders before pushing."
+  echo "====================================="
+  exit 1
+fi
+
+echo "Secret scan passed."
+exit 0
