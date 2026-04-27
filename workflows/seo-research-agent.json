@@ -1,7 +1,5 @@
 {
-  "updatedAt": "2026-03-26T17:49:29.875Z",
-  "createdAt": "2026-03-26T17:41:55.475Z",
-  "id": "SbGN3pzCdy0asKxY",
+  "id": "PHM1QYKaaGf3X480",
   "name": "Reputation Engine \u2014 SEO Research Agent",
   "description": null,
   "active": true,
@@ -65,7 +63,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\n\nconst query = `Google algorithm updates SEO changes ${year}, healthcare medical website ranking, E-E-A-T author authority, Schema.org structured data, Answer Engine Optimization, personal brand SERP strategy`;\n\nreturn [{ json: {\n  is_monthly: isFirstMonday,\n  research_date: today.toISOString().split('T')[0],\n  tavily_query: query,\n} }];"
+        "jsCode": "// Build targeted SEO research queries \u2014 emit one item per query\nconst today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\nconst month = today.toLocaleString('en-US', { month: 'long' });\nconst research_date = today.toISOString().split('T')[0];\n\nconst staticData = $getWorkflowStaticData('global');\nconst tavily_key = staticData.tavily_key;\nif (!tavily_key) throw new Error('tavily_key not set in staticData');\n\nconst queries = [\n  { label: 'algorithm_updates', query: `Google algorithm update core update spam update ${month} ${year}`, days: 10, max_results: 8 },\n  { label: 'healthcare_seo', query: `healthcare SEO EEAT physician authorship medical website ranking ${year}`, days: 14, max_results: 8 },\n  { label: 'aeo_schema', query: `AI Overviews healthcare featured snippets structured data schema markup ${year}`, days: 14, max_results: 8 },\n  { label: 'personal_brand_serp', query: `personal brand SERP strategy reputation management physician online presence ${year}`, days: 14, max_results: 6 },\n];\n\nreturn queries.map(q => ({\n  json: {\n    is_monthly: isFirstMonday,\n    research_date,\n    label: q.label,\n    tavily_body: JSON.stringify({\n      api_key: tavily_key,\n      query: q.query,\n      search_depth: 'advanced',\n      max_results: q.max_results,\n      days: q.days,\n      include_answer: true,\n      include_raw_content: false,\n    }),\n  }\n}));"
       }
     },
     {
@@ -90,14 +88,10 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ api_key: \"YOUR_TAVILY_API_KEY\", query: $json.tavily_query, search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false }) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.tavily_body }}",
         "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          },
           "timeout": 30000
         }
       }
@@ -112,7 +106,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\n\nconst answer = tavily.answer || 'No summary available.';\nconst results = (tavily.results || []).map(r =>\n  `- \"${r.title}\" (${r.url})\\n  ${(r.content || '').slice(0, 300)}`\n).join('\\n');\n\nconst total_sources = (tavily.results || []).length;\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nTavily summary: ${answer}\n\nSearch results:\n${results}\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"algorithm_updates\": [{ \"update\": \"description\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies\", \"priority\": \"high/medium/low\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery\", \"urgency\": \"immediate/next_cycle/backlog\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\" }],\n  \"competitive_intel\": \"brief summary\",\n  \"aeo_opportunities\": [\"opportunities\"],\n  \"summary\": \"2-3 sentence executive summary\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
+        "jsCode": "const upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\nconst total_sources = tavily.total_sources || 0;\n\n// Build structured source blocks per query category\nconst sourceBlocks = (tavily.search_results || []).map(cat => {\n  const summary = cat.answer ? `Summary: ${cat.answer}` : '';\n  const results = (cat.results || []).map(r => {\n    const date = r.published_date ? ` (${r.published_date})` : '';\n    return `  - \"${r.title}\"${date}\\n    URL: ${r.url}\\n    ${(r.content || '').slice(0, 300)}`;\n  }).join('\\n');\n  return `### ${cat.label.toUpperCase()}\\n${summary}\\n${results}`;\n}).join('\\n\\n');\n\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\nTotal sources analyzed: ${total_sources}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nRESEARCH FINDINGS BY CATEGORY:\n${sourceBlocks}\n\nSYNTHESIS RULES:\n- Every claim MUST cite the specific source URL and publication date that supports it\n- If no source supports a claim, do not include it\n- Distinguish between confirmed algorithm changes (official Google announcements) vs. community speculation\n- Be specific: name the update, date, and measurable impact \u2014 not \"Google is favoring E-E-A-T\"\n- For recommendations, cite what source led to that recommendation\n- Flag any findings that directly conflict with each other\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"total_sources\": ${total_sources},\n  \"algorithm_updates\": [{ \"update\": \"description with specifics\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\", \"source_url\": \"url\", \"source_date\": \"date\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies to our network\", \"priority\": \"high/medium/low\", \"source_url\": \"url\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"specific advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery/drsinabari\", \"urgency\": \"immediate/next_cycle/backlog\", \"rationale\": \"why, citing source\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\", \"source_url\": \"url\" }],\n  \"competitive_intel\": \"brief summary of relevant competitive landscape\",\n  \"aeo_opportunities\": [\"specific opportunities with source backing\"],\n  \"source_quality\": { \"total\": ${total_sources}, \"recent_7d\": 0, \"recent_14d\": 0, \"authoritative\": 0 },\n  \"summary\": \"3-4 sentence executive summary with specific findings, not generic advice\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
       }
     },
     {
@@ -148,7 +142,14 @@
         "contentType": "raw",
         "rawContentType": "JSON",
         "body": "={{ $json.openclaw_request_body }}",
-        "options": {}
+        "options": {
+          "timeout": 180000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
       }
     },
     {
@@ -161,7 +162,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const ctx = $('Build OpenClaw Request').first().json;\nconst rawContent = $json.output?.[0]?.content?.[0]?.text || '';\n\nlet brief;\ntry {\n  // Try direct JSON parse\n  brief = JSON.parse(rawContent);\n} catch (e) {\n  // Try extracting JSON from markdown code block\n  const jsonMatch = rawContent.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    brief = JSON.parse(jsonMatch[1].trim());\n  } else {\n    // Try finding JSON object in the text\n    const objMatch = rawContent.match(/\\{[\\s\\S]*\\}/);\n    if (objMatch) {\n      brief = JSON.parse(objMatch[0]);\n    } else {\n      return [{ json: { error: true, message: 'Could not parse brief from OpenClaw response', raw: rawContent.slice(0, 500) } }];\n    }\n  }\n}\n\nbrief.research_date = ctx.research_date;\nbrief.is_monthly = ctx.is_monthly;\nbrief.total_sources = ctx.total_sources;\nbrief.generated_at = new Date().toISOString();\n\nreturn [{ json: brief }];"
+        "jsCode": "const ctx = $('Build OpenClaw Request').first().json;\nconst raw = $json;\n\nlet rawContent;\n\n// Handle both parsed JSON and raw response object\nif (raw.output && Array.isArray(raw.output)) {\n  // Already parsed JSON\n  rawContent = raw.output[0]?.content?.[0]?.text || '';\n} else if (raw._readableState && raw._readableState.buffer) {\n  // Raw response object - extract from buffer\n  try {\n    const bufferData = raw._readableState.buffer;\n    let chunks = [];\n    if (Array.isArray(bufferData)) {\n      chunks = bufferData;\n    } else if (bufferData.head) {\n      let node = bufferData.head;\n      while (node) {\n        chunks.push(node.data || node.value);\n        node = node.next;\n      }\n    }\n    const bodyStr = chunks.map(c => {\n      if (c && c.type === 'Buffer' && Array.isArray(c.data)) {\n        return String.fromCharCode(...c.data);\n      }\n      return typeof c === 'string' ? c : '';\n    }).join('');\n    const parsed = JSON.parse(bodyStr);\n    rawContent = parsed.output?.[0]?.content?.[0]?.text || '';\n  } catch(e) {\n    return [{ json: { error: true, message: 'Could not parse buffer response: ' + e.message, raw: JSON.stringify(raw).slice(0, 500) } }];\n  }\n} else {\n  // Try to find text in any format\n  rawContent = typeof raw === 'string' ? raw : JSON.stringify(raw);\n}\n\nlet brief;\ntry {\n  brief = JSON.parse(rawContent);\n} catch (e) {\n  const jsonMatch = rawContent.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    brief = JSON.parse(jsonMatch[1].trim());\n  } else {\n    const objMatch = rawContent.match(/\\{[\\s\\S]*\\}/);\n    if (objMatch) {\n      brief = JSON.parse(objMatch[0]);\n    } else {\n      return [{ json: { error: true, message: 'Could not parse brief from OpenClaw response', raw: rawContent.slice(0, 500) } }];\n    }\n  }\n}\n\nbrief.research_date = ctx.research_date;\nbrief.is_monthly = ctx.is_monthly;\nbrief.total_sources = ctx.total_sources;\nbrief.generated_at = new Date().toISOString();\n\nreturn [{ json: brief }];"
       }
     },
     {
@@ -268,6 +269,20 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       }
+    },
+    {
+      "id": "collect-tavily-results",
+      "name": "Collect Tavily Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Collect all Tavily results into a single structured object\nconst items = $input.all();\nconst research_date = items[0].json.research_date || items[0].json.is_monthly !== undefined \n  ? (items[0].json.research_date || new Date().toISOString().split('T')[0])\n  : new Date().toISOString().split('T')[0];\nconst is_monthly = items[0].json.is_monthly || false;\n\nconst search_results = items.map(item => {\n  const label = item.json.label || 'unknown';\n  const results = (item.json.results || []).map(r => ({\n    title: r.title,\n    url: r.url,\n    content: (r.content || '').slice(0, 400),\n    published_date: r.published_date || null,\n    score: r.score || null,\n  }));\n  return {\n    label,\n    answer: item.json.answer || null,\n    result_count: results.length,\n    results,\n  };\n});\n\nconst total_sources = search_results.reduce((sum, r) => sum + r.result_count, 0);\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  search_results,\n  total_sources,\n} }];"
+      }
     }
   ],
   "connections": {
@@ -319,7 +334,7 @@
       "main": [
         [
           {
-            "node": "Build OpenClaw Request",
+            "node": "Collect Tavily Results",
             "type": "main",
             "index": 0
           }
@@ -402,6 +417,17 @@
           }
         ]
       ]
+    },
+    "Collect Tavily Results": {
+      "main": [
+        [
+          {
+            "node": "Build OpenClaw Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -410,5 +436,498 @@
     "availableInMCP": false
   },
   "meta": null,
-  "tags": []
+  "pinData": null,
+  "activeVersionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+  "versionCounter": 61,
+  "triggerCount": 3,
+  "shared": [
+    {
+      "updatedAt": "2026-04-27T18:53:47.798Z",
+      "createdAt": "2026-04-27T18:53:47.798Z",
+      "role": "workflow:owner",
+      "workflowId": "PHM1QYKaaGf3X480",
+      "projectId": "9sJSA5GTLSjQcRNk",
+      "project": {
+        "updatedAt": "2026-03-20T18:09:16.655Z",
+        "createdAt": "2026-03-20T00:15:30.157Z",
+        "id": "9sJSA5GTLSjQcRNk",
+        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-27T19:31:58.372Z",
+    "createdAt": "2026-04-27T19:31:58.372Z",
+    "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+    "workflowId": "PHM1QYKaaGf3X480",
+    "nodes": [
+      {
+        "id": "seo-cron",
+        "name": "Monday Cron Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          300
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 14 * * 1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "seo-manual",
+        "name": "Manual Trigger",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          200,
+          100
+        ],
+        "parameters": {}
+      },
+      {
+        "id": "seo-webhook",
+        "name": "SEO Research Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          500
+        ],
+        "webhookId": "seo-research",
+        "parameters": {
+          "path": "seo-research",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "build-queries",
+        "name": "Build Search Queries",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          300
+        ],
+        "parameters": {
+          "jsCode": "// Build targeted SEO research queries \u2014 emit one item per query\nconst today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\nconst month = today.toLocaleString('en-US', { month: 'long' });\nconst research_date = today.toISOString().split('T')[0];\n\nconst staticData = $getWorkflowStaticData('global');\nconst tavily_key = staticData.tavily_key;\nif (!tavily_key) throw new Error('tavily_key not set in staticData');\n\nconst queries = [\n  { label: 'algorithm_updates', query: `Google algorithm update core update spam update ${month} ${year}`, days: 10, max_results: 8 },\n  { label: 'healthcare_seo', query: `healthcare SEO EEAT physician authorship medical website ranking ${year}`, days: 14, max_results: 8 },\n  { label: 'aeo_schema', query: `AI Overviews healthcare featured snippets structured data schema markup ${year}`, days: 14, max_results: 8 },\n  { label: 'personal_brand_serp', query: `personal brand SERP strategy reputation management physician online presence ${year}`, days: 14, max_results: 6 },\n];\n\nreturn queries.map(q => ({\n  json: {\n    is_monthly: isFirstMonday,\n    research_date,\n    label: q.label,\n    tavily_body: JSON.stringify({\n      api_key: tavily_key,\n      query: q.query,\n      search_depth: 'advanced',\n      max_results: q.max_results,\n      days: q.days,\n      include_answer: true,\n      include_raw_content: false,\n    }),\n  }\n}));"
+        }
+      },
+      {
+        "id": "tavily-search",
+        "name": "Tavily SEO Search",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          800,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.tavily.com/search",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.tavily_body }}",
+          "options": {
+            "timeout": 30000
+          }
+        }
+      },
+      {
+        "id": "build-openclaw",
+        "name": "Build OpenClaw Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\nconst total_sources = tavily.total_sources || 0;\n\n// Build structured source blocks per query category\nconst sourceBlocks = (tavily.search_results || []).map(cat => {\n  const summary = cat.answer ? `Summary: ${cat.answer}` : '';\n  const results = (cat.results || []).map(r => {\n    const date = r.published_date ? ` (${r.published_date})` : '';\n    return `  - \"${r.title}\"${date}\\n    URL: ${r.url}\\n    ${(r.content || '').slice(0, 300)}`;\n  }).join('\\n');\n  return `### ${cat.label.toUpperCase()}\\n${summary}\\n${results}`;\n}).join('\\n\\n');\n\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\nTotal sources analyzed: ${total_sources}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nRESEARCH FINDINGS BY CATEGORY:\n${sourceBlocks}\n\nSYNTHESIS RULES:\n- Every claim MUST cite the specific source URL and publication date that supports it\n- If no source supports a claim, do not include it\n- Distinguish between confirmed algorithm changes (official Google announcements) vs. community speculation\n- Be specific: name the update, date, and measurable impact \u2014 not \"Google is favoring E-E-A-T\"\n- For recommendations, cite what source led to that recommendation\n- Flag any findings that directly conflict with each other\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"total_sources\": ${total_sources},\n  \"algorithm_updates\": [{ \"update\": \"description with specifics\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\", \"source_url\": \"url\", \"source_date\": \"date\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies to our network\", \"priority\": \"high/medium/low\", \"source_url\": \"url\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"specific advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery/drsinabari\", \"urgency\": \"immediate/next_cycle/backlog\", \"rationale\": \"why, citing source\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\", \"source_url\": \"url\" }],\n  \"competitive_intel\": \"brief summary of relevant competitive landscape\",\n  \"aeo_opportunities\": [\"specific opportunities with source backing\"],\n  \"source_quality\": { \"total\": ${total_sources}, \"recent_7d\": 0, \"recent_14d\": 0, \"authoritative\": 0 },\n  \"summary\": \"3-4 sentence executive summary with specific findings, not generic advice\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
+        }
+      },
+      {
+        "id": "openclaw-synth",
+        "name": "OpenClaw Synthesize",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1400,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:18789/v1/responses",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer YOUR_OPENCLAW_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-openclaw-agent-id",
+                "value": "={{ $json.openclawAgentId }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "JSON",
+          "body": "={{ $json.openclaw_request_body }}",
+          "options": {
+            "timeout": 180000,
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "extract-brief",
+        "name": "Extract Brief",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1700,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const ctx = $('Build OpenClaw Request').first().json;\nconst raw = $json;\n\nlet rawContent;\n\n// Handle both parsed JSON and raw response object\nif (raw.output && Array.isArray(raw.output)) {\n  // Already parsed JSON\n  rawContent = raw.output[0]?.content?.[0]?.text || '';\n} else if (raw._readableState && raw._readableState.buffer) {\n  // Raw response object - extract from buffer\n  try {\n    const bufferData = raw._readableState.buffer;\n    let chunks = [];\n    if (Array.isArray(bufferData)) {\n      chunks = bufferData;\n    } else if (bufferData.head) {\n      let node = bufferData.head;\n      while (node) {\n        chunks.push(node.data || node.value);\n        node = node.next;\n      }\n    }\n    const bodyStr = chunks.map(c => {\n      if (c && c.type === 'Buffer' && Array.isArray(c.data)) {\n        return String.fromCharCode(...c.data);\n      }\n      return typeof c === 'string' ? c : '';\n    }).join('');\n    const parsed = JSON.parse(bodyStr);\n    rawContent = parsed.output?.[0]?.content?.[0]?.text || '';\n  } catch(e) {\n    return [{ json: { error: true, message: 'Could not parse buffer response: ' + e.message, raw: JSON.stringify(raw).slice(0, 500) } }];\n  }\n} else {\n  // Try to find text in any format\n  rawContent = typeof raw === 'string' ? raw : JSON.stringify(raw);\n}\n\nlet brief;\ntry {\n  brief = JSON.parse(rawContent);\n} catch (e) {\n  const jsonMatch = rawContent.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    brief = JSON.parse(jsonMatch[1].trim());\n  } else {\n    const objMatch = rawContent.match(/\\{[\\s\\S]*\\}/);\n    if (objMatch) {\n      brief = JSON.parse(objMatch[0]);\n    } else {\n      return [{ json: { error: true, message: 'Could not parse brief from OpenClaw response', raw: rawContent.slice(0, 500) } }];\n    }\n  }\n}\n\nbrief.research_date = ctx.research_date;\nbrief.is_monthly = ctx.is_monthly;\nbrief.total_sources = ctx.total_sources;\nbrief.generated_at = new Date().toISOString();\n\nreturn [{ json: brief }];"
+        }
+      },
+      {
+        "id": "store-brief",
+        "name": "Store Brief",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2000,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const brief = $json;\nconst staticData = $getWorkflowStaticData('global');\n\n// Store latest brief\nstaticData.latest_brief = brief;\n\n// Keep history (last 12 briefs)\nif (!staticData.brief_history) staticData.brief_history = [];\nstaticData.brief_history.push({\n  research_date: brief.research_date,\n  brief_type: brief.brief_type,\n  summary: brief.summary,\n  generated_at: brief.generated_at,\n  algorithm_updates_count: (brief.algorithm_updates || []).length,\n  recommendations_count: (brief.content_recommendations || []).length,\n});\nif (staticData.brief_history.length > 12) staticData.brief_history = staticData.brief_history.slice(-12);\n\nreturn [{ json: brief }];"
+        }
+      },
+      {
+        "id": "queue-to-orch",
+        "name": "Queue to Orchestrator",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2300,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://n8n.sinabarimd.com/webhook/store-seo-intel",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json) }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "seo-respond",
+        "name": "Respond",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2600,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const brief = $('Store Brief').first().json;\nreturn [{ json: {\n  success: true,\n  research_date: brief.research_date,\n  brief_type: brief.brief_type,\n  summary: brief.summary,\n  algorithm_updates: (brief.algorithm_updates || []).length,\n  recommendations: (brief.content_recommendations || []).length,\n  generated_at: brief.generated_at,\n} }];"
+        }
+      },
+      {
+        "id": "get-intel-webhook",
+        "name": "Get Intel Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          700
+        ],
+        "webhookId": "seo-intel",
+        "parameters": {
+          "path": "seo-intel",
+          "httpMethod": "GET",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "return-intel",
+        "name": "Return Intel",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          700
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nreturn [{ json: {\n  latest_brief: staticData.latest_brief || null,\n  brief_history: staticData.brief_history || [],\n} }];"
+        }
+      },
+      {
+        "id": "respond-intel",
+        "name": "Respond Intel",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          800,
+          700
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}"
+        }
+      },
+      {
+        "id": "collect-tavily-results",
+        "name": "Collect Tavily Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          600,
+          300
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Collect all Tavily results into a single structured object\nconst items = $input.all();\nconst research_date = items[0].json.research_date || items[0].json.is_monthly !== undefined \n  ? (items[0].json.research_date || new Date().toISOString().split('T')[0])\n  : new Date().toISOString().split('T')[0];\nconst is_monthly = items[0].json.is_monthly || false;\n\nconst search_results = items.map(item => {\n  const label = item.json.label || 'unknown';\n  const results = (item.json.results || []).map(r => ({\n    title: r.title,\n    url: r.url,\n    content: (r.content || '').slice(0, 400),\n    published_date: r.published_date || null,\n    score: r.score || null,\n  }));\n  return {\n    label,\n    answer: item.json.answer || null,\n    result_count: results.length,\n    results,\n  };\n});\n\nconst total_sources = search_results.reduce((sum, r) => sum + r.result_count, 0);\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  search_results,\n  total_sources,\n} }];"
+        }
+      }
+    ],
+    "connections": {
+      "Monday Cron Trigger": {
+        "main": [
+          [
+            {
+              "node": "Build Search Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Manual Trigger": {
+        "main": [
+          [
+            {
+              "node": "Build Search Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SEO Research Webhook": {
+        "main": [
+          [
+            {
+              "node": "Build Search Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Search Queries": {
+        "main": [
+          [
+            {
+              "node": "Tavily SEO Search",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tavily SEO Search": {
+        "main": [
+          [
+            {
+              "node": "Collect Tavily Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build OpenClaw Request": {
+        "main": [
+          [
+            {
+              "node": "OpenClaw Synthesize",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenClaw Synthesize": {
+        "main": [
+          [
+            {
+              "node": "Extract Brief",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Brief": {
+        "main": [
+          [
+            {
+              "node": "Store Brief",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Brief": {
+        "main": [
+          [
+            {
+              "node": "Queue to Orchestrator",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Queue to Orchestrator": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Intel Webhook": {
+        "main": [
+          [
+            {
+              "node": "Return Intel",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Return Intel": {
+        "main": [
+          [
+            {
+              "node": "Respond Intel",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Collect Tavily Results": {
+        "main": [
+          [
+            {
+              "node": "Build OpenClaw Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Sina Bari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-27T19:31:58.449Z",
+        "id": 64,
+        "workflowId": "PHM1QYKaaGf3X480",
+        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-04-27T19:31:59.329Z",
+        "id": 66,
+        "workflowId": "PHM1QYKaaGf3X480",
+        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-04-27T19:31:58.423Z",
+        "id": 63,
+        "workflowId": "PHM1QYKaaGf3X480",
+        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "event": "deactivated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-04-27T19:31:59.302Z",
+        "id": 65,
+        "workflowId": "PHM1QYKaaGf3X480",
+        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "event": "deactivated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    ]
+  }
 }

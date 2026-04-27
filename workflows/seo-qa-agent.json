@@ -1,7 +1,5 @@
 {
-  "updatedAt": "2026-04-13T21:29:05.827Z",
-  "createdAt": "2026-03-26T17:06:34.856Z",
-  "id": "HL9utsXpnzmqxvkL",
+  "id": "3RYvkOtuOInfaiuZ",
   "name": "Reputation Engine \u2014 SEO QA Agent",
   "description": null,
   "active": true,
@@ -716,5 +714,752 @@
     "availableInMCP": false
   },
   "meta": null,
-  "tags": []
+  "pinData": null,
+  "activeVersionId": "5876660f-1427-4bb4-8cc9-7483bd7245b3",
+  "versionCounter": 4,
+  "triggerCount": 6,
+  "shared": [
+    {
+      "updatedAt": "2026-04-27T18:53:42.201Z",
+      "createdAt": "2026-04-27T18:53:42.201Z",
+      "role": "workflow:owner",
+      "workflowId": "3RYvkOtuOInfaiuZ",
+      "projectId": "9sJSA5GTLSjQcRNk",
+      "project": {
+        "updatedAt": "2026-03-20T18:09:16.655Z",
+        "createdAt": "2026-03-20T00:15:30.157Z",
+        "id": "9sJSA5GTLSjQcRNk",
+        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-27T18:53:42.206Z",
+    "createdAt": "2026-04-27T18:53:42.206Z",
+    "versionId": "5876660f-1427-4bb4-8cc9-7483bd7245b3",
+    "workflowId": "3RYvkOtuOInfaiuZ",
+    "nodes": [
+      {
+        "id": "qa-check-webhook",
+        "name": "QA Check Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          300
+        ],
+        "webhookId": "qa-check",
+        "parameters": {
+          "path": "qa-check",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "resolve-urls",
+        "name": "Resolve URLs",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst source = body.source || 'operator';\n\nconst SITE_MAP = {\n  sinabarimd: { domain: 'sinabarimd.com', requires_hub_link: false },\n  sinabari_net: { domain: 'sinabari.net', requires_hub_link: true },\n  sinabariplasticsurgery: { domain: 'sinabariplasticsurgery.com', requires_hub_link: true },\n};\n\nlet urls_to_check = [];\n\nif (body.article_url) {\n  urls_to_check.push({\n    site_id: body.site_id,\n    article_url: body.article_url,\n    domain: SITE_MAP[body.site_id]?.domain || body.site_id,\n    requires_hub_link: SITE_MAP[body.site_id]?.requires_hub_link ?? true,\n  });\n} else if (body.article_urls && Array.isArray(body.article_urls)) {\n  for (const entry of body.article_urls) {\n    const sid = entry.site_id || body.site_id;\n    urls_to_check.push({\n      site_id: sid,\n      article_url: entry.article_url || entry.url,\n      domain: SITE_MAP[sid]?.domain,\n      requires_hub_link: SITE_MAP[sid]?.requires_hub_link ?? true,\n    });\n  }\n} else {\n  // Sweep mode\n  const staticData = $getWorkflowStaticData('global');\n  const registry = staticData.url_registry || {};\n  for (const [site_id, articles] of Object.entries(registry)) {\n    for (const article of articles) {\n      urls_to_check.push({\n        site_id,\n        article_url: article.url,\n        domain: SITE_MAP[site_id]?.domain,\n        requires_hub_link: SITE_MAP[site_id]?.requires_hub_link ?? true,\n      });\n    }\n  }\n}\n\nif (urls_to_check.length === 0) {\n  return [{ json: { error: true, message: 'No URLs to check.' } }];\n}\n\nreturn urls_to_check.map(u => ({ json: { ...u, source, checked_at: new Date().toISOString() } }));"
+        }
+      },
+      {
+        "id": "fetch-article",
+        "name": "Fetch Article Page",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          800,
+          300
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $json.article_url }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            },
+            "redirect": {
+              "redirect": {
+                "followRedirects": true
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "run-seo-checks",
+        "name": "Run SEO Checks",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const upstream = $('Resolve URLs').first().json;\nconst site_id = upstream.site_id;\nconst article_url = upstream.article_url;\nconst domain = upstream.domain;\nconst requires_hub_link = upstream.requires_hub_link;\nconst checked_at = upstream.checked_at;\nconst source = upstream.source;\n\nconst html = typeof $json.data === 'string' ? $json.data : (typeof $json === 'string' ? $json : '');\nconst http_ok = html.length > 100;\n\nconst checks = [];\nconst AUTHOR_NAME = 'Dr. Sina Bari, MD';\nconst AUTHOR_ID = 'https://sinabarimd.com/#sinabari';\n\nconst chk = (id, label, passed, detail, severity = 'error') => {\n  checks.push({ id, label, passed, detail, severity });\n};\n\n// 1. Page loads\nchk('http_200', 'Page loads successfully', http_ok, http_ok ? 'OK' : 'Failed to fetch page content');\n\nif (!http_ok) {\n  return [{ json: { site_id, article_url, domain, checked_at, source, score: 0, grade: 'F', passed: false, total_checks: 1, checks, failed_checks: checks.filter(c => !c.passed), warnings: [] } }];\n}\n\n// 2. Title\nconst titleM = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);\nconst title = titleM?.[1]?.trim() || '';\nchk('title', 'Title tag exists', title.length > 0, title.length ? '\"' + title.slice(0,70) + '\"' : 'Missing');\n\n// 3. Meta description\nconst descM = html.match(/<meta\\s+name=[\"']description[\"']\\s+content=[\"']([^\"']*)[\"']/i) || html.match(/<meta\\s+content=[\"']([^\"']*)[\"']\\s+name=[\"']description[\"']/i);\nchk('meta_desc', 'Meta description exists', !!descM, descM ? descM[1].length + ' chars' : 'Missing');\n\n// 4. Canonical\nconst canonM = html.match(/<link\\s+rel=[\"']canonical[\"']\\s+href=[\"']([^\"']*)[\"']/i) || html.match(/<link\\s+href=[\"']([^\"']*)[\"']\\s+rel=[\"']canonical[\"']/i);\nconst canon = canonM?.[1] || '';\nchk('canonical', 'Canonical URL matches page', canon === article_url || canon === article_url.replace(/\\/$/, ''), canon ? 'canonical=' + canon : 'Missing');\n\n// 5. og:type\nconst ogtM = html.match(/<meta\\s+property=[\"']og:type[\"']\\s+content=[\"']([^\"']*)[\"']/i) || html.match(/<meta\\s+content=[\"']([^\"']*)[\"']\\s+property=[\"']og:type[\"']/i);\nchk('og_type', 'og:type is article', ogtM?.[1]?.toLowerCase() === 'article', ogtM ? ogtM[1] : 'Missing');\n\n// 6. og:site_name\nconst ogsM = html.match(/<meta\\s+property=[\"']og:site_name[\"']\\s+content=[\"']([^\"']*)[\"']/i) || html.match(/<meta\\s+content=[\"']([^\"']*)[\"']\\s+property=[\"']og:site_name[\"']/i);\nchk('og_site_name', 'og:site_name exists', !!ogsM, ogsM ? ogsM[1] : 'Missing');\n\n// 7. article:published_time\nconst aptM = html.match(/article:published_time[\"']\\s+content=[\"']([^\"']*)[\"']/i) || html.match(/content=[\"']([^\"']*)[\"']\\s+property=[\"']article:published_time[\"']/i);\nchk('pub_time', 'article:published_time exists', !!aptM, aptM ? aptM[1] : 'Missing');\n\n// 8. twitter:card\nconst twM = html.match(/twitter:card[\"']\\s+content=[\"']([^\"']*)[\"']/i) || html.match(/content=[\"']([^\"']*)[\"']\\s+name=[\"']twitter:card[\"']/i);\nchk('twitter', 'twitter:card exists', !!twM, twM ? twM[1] : 'Missing');\n\n// 9. meta author\nconst authM = html.match(/<meta\\s+name=[\"']author[\"']\\s+content=[\"']([^\"']*)[\"']/i) || html.match(/<meta\\s+content=[\"']([^\"']*)[\"']\\s+name=[\"']author[\"']/i);\nchk('meta_author', 'Meta author is Dr. Sina Bari, MD', authM?.[1] === AUTHOR_NAME, authM ? authM[1] : 'Missing');\n\n// 10-11. Schema checks\nconst ldBlocks = html.match(/<script[^>]+application\\/ld\\+json[^>]*>([\\s\\S]*?)<\\/script>/gi) || [];\nlet hasArticleType = false, hasAuthorId = false, hasFaq = false, schemaType = '';\nfor (const block of ldBlocks) {\n  try {\n    const inner = block.match(/>([\\s\\S]*?)<\\/script>/i)?.[1] || '{}';\n    const parsed = JSON.parse(inner);\n    const items = parsed['@graph'] ? parsed['@graph'] : [parsed];\n    for (const item of items) {\n      const t = item['@type'];\n      if (t === 'Article' || t === 'MedicalWebPage') { hasArticleType = true; schemaType = t; }\n      if (t === 'FAQPage') hasFaq = true;\n      if (item.author?.['@id'] === AUTHOR_ID) hasAuthorId = true;\n    }\n  } catch (_) {}\n}\nchk('schema_type', 'Schema Article/MedicalWebPage exists', hasArticleType, hasArticleType ? schemaType : 'Missing');\nchk('schema_author_id', 'Schema author @id = sinabarimd.com/#sinabari', hasAuthorId, hasAuthorId ? 'OK' : 'Missing @id');\n\n// 12. FAQPage (warning)\nchk('faq_schema', 'FAQPage schema exists', hasFaq, hasFaq ? 'OK' : 'No FAQPage \u2014 AEO opportunity missed', 'warning');\n\n// 13. Author byline\nconst hasByline = html.includes('<aside') && html.split('<aside')[1]?.includes('sinabarimd.com/about');\nchk('author_byline', 'Author byline with sinabarimd.com/about link', hasByline, hasByline ? 'OK' : 'Missing byline block');\n\n// 14. Hub backlink (satellite sites only)\nif (requires_hub_link) {\n  const hasHub = /href=[\"']https?:\\/\\/(www\\.)?sinabarimd\\.com/i.test(html);\n  chk('hub_backlink', 'Link to sinabarimd.com exists', hasHub, hasHub ? 'OK' : 'No sinabarimd.com link');\n}\n\n// 15. Articles nav link (warning)\nchk('articles_nav', 'Nav has /articles/ link', html.includes('/articles/'), html.includes('/articles/') ? 'OK' : 'Missing', 'warning');\n\n\n// 16. Outbound source links (warning)\nconst extLinkRe = /href=[\"']https?:\\/\\/(?!sinabarimd\\.com|sinabari\\.net|sinabariplasticsurgery\\.com|drsinabari\\.com)[^\"']+[\"']/gi;\nconst extLinks = (html || '').match(extLinkRe) || [];\nchk('outbound_links', 'Has outbound authority links', extLinks.length > 0, extLinks.length ? extLinks.length + ' external links' : 'No outbound links \u2014 add 2-3 for E-E-A-T', 'warning');\n\n// Score (errors only, warnings excluded)\nconst errors = checks.filter(c => c.severity === 'error');\nconst passedErrors = errors.filter(c => c.passed).length;\nconst score = errors.length > 0 ? Math.round((passedErrors / errors.length) * 100) : 100;\nconst grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 65 ? 'C' : score >= 50 ? 'D' : 'F';\n\nreturn [{ json: {\n  site_id, article_url, domain, checked_at, source, score, grade,\n  passed: score >= 80,\n  total_checks: checks.length,\n  failed_checks: errors.filter(c => !c.passed).map(c => ({ id: c.id, label: c.label, detail: c.detail })),\n  warnings: checks.filter(c => c.severity === 'warning' && !c.passed).map(c => ({ id: c.id, label: c.label, detail: c.detail })),\n  checks,\n} }];"
+        }
+      },
+      {
+        "id": "store-qa",
+        "name": "Store QA Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1400,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const result = $json;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.qa_results) staticData.qa_results = {};\nif (!staticData.qa_history) staticData.qa_history = [];\nif (!staticData.url_registry) staticData.url_registry = {};\n\n// Guard: don't store homepage URLs as article results\nconst url = result.article_url || '';\nif (url.endsWith('/') || !url.includes('/articles/')) {\n  // This is a homepage or non-article URL \u2014 skip article storage\n  return [{ json: { ...result, skipped: true, reason: 'Not an article URL \u2014 use domain QA for homepages' } }];\n}\n\nstaticData.qa_results[result.article_url] = {\n  site_id: result.site_id,\n  score: result.score,\n  grade: result.grade,\n  passed: result.passed,\n  checked_at: result.checked_at,\n  failed_checks: result.failed_checks,\n  warnings: result.warnings,\n};\n\nstaticData.qa_history.push({\n  article_url: result.article_url,\n  site_id: result.site_id,\n  score: result.score,\n  grade: result.grade,\n  checked_at: result.checked_at,\n});\nif (staticData.qa_history.length > 100) staticData.qa_history = staticData.qa_history.slice(-100);\n\nif (!staticData.url_registry[result.site_id]) staticData.url_registry[result.site_id] = [];\nconst existing = staticData.url_registry[result.site_id];\nif (!existing.find(u => u.url === result.article_url)) {\n  existing.push({ url: result.article_url, first_checked: result.checked_at });\n}\n\nreturn [{ json: result }];"
+        }
+      },
+      {
+        "id": "respond-qa",
+        "name": "Respond with Report",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1700,
+          300
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}"
+        }
+      },
+      {
+        "id": "qa-results-webhook",
+        "name": "QA Results Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          600
+        ],
+        "webhookId": "qa-results",
+        "parameters": {
+          "path": "qa-results",
+          "httpMethod": "GET",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "return-qa-results",
+        "name": "Return QA Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          600
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst qa_results = staticData.qa_results || {};\nconst qa_history = staticData.qa_history || [];\nconst domain_results = staticData.domain_results || {};\nconst portfolio_result = staticData.portfolio_result || null;\nconst suppressed = staticData.suppressed_checks || {};\n\nconst sites = {};\nfor (const [url, result] of Object.entries(qa_results)) {\n  if (!sites[result.site_id]) sites[result.site_id] = { articles: [], avg_score: 0 };\n  sites[result.site_id].articles.push({ url, ...result });\n}\nfor (const site of Object.values(sites)) {\n  site.avg_score = Math.round(site.articles.reduce((s, a) => s + a.score, 0) / site.articles.length);\n}\n\nreturn [{ json: {\n  article_results_by_site: sites,\n  domain_results,\n  portfolio_result,\n  suppressed_checks: suppressed,\n  total_articles_checked: Object.keys(qa_results).length,\n  recent_history: qa_history.slice(-20),\n} }];"
+        }
+      },
+      {
+        "id": "respond-qa-results",
+        "name": "Respond QA Results",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          800,
+          600
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}"
+        }
+      },
+      {
+        "id": "qa-sweep-webhook",
+        "name": "QA Sweep Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          100
+        ],
+        "webhookId": "qa-sweep",
+        "parameters": {
+          "path": "qa-sweep",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "domain-webhook",
+        "name": "Domain QA Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          700
+        ],
+        "webhookId": "qa-domain",
+        "parameters": {
+          "path": "qa-domain",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "domain-resolve",
+        "name": "Resolve Domains",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          700
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst SITES = {\n  sinabarimd: { domain: 'sinabarimd.com', role: 'canonical_hub', expected_schema: ['Person', 'ProfilePage'], requires_geo: true, requires_sameas: true },\n  sinabari_net: { domain: 'sinabari.net', role: 'satellite', expected_schema: ['WebSite', 'WebPage'], requires_geo: false, requires_sameas: false },\n  sinabariplasticsurgery: { domain: 'sinabariplasticsurgery.com', role: 'satellite', expected_schema: ['WebSite', 'MedicalWebPage'], requires_geo: false, requires_sameas: false },\n  drsinabari: { domain: 'drsinabari.com', role: 'satellite', expected_schema: ['WebSite', 'WebPage'], requires_geo: false, requires_sameas: false },\n};\n\nlet sites_to_check = [];\nif (body.site_id && SITES[body.site_id]) {\n  sites_to_check.push({ site_id: body.site_id, ...SITES[body.site_id] });\n} else {\n  sites_to_check = Object.entries(SITES).map(([id, s]) => ({ site_id: id, ...s }));\n}\n\nreturn sites_to_check.map(s => ({ json: { ...s, checked_at: new Date().toISOString(), source: body.source || 'operator' } }));"
+        }
+      },
+      {
+        "id": "domain-fetch",
+        "name": "Fetch Domain Homepage",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          800,
+          700
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ 'https://' + $json.domain + '/' }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "domain-checks",
+        "name": "Run Domain Checks",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          700
+        ],
+        "parameters": {
+          "jsCode": "const upstream = $('Resolve Domains').first().json;\nconst site_id = upstream.site_id;\nconst domain = upstream.domain;\nconst role = upstream.role;\nconst expected_schema = upstream.expected_schema;\nconst requires_geo = upstream.requires_geo;\nconst requires_sameas = upstream.requires_sameas;\nconst checked_at = upstream.checked_at;\n\nconst html = typeof $json.data === 'string' ? $json.data : (typeof $json === 'string' ? $json : JSON.stringify($json));\nconst http_ok = html.length > 500;\n\nconst checks = [];\nconst chk = (id, label, passed, detail, severity = 'error') => {\n  checks.push({ id, label, passed, detail, severity });\n};\n\nchk('http_200', 'Homepage loads', http_ok, http_ok ? 'OK' : 'Failed (' + html.length + ' bytes)');\nif (!http_ok) {\n  return [{ json: { qa_type: 'domain', site_id, domain, checked_at, score: 0, grade: 'F', passed: false, checks, failed_checks: checks, warnings: [] } }];\n}\n\nconst titleM = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);\nchk('title', 'Title tag exists', !!(titleM && titleM[1] && titleM[1].trim()), titleM ? '\"' + titleM[1].trim().slice(0, 70) + '\"' : 'Missing');\n\nconst descM = html.match(/<meta\\s+name=[\"']description[\"']\\s+content=[\"']([^\"']*)[\"']/i);\nchk('meta_desc', 'Meta description exists', !!descM, descM ? descM[1].length + ' chars' : 'Missing');\n\nconst canonM = html.match(/<link[^>]+rel=[\"']canonical[\"'][^>]+href=[\"']([^\"']*)[\"']/i);\nchk('canonical', 'Canonical URL present', !!canonM, canonM ? canonM[1] : 'Missing');\n\nconst ogtM = html.match(/og:type[\"']\\s+content=[\"']([^\"']*)[\"']/i);\nchk('og_type', 'og:type present', !!ogtM, ogtM ? ogtM[1] : 'Missing', 'warning');\n\n// Schema parsing - extract JSON-LD blocks\nconst ldRegex = /type=\"application\\/ld\\+json\"[^>]*>([\\s\\S]*?)<\\/script>/gi;\nlet foundTypes = [];\nlet hasAuthorId = false;\nlet sameAsCount = 0;\nlet personCount = 0;\nlet match;\nwhile ((match = ldRegex.exec(html)) !== null) {\n  try {\n    const parsed = JSON.parse(match[1]);\n    const items = parsed['@graph'] ? parsed['@graph'] : [parsed];\n    for (const item of items) {\n      if (item['@type']) { const t = Array.isArray(item['@type']) ? item['@type'] : [item['@type']]; foundTypes.push(...t); }\n      if (item['@type'] === 'Person') personCount++;\n      if (item['@id'] === 'https://sinabarimd.com/#sinabari') hasAuthorId = true;\n      if (item.author && item.author['@id'] === 'https://sinabarimd.com/#sinabari') hasAuthorId = true;\n      if (item.sameAs && Array.isArray(item.sameAs)) sameAsCount = item.sameAs.length;\n    }\n  } catch (_) {}\n}\n\nconst hasExpected = expected_schema.every(t => foundTypes.includes(t));\nchk('schema_types', 'Schema has ' + expected_schema.join(' + '), hasExpected, 'Found: [' + foundTypes.join(', ') + ']');\nchk('schema_entity', 'References sinabarimd.com/#sinabari', hasAuthorId, hasAuthorId ? 'OK' : 'Missing');\n\nif (role === 'satellite') {\n  chk('no_person', 'No Person schema on satellite', personCount === 0, personCount ? personCount + ' Person found' : 'OK');\n  chk('no_sameas', 'No sameAs on satellite', sameAsCount === 0, sameAsCount ? sameAsCount + ' sameAs' : 'OK');\n}\nif (requires_sameas) {\n  chk('has_sameas', 'Has sameAs URLs', sameAsCount >= 3, sameAsCount + ' URLs');\n}\nif (requires_geo) {\n  chk('geo_meta', 'Geo meta tags', html.includes('geo.region'), html.includes('geo.region') ? 'OK' : 'Missing');\n}\n\nif (role === 'satellite') {\n  const hasHub = html.includes('sinabarimd.com');\n  chk('hub_link', 'Links to sinabarimd.com', hasHub, hasHub ? 'OK' : 'Missing');\n}\n\nconst noindex = /name=[\"']robots[\"'][^>]*noindex/i.test(html);\nchk('not_noindex', 'Not noindexed', !noindex, noindex ? 'NOINDEX!' : 'OK');\n\nconst hasArticles = /\\/articles\\//i.test(html);\nchk('articles_link', '/articles/ link', hasArticles, hasArticles ? 'OK' : 'Missing', 'warning');\n\n// Check for broken internal links (articles referenced in homepage)\nconst internalLinks = [];\nconst linkRegex = /href=[\"'](\\/articles\\/[^\"']+\\.html)[\"']/gi;\nlet linkMatch;\nwhile ((linkMatch = linkRegex.exec(html)) !== null) {\n  const path = linkMatch[1];\n  if (!internalLinks.includes(path)) internalLinks.push(path);\n}\n\nlet brokenLinks = [];\nfor (const path of internalLinks) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'HEAD',\n      url: 'https://' + domain + path,\n      returnFullResponse: true,\n      timeout: 5000,\n    });\n    if (resp.statusCode >= 400) brokenLinks.push(path);\n  } catch(e) {\n    brokenLinks.push(path);\n  }\n}\n\nchk('broken_links', 'No broken internal article links', brokenLinks.length === 0,\n  brokenLinks.length === 0 ? internalLinks.length + ' links OK' : 'BROKEN: ' + brokenLinks.join(', '));\n\nconst errors = checks.filter(c => c.severity === 'error');\nconst passedE = errors.filter(c => c.passed).length;\nconst score = errors.length > 0 ? Math.round((passedE / errors.length) * 100) : 100;\nconst grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 65 ? 'C' : score >= 50 ? 'D' : 'F';\n\nreturn [{ json: {\n  qa_type: 'domain', site_id, domain, checked_at, source: upstream.source,\n  score, grade, passed: score >= 80, total_checks: checks.length,\n  failed_checks: errors.filter(c => !c.passed).map(c => ({ id: c.id, label: c.label, detail: c.detail })),\n  warnings: checks.filter(c => c.severity === 'warning' && !c.passed).map(c => ({ id: c.id, label: c.label, detail: c.detail })),\n  checks,\n} }];"
+        }
+      },
+      {
+        "id": "domain-store",
+        "name": "Store Domain Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1400,
+          700
+        ],
+        "parameters": {
+          "jsCode": "const result = $json;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.domain_results) staticData.domain_results = {};\nstaticData.domain_results[result.site_id] = {\n  domain: result.domain, score: result.score, grade: result.grade,\n  passed: result.passed, checked_at: result.checked_at,\n  failed_checks: result.failed_checks, warnings: result.warnings,\n};\nreturn [{ json: result }];"
+        }
+      },
+      {
+        "id": "domain-respond",
+        "name": "Respond Domain QA",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1700,
+          700
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}"
+        }
+      },
+      {
+        "id": "portfolio-webhook",
+        "name": "Portfolio QA Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          1000
+        ],
+        "webhookId": "qa-portfolio",
+        "parameters": {
+          "path": "qa-portfolio",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "portfolio-checks",
+        "name": "Run Portfolio Checks",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1700,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "const sinabarimd_html = $json.sinabarimd_html || '';\nconst sinabari_net_html = $json.sinabari_net_html || '';\nconst sbps_html = $json.sbps_html || '';\n\nconst checked_at = new Date().toISOString();\nconst checks = [];\nconst chk = (id, label, passed, detail, severity = 'error') => {\n  checks.push({ id, label, passed, detail, severity });\n};\n\nfunction parseSchemas(html) {\n  const types = [];\n  let hasAuthorId = false;\n  let hasSameAs = false;\n  let personCount = 0;\n  const ldRegex = /type=\"application\\/ld\\+json\"[^>]*>([\\s\\S]*?)<\\/script>/gi;\n  let match;\n  while ((match = ldRegex.exec(html)) !== null) {\n    try {\n      const parsed = JSON.parse(match[1]);\n      const items = parsed['@graph'] ? parsed['@graph'] : [parsed];\n      for (const item of items) {\n        if (item['@type']) {\n        const t = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];\n        types.push(...t);\n      }\n        const typeArr = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];\n        if (typeArr.includes('Person')) personCount++;\n        if (item['@id'] === 'https://sinabarimd.com/#sinabari') hasAuthorId = true;\n        if (item.author && item.author['@id'] === 'https://sinabarimd.com/#sinabari') hasAuthorId = true;\n        if (item.sameAs && Array.isArray(item.sameAs) && item.sameAs.length > 0) hasSameAs = true;\n      }\n    } catch (_) {}\n  }\n  return { types, hasAuthorId, hasSameAs, personCount };\n}\n\nconst sm = parseSchemas(sinabarimd_html);\nconst sn = parseSchemas(sinabari_net_html);\nconst sp = parseSchemas(sbps_html);\n\nchk('canonical_person', 'sinabarimd.com has Person schema', sm.types.includes('Person'), 'Found: [' + sm.types.join(', ') + ']');\nchk('canonical_profile', 'sinabarimd.com has ProfilePage', sm.types.includes('ProfilePage'), 'Found: [' + sm.types.join(', ') + ']');\nchk('sn_no_person', 'sinabari.net has no Person schema', sn.personCount === 0, sn.personCount ? sn.personCount + ' Person found' : 'OK (WebSite)');\nchk('sp_no_person', 'sinabariplasticsurgery.com has no Person schema', sp.personCount === 0, sp.personCount ? sp.personCount + ' Person found' : 'OK (WebSite)');\nchk('sm_entity', 'sinabarimd.com references /#sinabari', sm.hasAuthorId, sm.hasAuthorId ? 'OK' : 'Missing');\nchk('sn_entity', 'sinabari.net references /#sinabari', sn.hasAuthorId, sn.hasAuthorId ? 'OK' : 'Missing');\nchk('sp_entity', 'sinabariplasticsurgery.com references /#sinabari', sp.hasAuthorId, sp.hasAuthorId ? 'OK' : 'Missing');\nchk('sameas_canonical', 'sameAs only on sinabarimd.com', sm.hasSameAs && !sn.hasSameAs && !sp.hasSameAs,\n  (sm.hasSameAs ? 'canonical: yes' : 'canonical: MISSING') + ', ' + (sn.hasSameAs ? 'sinabari.net: HAS' : 'sinabari.net: clean') + ', ' + (sp.hasSameAs ? 'sbps: HAS' : 'sbps: clean'));\n\nconst allDistinct = sm.types.sort().join(',') !== sn.types.sort().join(',') && sm.types.sort().join(',') !== sp.types.sort().join(',') && sn.types.sort().join(',') !== sp.types.sort().join(',');\nchk('distinct_types', 'Each site has distinct schema @types', allDistinct,\n  'sm: [' + sm.types.join(', ') + '] | sn: [' + sn.types.join(', ') + '] | sp: [' + sp.types.join(', ') + ']');\n\nconst snHub = sinabari_net_html.includes('sinabarimd.com');\nconst spHub = sbps_html.includes('sinabarimd.com');\nchk('all_link_hub', 'All satellites link to sinabarimd.com', snHub && spHub, 'sinabari.net: ' + (snHub?'OK':'MISSING') + ' | sbps: ' + (spHub?'OK':'MISSING'));\n\nconst getTitle = (h) => (h.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i) || [])[1] || '';\nconst titles = [getTitle(sinabarimd_html), getTitle(sinabari_net_html), getTitle(sbps_html)].map(t => t.trim());\nchk('unique_titles', 'All sites have unique titles', new Set(titles).size === 3, titles.join(' | ').slice(0, 120));\n\nchk('all_load', 'All 3 sites return content', sinabarimd_html.length > 500 && sinabari_net_html.length > 500 && sbps_html.length > 500, 'OK');\n\nconst authorRe = /Dr\\.?\\s*Sina\\s+Bari/i;\nchk('consistent_author', 'Dr. Sina Bari on all sites', authorRe.test(sinabarimd_html) && authorRe.test(sinabari_net_html) && authorRe.test(sbps_html), 'OK', 'warning');\n\nconst errors = checks.filter(c => c.severity === 'error');\nconst passedE = errors.filter(c => c.passed).length;\nconst score = errors.length > 0 ? Math.round((passedE / errors.length) * 100) : 100;\nconst grade = score >= 95 ? 'A+' : score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 65 ? 'C' : score >= 50 ? 'D' : 'F';\n\nreturn [{ json: {\n  qa_type: 'portfolio', checked_at, score, grade, passed: score >= 80,\n  total_checks: checks.length,\n  failed_checks: errors.filter(c => !c.passed).map(c => ({ id: c.id, label: c.label, detail: c.detail })),\n  warnings: checks.filter(c => c.severity === 'warning' && !c.passed).map(c => ({ id: c.id, label: c.label, detail: c.detail })),\n  checks,\n} }];"
+        }
+      },
+      {
+        "id": "portfolio-store",
+        "name": "Store Portfolio Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2000,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "const result = $json;\nconst staticData = $getWorkflowStaticData('global');\nstaticData.portfolio_result = {\n  score: result.score, grade: result.grade, passed: result.passed,\n  checked_at: result.checked_at,\n  failed_checks: result.failed_checks, warnings: result.warnings, checks: result.checks,\n};\nreturn [{ json: result }];"
+        }
+      },
+      {
+        "id": "pf-fetch-1",
+        "name": "PF Fetch sinabarimd",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          500,
+          1000
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://sinabarimd.com/",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "pf-save-1",
+        "name": "PF Save sinabarimd",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          700,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "return [{ json: { sinabarimd_html: $json.data || '' } }];"
+        }
+      },
+      {
+        "id": "pf-fetch-2",
+        "name": "PF Fetch sinabari.net",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          900,
+          1000
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://sinabari.net/",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "pf-save-2",
+        "name": "PF Save sinabari.net",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "const prev = $('PF Save sinabarimd').first().json;\nreturn [{ json: { ...prev, sinabari_net_html: $json.data || '' } }];"
+        }
+      },
+      {
+        "id": "pf-fetch-3",
+        "name": "PF Fetch sbps",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1300,
+          1000
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://sinabariplasticsurgery.com/",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "pf-save-3",
+        "name": "PF Save sbps",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1500,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "const prev = $('PF Save sinabari.net').first().json;\nreturn [{ json: { ...prev, sbps_html: $json.data || '' } }];"
+        }
+      },
+      {
+        "id": "suppress-webhook",
+        "name": "Suppress Check Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          1400
+        ],
+        "webhookId": "qa-suppress",
+        "parameters": {
+          "path": "qa-suppress",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "suppress-code",
+        "name": "Suppress Check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          1400
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst { qa_type, identifier, check_id, action } = body;\n// action: \"suppress\" or \"unsuppress\"\n\nif (!check_id) return [{ json: { error: true, message: 'Missing check_id' } }];\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.suppressed_checks) staticData.suppressed_checks = {};\n\nconst key = `${qa_type || 'all'}:${identifier || 'all'}:${check_id}`;\n\nif (action === 'unsuppress') {\n  delete staticData.suppressed_checks[key];\n  return [{ json: { success: true, action: 'unsuppressed', key } }];\n}\n\nstaticData.suppressed_checks[key] = {\n  suppressed_at: new Date().toISOString(),\n  qa_type: qa_type || 'all',\n  identifier: identifier || 'all',\n  check_id,\n};\n\nreturn [{ json: { success: true, action: 'suppressed', key } }];"
+        }
+      },
+      {
+        "id": "suppress-respond",
+        "name": "Respond Suppress",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          800,
+          1400
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}"
+        }
+      }
+    ],
+    "connections": {
+      "QA Check Webhook": {
+        "main": [
+          [
+            {
+              "node": "Resolve URLs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "QA Sweep Webhook": {
+        "main": [
+          [
+            {
+              "node": "Resolve URLs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resolve URLs": {
+        "main": [
+          [
+            {
+              "node": "Fetch Article Page",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Article Page": {
+        "main": [
+          [
+            {
+              "node": "Run SEO Checks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Run SEO Checks": {
+        "main": [
+          [
+            {
+              "node": "Store QA Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store QA Results": {
+        "main": [
+          [
+            {
+              "node": "Respond with Report",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "QA Results Webhook": {
+        "main": [
+          [
+            {
+              "node": "Return QA Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Return QA Results": {
+        "main": [
+          [
+            {
+              "node": "Respond QA Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Domain QA Webhook": {
+        "main": [
+          [
+            {
+              "node": "Resolve Domains",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resolve Domains": {
+        "main": [
+          [
+            {
+              "node": "Fetch Domain Homepage",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Domain Homepage": {
+        "main": [
+          [
+            {
+              "node": "Run Domain Checks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Run Domain Checks": {
+        "main": [
+          [
+            {
+              "node": "Store Domain Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Domain Results": {
+        "main": [
+          [
+            {
+              "node": "Respond Domain QA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Portfolio QA Webhook": {
+        "main": [
+          [
+            {
+              "node": "PF Fetch sinabarimd",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Run Portfolio Checks": {
+        "main": [
+          [
+            {
+              "node": "Store Portfolio Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PF Fetch sinabarimd": {
+        "main": [
+          [
+            {
+              "node": "PF Save sinabarimd",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PF Save sinabarimd": {
+        "main": [
+          [
+            {
+              "node": "PF Fetch sinabari.net",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PF Fetch sinabari.net": {
+        "main": [
+          [
+            {
+              "node": "PF Save sinabari.net",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PF Save sinabari.net": {
+        "main": [
+          [
+            {
+              "node": "PF Fetch sbps",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PF Fetch sbps": {
+        "main": [
+          [
+            {
+              "node": "PF Save sbps",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PF Save sbps": {
+        "main": [
+          [
+            {
+              "node": "Run Portfolio Checks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Suppress Check Webhook": {
+        "main": [
+          [
+            {
+              "node": "Suppress Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Suppress Check": {
+        "main": [
+          [
+            {
+              "node": "Respond Suppress",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Sina Bari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-27T18:55:21.783Z",
+        "id": 4,
+        "workflowId": "3RYvkOtuOInfaiuZ",
+        "versionId": "5876660f-1427-4bb4-8cc9-7483bd7245b3",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    ]
+  }
 }

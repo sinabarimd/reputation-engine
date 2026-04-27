@@ -1,7 +1,5 @@
 {
-  "updatedAt": "2026-04-20T19:14:39.089Z",
-  "createdAt": "2026-03-25T17:07:31.385Z",
-  "id": "PaZGnhoW9T9JXiG1",
+  "id": "1l2mzI2FBoMUBCFX",
   "name": "Reputation Engine \u2014 Content Publisher",
   "description": null,
   "active": true,
@@ -596,5 +594,632 @@
     "availableInMCP": false
   },
   "meta": null,
-  "tags": []
+  "pinData": null,
+  "activeVersionId": "928b47b9-e348-4994-8d52-8a2a825bc06e",
+  "versionCounter": 4,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-04-27T18:53:44.976Z",
+      "createdAt": "2026-04-27T18:53:44.976Z",
+      "role": "workflow:owner",
+      "workflowId": "1l2mzI2FBoMUBCFX",
+      "projectId": "9sJSA5GTLSjQcRNk",
+      "project": {
+        "updatedAt": "2026-03-20T18:09:16.655Z",
+        "createdAt": "2026-03-20T00:15:30.157Z",
+        "id": "9sJSA5GTLSjQcRNk",
+        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-27T18:53:44.986Z",
+    "createdAt": "2026-04-27T18:53:44.986Z",
+    "versionId": "928b47b9-e348-4994-8d52-8a2a825bc06e",
+    "workflowId": "1l2mzI2FBoMUBCFX",
+    "nodes": [
+      {
+        "id": "11da4e56-b6ae-4dab-b62d-ef7b1b786e14",
+        "name": "Manual Trigger",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          0,
+          600
+        ],
+        "parameters": {}
+      },
+      {
+        "id": "aee5a16f-cb61-45e5-a3d9-b477f307c695",
+        "name": "Approve Draft Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          100
+        ],
+        "webhookId": "approve-draft",
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "approve-draft",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "b4038da1-7392-4537-8858-814449f2f830",
+        "name": "Mark Draft Approved",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          240,
+          100
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst draft_id = body.draft_id;\nconst site_id = body.site_id;\n\nif (!draft_id) {\n  return [{ json: { error: true, message: 'draft_id is required' } }];\n}\n\n// Call the Generator's approve endpoint to actually update staticData\nconst resp = await fetch('https://n8n.sinabarimd.com/webhook/approve-draft-gen', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ draft_id, site_id }),\n});\nconst result = await resp.json();\nreturn [{ json: result }];"
+        }
+      },
+      {
+        "id": "02893f43-cfcc-47b9-8b9a-9f33c87a472c",
+        "name": "Publish Draft Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          350
+        ],
+        "webhookId": "publish-draft",
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "publish-draft",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "ea9f8db5-5034-4dac-809b-10ba7c73504a",
+        "name": "Extract Publish Fields",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          240,
+          350
+        ],
+        "parameters": {
+          "jsCode": "// draft data comes from Generator's get-draft webhook\nconst draft = $json;\nconst site_id = draft.site_id;\nconst article = draft.article;\nconst draft_id = draft.draft_id || `manual_${Date.now()}`;\n\nif (!site_id) throw new Error('site_id is required');\nif (!article?.title) throw new Error('article.title is required [from get-draft response]');\nif (!article?.content_html) throw new Error('article.content_html is required');\n\nconst DOMAINS   = { sinabarimd: 'sinabarimd.com', sinabari_net: 'sinabari.net', drsinabari: 'drsinabari.com', sinabariplasticsurgery: 'sinabariplasticsurgery.com' };\nconst LIVE_URLS = { sinabarimd: 'https://sinabarimd.com', sinabari_net: 'https://sinabari.net', drsinabari: 'https://drsinabari.com', sinabariplasticsurgery: 'https://sinabariplasticsurgery.com' };\nconst SECTIONS  = { sinabarimd: 'PUBLICATIONS', sinabari_net: 'ANALYSIS', drsinabari: 'ESSAYS', sinabariplasticsurgery: 'ARTICLES' };\nconst DEPLOY_PATHS = { sinabarimd: '/srv/sites/sinabarimd', sinabari_net: '/srv/sites/sinabari-net', drsinabari: '/srv/sites/drsinabari', sinabariplasticsurgery: '/srv/sites/sinabariplasticsurgery' };\n\nreturn [{ json: {\n  site_id, draft_id, domain: DOMAINS[site_id], live_url: LIVE_URLS[site_id],\n  section: SECTIONS[site_id], deploy_path: DEPLOY_PATHS[site_id], article,\n} }];"
+        }
+      },
+      {
+        "id": "f767f64e-446b-4fd9-9353-93e89e5c2e8e",
+        "name": "Fetch Current Live Page",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          480,
+          350
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $json.live_url }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text",
+                "fullResponse": false
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "96f144da-f2b9-4af2-9dc9-4b19b3d81d22",
+        "name": "Update Article Register",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          720,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst fields = $('Extract Publish Fields').first().json;\nconst { site_id, article } = fields;\nconst pageHtml = $json.data || $json.body || '';\n\nif (!staticData.article_register) staticData.article_register = {};\nconst register = staticData.article_register[site_id] || [];\n\n// Build article entry\nconst slug = article.slug || article.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\nconst entry = {\n  slug,\n  title: article.title,\n  excerpt: article.excerpt || '',\n  date: article.date || new Date().toISOString().split('T')[0],\n  url: `/articles/${slug}.html`,\n  content_html: article.content_html,\n  author: article.author || 'Dr. Sina Bari, MD',\n  author_url: article.author_url || 'https://sinabarimd.com/about',\n};\n\n// Prepend, cap at 3\nconst updated = [entry, ...register.filter(a => a.slug !== slug)].slice(0, 3);\nstaticData.article_register[site_id] = updated;\n\n// Fetch ALL pinned spotlight articles (current + history) for inclusion in index + deploy\nlet pinned_articles = [];\ntry {\n  const spResp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://n8n.sinabarimd.com/webhook/spotlight',\n    returnFullResponse: true,\n    encoding: 'utf-8',\n    timeout: 5000,\n  });\n  const spData = typeof spResp.body === 'string' ? JSON.parse(spResp.body) : spResp.body;\n  if (site_id === 'sinabarimd') {\n    // Current spotlight\n    if (spData?.spotlight?.slug) {\n      const sp = spData.spotlight;\n      if (!updated.some(a => a.slug === sp.slug)) {\n        pinned_articles.push({\n          slug: sp.slug, title: sp.title, excerpt: sp.excerpt || '',\n          date: sp.publish_date || new Date().toISOString().split('T')[0],\n          url: '/articles/' + sp.slug + '.html',\n          pinned: true, is_current_spotlight: true,\n        });\n      }\n    }\n    // All historical spotlights\n    for (const h of (spData.history || [])) {\n      if (h.slug && !updated.some(a => a.slug === h.slug) && !pinned_articles.some(p => p.slug === h.slug)) {\n        pinned_articles.push({\n          slug: h.slug, title: h.title, excerpt: h.excerpt || '',\n          date: h.publish_date || '',\n          url: '/articles/' + h.slug + '.html',\n          pinned: true,\n        });\n      }\n    }\n  }\n} catch(e) { /* spotlight not set */ }\n\nreturn [{ json: { ...fields, page_html: pageHtml, article_register: updated, pinned_articles } }];"
+        }
+      },
+      {
+        "id": "cb17f76d-fc8b-46e1-8e18-be380898213c",
+        "name": "Render Featured Section",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          960,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const { site_id, article_register } = $json;\nconst articles = article_register || [];\n\nconst a0 = articles[0] || null;\nconst a1 = articles[1] || null;\nconst a2 = articles[2] || null;\n\n// Format date\nconst fmt = (d) => { try { return new Date(d).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }); } catch(e) { return d; } };\n// Estimate read time (200 wpm)\nconst readTime = (html) => { const words = html.replace(/<[^>]+>/g,'').split(/\\s+/).length; return `${Math.max(3, Math.round(words/200))} Min Read`; };\n\nconst TEMPLATES = {\n\n  sinabariplasticsurgery: (a0, a1, a2) => {\n    const primaryCard = a0 ? `\n<div class=\"md:col-span-7 group cursor-pointer\">\n  <div class=\"aspect-[4/5] bg-surface-container-low mb-8 overflow-hidden flex items-center justify-center\">\n    <span class=\"material-symbols-outlined text-8xl text-on-surface-variant/20\">article</span>\n  </div>\n  <span class=\"font-label text-[10px] tracking-widest text-primary uppercase mb-4 block\">Education / 00${articles.indexOf(a0)+1}</span>\n  <h3 class=\"font-headline text-5xl leading-tight mb-6 group-hover:text-primary transition-colors\">\n    <a href=\"${a0.url}\" class=\"hover:text-primary transition-colors\">${a0.title}</a>\n  </h3>\n  <p class=\"text-on-surface-variant leading-relaxed text-lg mb-8\">${a0.excerpt}</p>\n  <a href=\"${a0.url}\" class=\"font-label text-[11px] tracking-widest uppercase flex items-center gap-2\">\n    Read Analysis <span class=\"material-symbols-outlined text-[16px]\">arrow_forward</span>\n  </a>\n</div>` : `\n<div class=\"md:col-span-7 group cursor-pointer\">\n  <div class=\"aspect-[4/5] bg-surface-container-low mb-8 overflow-hidden\">\n    <img alt=\"Clinical Precision\" class=\"w-full h-full object-cover\" src=\"https://lh3.googleusercontent.com/aida-public/AB6AXuAjzPLX4CiXSXR8kH0tP4WsiQaR1dwlzQM5lj11AYR0Oft8BYLRDJUoxa9S-W2KDj-YYUXgsjdR9zQx60GRzQYbgwfB7SOzx4jRE2aRsKurMkEvPCT2h29D_JediQ9-imha3bBPbfoJB5CRObmkK-9Xh4ffR98-QdhrToyk2ibOIEWMrx5eNpQ26FmU6s5oa7YOBLuwgYGTneKzu5zvqBpl4yJn-2_giqiFnM5qi-T3jlbz9Ys-W4jc_-r8phcoe57g97dOrCgU5T0\"/>\n  </div>\n  <span class=\"font-label text-[10px] tracking-widest text-primary uppercase mb-4 block\">Case Study / 042</span>\n  <h3 class=\"font-headline text-5xl leading-tight mb-6\">The Molecular Logic of Scars: Beyond Surface Healing</h3>\n  <p class=\"text-on-surface-variant leading-relaxed text-lg mb-8\">An in-depth exploration of how cellular memory dictates the trajectory of post-surgical recovery.</p>\n  <button class=\"font-label text-[11px] tracking-widest uppercase flex items-center gap-2\">Read Analysis <span class=\"material-symbols-outlined text-[16px]\">arrow_forward</span></button>\n</div>`;\n\n    const secondaryCard = (art, fallbackLabel, fallbackTitle, fallbackExcerpt) => art ? `\n<div class=\"group cursor-pointer\">\n  <div class=\"aspect-video bg-surface-container-low mb-6 overflow-hidden flex items-center justify-center\">\n    <span class=\"material-symbols-outlined text-5xl text-on-surface-variant/20\">article</span>\n  </div>\n  <span class=\"font-label text-[10px] tracking-widest text-primary uppercase mb-3 block\">Education</span>\n  <h4 class=\"font-headline text-3xl mb-4 italic\"><a href=\"${art.url}\" class=\"hover:text-primary transition-colors\">${art.title}</a></h4>\n  <p class=\"text-on-surface-variant text-sm leading-relaxed\">${art.excerpt}</p>\n</div>` : `\n<div class=\"group cursor-pointer\">\n  <div class=\"aspect-video bg-surface-container-low mb-6 overflow-hidden\">\n    <img alt=\"${fallbackLabel}\" class=\"w-full h-full object-cover\" src=\"https://lh3.googleusercontent.com/aida-public/AB6AXuCl9plXNx7x9JFTkqnKoubcsK1m0A7Xt1viAWe1Gb1r_HGUbMOiZc-ij0Tf5XaVocu6ngy2tBy0EQ02iHLAZc1Dk-upe2MZhsDOOwwSvyQbxvo2tE-mAG05z6bknISDlksLyR0YuiAqNnIBMpMoJJNw8oPiCnOpUivF7UJr4mRvQvfdGS4qNazwcdcaPtZtaeI69GzPzXwnPlu_OG9gaMyHZ5PmOBMf8wwXLxbroYhicR0CDVl1MDXxLFyDM_zi1FOcgd-5q6ANZkg\"/>\n  </div>\n  <span class=\"font-label text-[10px] tracking-widest text-primary uppercase mb-3 block\">${fallbackLabel}</span>\n  <h4 class=\"font-headline text-3xl mb-4 italic\">${fallbackTitle}</h4>\n  <p class=\"text-on-surface-variant text-sm leading-relaxed\">${fallbackExcerpt}</p>\n</div>`;\n\n    return `<section class=\"px-8 md:px-20 py-32 max-w-screen-2xl mx-auto\">\n<div class=\"flex justify-between items-end mb-16 border-b border-on-surface/10 pb-4\">\n  <h2 class=\"font-headline text-4xl font-bold italic\">Latest Analysis</h2>\n  <a class=\"font-label text-[11px] tracking-widest uppercase border-b border-primary text-primary\" href=\"/articles/\">View Journal</a>\n</div>\n<div class=\"grid grid-cols-1 md:grid-cols-12 gap-12\">\n${primaryCard}\n<div class=\"md:col-span-5 flex flex-col gap-16\">\n${secondaryCard(a1, 'Transparency', 'Honest Recovery Timelines', 'The clinical reality of healing, debunking the instant transformation myth through biological timelines.')}\n${secondaryCard(a2, 'Ethics', 'Risk Disclosure', 'A radical approach to informed consent. Every procedure analyzed through the lens of long-term safety.')}\n</div>\n</div>\n</section>`;\n  },\n\n  sinabari_net: (a0, a1, a2) => {\n    const primaryCard = a0 ? `\n<div class=\"md:col-span-8 bg-surface-container-lowest p-8 rounded-lg group cursor-pointer hover:bg-surface-container transition-colors\">\n  <div class=\"aspect-video mb-8 rounded-md overflow-hidden bg-surface-dim flex items-center justify-center\">\n    <span class=\"material-symbols-outlined text-6xl text-on-surface-variant/20\">article</span>\n  </div>\n  <span class=\"text-label-md bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full mb-4 inline-block\">Analysis</span>\n  <h3 class=\"font-headline text-3xl font-bold mb-4 group-hover:text-primary transition-colors\"><a href=\"${a0.url}\">${a0.title}</a></h3>\n  <p class=\"text-secondary leading-relaxed mb-6\">${a0.excerpt}</p>\n  <div class=\"flex items-center gap-4 text-sm font-bold text-on-surface-variant\">\n    <span>${readTime(a0.content_html||'')}</span>\n    <span class=\"w-1 h-1 bg-outline-variant rounded-full\"></span>\n    <span>${fmt(a0.date)}</span>\n  </div>\n</div>` : `\n<div class=\"md:col-span-8 bg-surface-container-lowest p-8 rounded-lg group cursor-pointer hover:bg-surface-container transition-colors\">\n  <div class=\"aspect-video mb-8 rounded-md overflow-hidden bg-surface-dim\"><img alt=\"Data visualization\" class=\"w-full h-full object-cover\" src=\"https://lh3.googleusercontent.com/aida-public/AB6AXuB2bMH-PrVCh_2B5gp7Zk6k5dBsKZiEmWnO6HRc_P2CMLOaFgZ3FQHfhFF-nVhbNyfyg-ImcdNpNFiR6xp7x83I9lQ6Se4M4z4Oyi2Zq832NI_dpM9LEne7ZI86xSXkKOZd2q0MeB9L7BKUi_8G5bMF7aXAKlswOrP-0kisbzxKvCHfgykUFTmCrn9gbf1_oSkjvUEd7j_DGxHYWPcmPW93OK4EH261rRUowkzPAa91r6wdDyh3wSofr_CZ-GspLIY\"/></div>\n  <span class=\"text-label-md bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full mb-4 inline-block\">Deep Dive</span>\n  <h3 class=\"font-headline text-3xl font-bold mb-4\">The Architect's Framework: Designing Scalable Medical LLMs</h3>\n  <p class=\"text-secondary leading-relaxed mb-6\">An analytical breakdown of the structural requirements for large language models within specialized clinical environments.</p>\n  <div class=\"flex items-center gap-4 text-sm font-bold text-on-surface-variant\"><span>12 Min Read</span><span class=\"w-1 h-1 bg-outline-variant rounded-full\"></span><span>Oct 24, 2024</span></div>\n</div>`;\n\n    const smallCard = (art, fallbackLabel, fallbackTitle, fallbackExcerpt, fallbackTag) => art ? `\n<div class=\"md:col-span-4 bg-surface-container-low p-8 rounded-lg flex flex-col justify-between hover:bg-surface-container-high transition-colors cursor-pointer\">\n  <div>\n    <span class=\"text-label-md text-primary font-bold mb-4 block\">Analysis</span>\n    <h3 class=\"font-headline text-xl font-bold mb-4\"><a href=\"${art.url}\">${art.title}</a></h3>\n    <p class=\"text-sm text-secondary leading-relaxed\">${art.excerpt}</p>\n  </div>\n  <div class=\"mt-8 pt-6 border-t border-outline-variant/10 flex items-center justify-between\">\n    <span class=\"text-xs font-bold uppercase tracking-widest text-on-surface-variant\">${fmt(art.date)}</span>\n    <a href=\"${art.url}\" class=\"material-symbols-outlined text-primary\">arrow_outward</a>\n  </div>\n</div>` : `\n<div class=\"md:col-span-4 bg-surface-container-low p-8 rounded-lg flex flex-col justify-between hover:bg-surface-container-high transition-colors cursor-pointer\">\n  <div><span class=\"text-label-md text-primary font-bold mb-4 block\">${fallbackLabel}</span>\n  <h3 class=\"font-headline text-xl font-bold mb-4\">${fallbackTitle}</h3>\n  <p class=\"text-sm text-secondary leading-relaxed\">${fallbackExcerpt}</p></div>\n  <div class=\"mt-8 pt-6 border-t border-outline-variant/10 flex items-center justify-between\">\n    <span class=\"text-xs font-bold uppercase tracking-widest text-on-surface-variant\">${fallbackTag}</span>\n    <span class=\"material-symbols-outlined text-primary\">arrow_outward</span>\n  </div>\n</div>`;\n\n    return `<section class=\"max-w-screen-2xl mx-auto px-8 py-24\">\n<div class=\"flex justify-between items-end mb-16\">\n  <div><span class=\"text-label-md text-tertiary-fixed-dim font-bold uppercase tracking-widest mb-2 block\">Intelligence Stream</span>\n  <h2 class=\"font-headline text-[2.5rem] font-bold tracking-tight\">Latest Analysis</h2></div>\n  <a class=\"text-primary font-bold border-b-2 border-primary/10 hover:border-primary transition-all pb-1 mb-2 flex items-center gap-2\" href=\"/articles/\">Explore Archive <span class=\"material-symbols-outlined text-sm\">arrow_forward</span></a>\n</div>\n<div class=\"grid grid-cols-1 md:grid-cols-12 gap-6\">\n${primaryCard}\n${smallCard(a1,'Case Study','Post-Operative Monitoring via Computer Vision','How edge-computing AI is reducing recovery times through real-time physiological mapping.','Clinical Data')}\n${smallCard(a2,'Ethical AI','Algorithmic Transparency in Surgical Robotics','Defining the boundaries of autonomous decision-making in the operating theater.','Policy Insight')}\n</div>\n</section>`;\n  },\n\n  sinabarimd: (a0, a1, a2) => {\n    const pubCard = (art, num, fallbackTag, fallbackTitle, fallbackExcerpt, isPrimary) => art ? `\n<div class=\"${isPrimary ? 'md:col-span-8 bg-white overflow-hidden editorial-shadow border-t-[6px] border-[#001a2b]' : 'md:col-span-4 bg-white p-10 border-t-[4px] border-[#001a2b]/30'}\">\n  ${isPrimary ? `<div class=\"p-16 pt-8\">\n    <span class=\"text-[10px] font-bold tracking-[0.3em] text-[#001a2b] uppercase mb-6 block\">New Publication</span>\n    <h3 class=\"text-4xl font-headline text-[#001a2b] mb-8 leading-tight tracking-tight\"><a href=\"${art.url}\" class=\"hover:opacity-70 transition-opacity\">${art.title}</a></h3>\n    <p class=\"text-[#181818]/70 mb-12 leading-relaxed text-lg font-light italic\">${art.excerpt}</p>\n    <a href=\"${art.url}\" class=\"flex items-center gap-4 text-[#001a2b] font-bold text-[10px] uppercase tracking-[0.3em] group border-b-2 border-[#001a2b] pb-2 inline-flex\">Read Publication <span class=\"material-symbols-outlined text-sm\">arrow_forward</span></a>\n  </div>` : `<div class=\"p-10\">\n    <span class=\"text-[10px] font-bold tracking-[0.3em] text-[#001a2b]/60 uppercase mb-4 block\">Publication</span>\n    <h4 class=\"text-xl font-headline text-[#001a2b] mb-4 leading-tight\"><a href=\"${art.url}\" class=\"hover:opacity-70 transition-opacity\">${art.title}</a></h4>\n    <p class=\"text-[#181818]/60 text-sm leading-relaxed mb-6\">${art.excerpt}</p>\n    <span class=\"text-[10px] text-[#001a2b]/40 uppercase tracking-widest\">${fmt(art.date)}</span>\n  </div>`}\n</div>` : `\n<div class=\"${isPrimary ? 'md:col-span-8 bg-white overflow-hidden editorial-shadow border-t-[6px] border-[#001a2b]' : 'md:col-span-4 bg-white p-10 border-t-[4px] border-[#001a2b]/30'}\">\n  ${isPrimary ? `<div class=\"p-16 pt-8\"><span class=\"text-[10px] font-bold tracking-[0.3em] text-[#001a2b] uppercase mb-6 block\">${fallbackTag}</span>\n    <h3 class=\"text-4xl font-headline text-[#001a2b] mb-8 leading-tight tracking-tight\">${fallbackTitle}</h3>\n    <p class=\"text-[#181818]/70 mb-12 leading-relaxed text-lg font-light italic\">${fallbackExcerpt}</p>\n    <button class=\"flex items-center gap-4 text-[#001a2b] font-bold text-[10px] uppercase tracking-[0.3em] group border-b-2 border-[#001a2b] pb-2\">Read Publication <span class=\"material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform\">arrow_forward</span></button>\n  </div>` : `<div class=\"p-10\"><span class=\"text-[10px] font-bold tracking-[0.3em] text-[#001a2b]/60 uppercase mb-4 block\">${fallbackTag}</span>\n    <h4 class=\"text-xl font-headline text-[#001a2b] mb-4 leading-tight\">${fallbackTitle}</h4>\n    <p class=\"text-[#181818]/60 text-sm leading-relaxed\">${fallbackExcerpt}</p>\n  </div>`}\n</div>`;\n\n    return `<section class=\"bg-[#efeeeb] py-32 px-8\" id=\"research\">\n<div class=\"max-w-7xl mx-auto\">\n  <div class=\"flex flex-col md:flex-row justify-between items-start md:items-end mb-20 gap-8\">\n    <div><h2 class=\"font-headline text-5xl text-[#001a2b] mb-6 leading-tight\">Selected Publications</h2>\n    <p class=\"text-[#181818]/60 max-w-md font-light text-lg\">Commentary and analysis on surgical precision, patient outcomes, and clinical AI integration.</p></div>\n    <a href=\"/articles/\" class=\"flex items-center gap-4 text-[#001a2b] font-bold text-[10px] uppercase tracking-[0.3em] group border-b-2 border-[#001a2b] pb-2\">View All Publications <span class=\"material-symbols-outlined text-sm\">arrow_forward</span></a>\n  </div>\n  <div class=\"grid md:grid-cols-12 gap-8\">\n    ${pubCard(a0, 1, 'Key Monograph', 'Optimizing Surgical Outcomes through Advanced Clinical Data Synthesis', 'A compendium of insights on precision, outcomes, and AI integration in surgical practice.', true)}\n    <div class=\"md:col-span-4 flex flex-col gap-8\">\n      ${pubCard(a1, 2, 'Commentary', 'Clinical AI in Practice', 'Notes on deploying intelligent systems within surgical and post-operative workflows.', false)}\n      ${pubCard(a2, 3, 'Perspective', 'The Patient Relationship', 'Reflections on long-term care, informed consent, and the ethics of modern surgery.', false)}\n    </div>\n  </div>\n</div>\n</section>`;\n  },\n\n  drsinabari: (a0, a1, a2) => {\n    // Editorial \u2014 long-form, minimal card style\n    const essayCard = (art, size, fallbackTitle, fallbackExcerpt) => art ? `\n<div class=\"${size === 'primary' ? 'border-t-2 border-[#2c2c2c] pt-8 pb-12' : 'border-t border-[#2c2c2c]/20 pt-6 pb-8'}\">\n  <span class=\"text-[10px] tracking-widest uppercase text-[#666] mb-3 block\">${fmt(art.date)}</span>\n  <h${size==='primary'?'2':'3'} class=\"font-headline ${size==='primary'?'text-4xl':'text-2xl'} text-[#1a1a1a] mb-4 leading-tight\">\n    <a href=\"${art.url}\" class=\"hover:opacity-60 transition-opacity\">${art.title}</a>\n  </h${size==='primary'?'2':'3'}>\n  <p class=\"${size==='primary'?'text-lg':'text-base'} text-[#555] leading-relaxed mb-4\">${art.excerpt}</p>\n  <a href=\"${art.url}\" class=\"text-[10px] tracking-widest uppercase text-[#1a1a1a] border-b border-current pb-px\">Read Essay \u2192</a>\n</div>` : `\n<div class=\"${size === 'primary' ? 'border-t-2 border-[#2c2c2c] pt-8 pb-12' : 'border-t border-[#2c2c2c]/20 pt-6 pb-8'}\">\n  <span class=\"text-[10px] tracking-widest uppercase text-[#666] mb-3 block\">Commentary</span>\n  <h${size==='primary'?'2':'3'} class=\"font-headline ${size==='primary'?'text-4xl':'text-2xl'} text-[#1a1a1a] mb-4 leading-tight\">${fallbackTitle}</h${size==='primary'?'2':'3'}>\n  <p class=\"${size==='primary'?'text-lg':'text-base'} text-[#555] leading-relaxed\">${fallbackExcerpt}</p>\n</div>`;\n    return `<section class=\"max-w-3xl mx-auto px-8 py-24\">\n  <div class=\"flex justify-between items-end mb-12 border-b-2 border-[#1a1a1a] pb-4\">\n    <h2 class=\"font-headline text-2xl text-[#1a1a1a]\">Recent Writing</h2>\n    <a href=\"/articles/\" class=\"text-[10px] tracking-widest uppercase text-[#1a1a1a] border-b border-current pb-px\">All Essays \u2192</a>\n  </div>\n  ${essayCard(a0,'primary','On the Future of Medicine and Identity','A physician reflects on the intersection of technology, ethics, and human care.')}\n  <div class=\"grid md:grid-cols-2 gap-8 mt-4\">\n    ${essayCard(a1,'secondary','The Weight of the White Coat','Notes from the examining room on authority, vulnerability, and trust.')}\n    ${essayCard(a2,'secondary','What Surgery Cannot Fix','On the limits of intervention and the necessity of honest conversation.')}\n  </div>\n</section>`;\n  },\n};\n\nconst renderer = TEMPLATES[site_id] || TEMPLATES.sinabariplasticsurgery;\nconst sectionHtml = renderer(a0, a1, a2);\n\nreturn [{ json: { ...$json, rendered_section: sectionHtml } }];"
+        }
+      },
+      {
+        "id": "60942fb4-741e-48f3-8502-e394c23f8672",
+        "name": "Replace PIPELINE Section",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1200,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const { section, rendered_section } = $json;\nlet html = $json.page_html;\n\nconst startMark = `<!-- PIPELINE:START:${section} -->`;\nconst endMark   = `<!-- PIPELINE:END:${section} -->`;\n\nconst s = html.indexOf(startMark);\nconst e = html.indexOf(endMark);\n\nif (s < 0 || e < 0) throw new Error(`PIPELINE markers not found for section ${section}`);\n\nconst newHtml = html.slice(0, s + startMark.length) + '\\n' + rendered_section + '\\n' + html.slice(e);\nreturn [{ json: { ...$json, updated_html: newHtml } }];"
+        }
+      },
+      {
+        "id": "185480f6-7687-4bb8-8421-e4c9ba56f48c",
+        "name": "Generate Article Page",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1440,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const { site_id, domain, live_url, article, article_register } = $json;\nconst a = article;\nconst slug = a.slug || a.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');\nconst fmt = (d) => { try { return new Date(d).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}); } catch(e){return d;} };\nconst isoDate = (d) => { try { return new Date(d).toISOString(); } catch(e){return d;} };\n\n// Determine article number\nconst register = article_register || [];\nconst num = register.findIndex(r => r.slug === slug) + 1 || 1;\n\n// Site-specific styling tokens\nconst STYLES = {\n  sinabariplasticsurgery: { bg:'#faf9f7', accent:'#6b8f6e', font:'Newsreader, Georgia, serif', label:'Education', navBrand:'Dr. Sina Bari, MD', siteName:'Dr. Sina Bari, MD \u2014 Plastic Surgery' },\n  sinabari_net:  { bg:'#0f1117', accent:'#4db6ac', font:'Inter, sans-serif', label:'Analysis', navBrand:'Sina Bari', siteName:'Sina Bari \u2014 Healthcare AI' },\n  sinabarimd:    { bg:'#efeeeb', accent:'#001a2b', font:'Cormorant Garamond, Georgia, serif', label:'Publication', navBrand:'Sina Bari, MD', siteName:'Sina Bari, MD' },\n  drsinabari:    { bg:'#fefefe', accent:'#1a1a1a', font:'Lora, Georgia, serif', label:'Essay', navBrand:'Dr. Sina Bari', siteName:'Dr. Sina Bari' },\n};\n\n// Per-site author byline blurbs\nconst AUTHOR_BIOS = {\n  sinabarimd: 'Dr. Sina Bari, MD is a plastic and reconstructive surgeon and medical executive. Stanford-trained physician dedicated to advancing healthcare through clinical excellence and strategic leadership.',\n  sinabari_net: 'Dr. Sina Bari, MD is a physician-technologist and healthcare AI executive. Stanford-trained physician specializing in the intersection of clinical medicine and technology.',\n  sinabariplasticsurgery: 'Dr. Sina Bari, MD is a plastic and reconstructive surgeon trained at Stanford, specializing in aesthetic and reconstructive procedures.',\n  drsinabari: 'Dr. Sina Bari is a physician, writer, and medical executive exploring the intersection of medicine, technology, and society.',\n};\n\n// Per-site credential context for byline header\nconst AUTHOR_CREDENTIALS = {\n  sinabarimd: 'Plastic & Reconstructive Surgeon | Medical Executive | Stanford Medicine',\n  sinabari_net: 'Physician-Technologist | Healthcare AI Executive | Stanford Medicine',\n  sinabariplasticsurgery: 'Plastic & Reconstructive Surgeon | Stanford-trained | California',\n  drsinabari: 'Physician | Writer | Medical Executive | Stanford Medicine',\n};\n\n// Cross-site links (exclude current site)\nconst SITE_LINKS = {\n  sinabarimd: { url: 'https://sinabarimd.com', label: 'Dr. Sina Bari, MD' },\n  sinabari_net: { url: 'https://sinabari.net', label: 'Healthcare AI Analysis' },\n  drsinabari: { url: 'https://drsinabari.com', label: 'Essays & Editorial' },\n  sinabariplasticsurgery: { url: 'https://sinabariplasticsurgery.com', label: 'Surgical Education' },\n};\n\nconst s = STYLES[site_id] || STYLES.sinabariplasticsurgery;\nconst isDark = site_id === 'sinabari_net';\nconst textColor = isDark ? '#e0e0e0' : '#1c1b1f';\nconst mutedColor = isDark ? '#aaa' : '#555';\n\n// Per-site article @type\nconst articleType = site_id === 'sinabariplasticsurgery' ? 'MedicalWebPage' : 'Article';\nconst authorName = a.author || 'Dr. Sina Bari, MD';\n\n// \u2500\u2500 Extract FAQ pairs from content_html \u2500\u2500\nconst faqPairs = [];\nconst faqPatterns = [\n  /<p>\\s*<strong>([^<]+\\?)\\s*<\\/strong>\\s*(?:<br\\s*\\/?>)?\\s*([\\s\\S]*?)<\\/p>/gi,\n  /<h3>([^<]+\\?)\\s*<\\/h3>\\s*<p>([\\s\\S]*?)<\\/p>/gi,\n];\nconst contentHtml = a.content_html || '';\nfor (const pattern of faqPatterns) {\n  let match;\n  while ((match = pattern.exec(contentHtml)) !== null) {\n    const question = match[1].trim();\n    const answer = match[2].replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n    if (question && answer && !faqPairs.find(f => f.q === question)) {\n      faqPairs.push({ q: question, a: answer });\n    }\n  }\n}\n\n// \u2500\u2500 Build Article schema (enhanced with reviewedBy + lastReviewed) \u2500\u2500\nconst publishDate = isoDate(a.date);\nconst schema = {\n  \"@context\": \"https://schema.org\",\n  \"@type\": articleType,\n  \"@id\": `${live_url}/articles/${slug}.html#article`,\n  \"headline\": a.title,\n  \"description\": a.excerpt,\n  \"datePublished\": publishDate,\n  \"dateModified\": publishDate,\n  \"dateReviewed\": publishDate,\n  \"url\": `${live_url}/articles/${slug}.html`,\n  \"inLanguage\": \"en-US\",\n  \"mainEntityOfPage\": {\n    \"@type\": \"WebPage\",\n    \"@id\": `${live_url}/articles/${slug}.html`\n  },\n  \"isPartOf\": {\n    \"@type\": \"WebSite\",\n    \"@id\": `${live_url}/#website`,\n    \"name\": s.siteName\n  },\n  \"author\": {\n    \"@type\": \"Person\",\n    \"@id\": \"https://sinabarimd.com/#sinabari\",\n    \"name\": authorName,\n    \"url\": \"https://sinabarimd.com/about\",\n    \"qualifications\": \"MD\",\n    \"alumniOf\": { \"@type\": \"EducationalOrganization\", \"name\": \"Stanford University School of Medicine\" }\n  },\n  \"publisher\": {\n    \"@type\": \"Person\",\n    \"@id\": \"https://sinabarimd.com/#sinabari\",\n    \"name\": \"Dr. Sina Bari, MD\",\n    \"url\": \"https://sinabarimd.com/about\"\n  },\n  \"reviewedBy\": {\n    \"@type\": \"Person\",\n    \"@id\": \"https://sinabarimd.com/#sinabari\",\n    \"name\": \"Dr. Sina Bari, MD\",\n    \"qualifications\": \"MD\"\n  }\n};\n\n// \u2500\u2500 Build FAQPage schema if FAQ pairs found \u2500\u2500\nlet faqSchemaBlock = '';\nif (faqPairs.length >= 2) {\n  const faqSchema = {\n    \"@context\": \"https://schema.org\",\n    \"@type\": \"FAQPage\",\n    \"mainEntity\": faqPairs.map(f => ({\n      \"@type\": \"Question\",\n      \"name\": f.q,\n      \"acceptedAnswer\": {\n        \"@type\": \"Answer\",\n        \"text\": f.a\n      }\n    }))\n  };\n  faqSchemaBlock = `\\n  <script type=\"application/ld+json\">\\n  ${JSON.stringify(faqSchema, null, 2)}\\n  </script>`;\n}\n\n// \u2500\u2500 Build cross-site links (exclude current) \u2500\u2500\nconst crossLinks = Object.entries(SITE_LINKS)\n  .filter(([id]) => id !== site_id)\n  .map(([id, info]) => `<a href=\"${info.url}\" style=\"font-size:0.75rem;color:${mutedColor};text-decoration:none;border-bottom:1px solid ${s.accent}22;padding-bottom:2px;\">${info.label}</a>`)\n  .join('<span style=\"margin:0 0.75rem;color:' + s.accent + '33;\">|</span>');\n\nconst articlePageHtml = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\"/>\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n  <title>${a.title} | ${s.navBrand}</title>\n  <meta name=\"description\" content=\"${a.excerpt}\"/>\n  <meta name=\"author\" content=\"${authorName}\"/>\n  <meta name=\"robots\" content=\"index, follow\"/>\n  <link rel=\"canonical\" href=\"${live_url}/articles/${slug}.html\"/>\n  <meta property=\"og:type\" content=\"article\"/>\n  <meta property=\"og:title\" content=\"${a.title}\"/>\n  <meta property=\"og:description\" content=\"${a.excerpt}\"/>\n  <meta property=\"og:url\" content=\"${live_url}/articles/${slug}.html\"/>\n  <meta property=\"og:site_name\" content=\"${s.siteName}\"/>\n  <meta property=\"article:published_time\" content=\"${publishDate}\"/>\n  <meta property=\"article:author\" content=\"https://sinabarimd.com/about\"/>\n  <meta name=\"twitter:card\" content=\"summary\"/>\n  <meta name=\"twitter:title\" content=\"${a.title}\"/>\n  <meta name=\"twitter:description\" content=\"${a.excerpt}\"/>\n  <script src=\"https://cdn.tailwindcss.com?plugins=forms,container-queries\"></script>\n  <link href=\"https://fonts.googleapis.com/css2?family=${s.font.split(',')[0].trim().replace(/ /,'+')}:ital,wght@0,400;0,700;1,400&display=swap\" rel=\"stylesheet\"/>\n  <link href=\"https://fonts.googleapis.com/icon?family=Material+Icons+Outlined\" rel=\"stylesheet\"/>\n  <style>\n    body { background: ${s.bg}; color: ${textColor}; font-family: ${s.font}; }\n    .article-prose h2 { font-family: ${s.font}; font-size: 1.875rem; line-height: 1.25; margin-top: 3rem; margin-bottom: 1rem; color: ${textColor}; }\n    .article-prose h3 { font-family: ${s.font}; font-size: 1.375rem; line-height: 1.3; margin-top: 2rem; margin-bottom: 0.75rem; color: ${textColor}; }\n    .article-prose p  { font-size: 1.125rem; line-height: 1.85; margin-bottom: 1.5rem; color: ${mutedColor}; }\n    .article-prose a  { color: ${s.accent}; border-bottom: 1px solid ${s.accent}; text-decoration: none; }\n    .article-prose a:hover { opacity: 0.7; }\n    .article-prose em { font-style: italic; font-size: 0.9rem; color: ${mutedColor}; }\n    .accent { color: ${s.accent}; }\n    .accent-border { border-color: ${s.accent}; }\n    .accent-bg { background: ${s.accent}; }\n  </style>\n  <script type=\"application/ld+json\">\n  ${JSON.stringify(schema, null, 2)}\n  </script>${faqSchemaBlock}\n</head>\n<body>\n  <nav style=\"background:${s.bg};border-bottom:1px solid ${s.accent}22;position:fixed;top:0;left:0;right:0;z-index:50;backdrop-filter:blur(8px);\">\n    <div style=\"max-width:1200px;margin:0 auto;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;\">\n      <a href=\"/\" style=\"font-family:${s.font};font-size:1.1rem;color:${textColor};text-decoration:none;font-weight:600;\">${s.navBrand}</a>\n      <a href=\"/articles/\" style=\"font-size:0.7rem;letter-spacing:0.15em;text-transform:uppercase;color:${mutedColor};text-decoration:none;\">\\u2190 Journal</a>\n    </div>\n  </nav>\n\n  <header style=\"max-width:820px;margin:0 auto;padding:8rem 1.5rem 3rem;\">\n    <div style=\"margin-bottom:1.5rem;\">\n      <span style=\"font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:${s.accent};\">${s.label} / 00${num}</span>\n    </div>\n    <h1 style=\"font-family:${s.font};font-size:clamp(2rem,5vw,3.5rem);line-height:1.2;margin-bottom:1.5rem;color:${textColor};\">${a.title}</h1>\n    <p style=\"font-size:1.2rem;line-height:1.7;color:${mutedColor};margin-bottom:2.5rem;max-width:600px;\">${a.excerpt}</p>\n    <div style=\"display:flex;flex-wrap:wrap;align-items:center;gap:2rem;border-top:1px solid ${s.accent}33;padding-top:2rem;\">\n      <div>\n        <p style=\"font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:${mutedColor};margin-bottom:0.25rem;\">Author</p>\n        <a href=\"https://sinabarimd.com/about\" style=\"font-family:${s.font};font-size:1.1rem;color:${textColor};text-decoration:none;\">${authorName}</a>\n        <p style=\"font-size:0.75rem;color:${mutedColor};margin:0.25rem 0 0 0;\">${AUTHOR_CREDENTIALS[site_id] || AUTHOR_CREDENTIALS.sinabarimd}</p>\n      </div>\n      <div style=\"width:1px;height:2rem;background:${s.accent}33;\"></div>\n      <div>\n        <p style=\"font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:${mutedColor};margin-bottom:0.25rem;\">Published</p>\n        <p style=\"font-family:${s.font};font-size:1.1rem;color:${textColor};margin:0;\">${fmt(a.date)}</p>\n      </div>\n      <div style=\"width:1px;height:2rem;background:${s.accent}33;\"></div>\n      <div>\n        <p style=\"font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:${mutedColor};margin-bottom:0.25rem;\">Reviewed</p>\n        <p style=\"font-family:${s.font};font-size:0.9rem;color:${textColor};margin:0;\">${fmt(a.date)}</p>\n      </div>\n    </div>\n  </header>\n\n  <main style=\"max-width:820px;margin:0 auto;padding:0 1.5rem 6rem;\">\n    <div class=\"article-prose\">${a.content_html}</div>\n  </main>\n\n  <aside style=\"max-width:820px;margin:0 auto;padding:0 1.5rem 3rem;\">\n    <div style=\"border-top:1px solid ${s.accent}22;padding-top:2rem;display:flex;gap:1.25rem;align-items:flex-start;\">\n      <div style=\"min-width:48px;width:48px;height:48px;border-radius:50%;background:${s.accent}15;display:flex;align-items:center;justify-content:center;\">\n        <span style=\"font-family:${s.font};font-size:1.1rem;font-weight:600;color:${s.accent};\">SB</span>\n      </div>\n      <div>\n        <a href=\"https://sinabarimd.com/about\" style=\"font-family:${s.font};font-size:1.05rem;font-weight:600;color:${textColor};text-decoration:none;\">Dr. Sina Bari, MD</a>\n        <p style=\"font-size:0.75rem;color:${mutedColor};margin:0.15rem 0 0.35rem 0;\">${AUTHOR_CREDENTIALS[site_id] || AUTHOR_CREDENTIALS.sinabarimd}</p>\n        <p style=\"font-size:0.85rem;line-height:1.6;color:${mutedColor};margin-top:0.35rem;margin-bottom:0;\">${AUTHOR_BIOS[site_id] || AUTHOR_BIOS.sinabarimd}</p>\n      </div>\n    </div>\n  </aside>\n\n  <footer style=\"border-top:1px solid ${s.accent}22;padding:3rem 1.5rem;\">\n    <div style=\"max-width:1200px;margin:0 auto;\">\n      <div style=\"display:flex;flex-wrap:wrap;justify-content:center;gap:0;margin-bottom:2rem;\">\n        ${crossLinks}\n      </div>\n      <div style=\"display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:1rem;\">\n        <p style=\"font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:${mutedColor};\">${s.navBrand} &mdash; ${domain}</p>\n        <a href=\"https://sinabarimd.com\" style=\"font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:${s.accent};text-decoration:none;\">sinabarimd.com</a>\n      </div>\n    </div>\n  </footer>\n</body>\n</html>`;\n\nreturn [{ json: { ...$json, article_page_html: articlePageHtml, article_slug: slug, faq_count: faqPairs.length } }];\n"
+        }
+      },
+      {
+        "id": "4a5354e2-7a46-4d6a-8034-90326ffadf44",
+        "name": "QA Check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1680,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const { updated_html, article_page_html, site_id, article, section } = $json;\nconst errors = [];\nconst warnings = [];\nconst slug = $json.article_slug;\n\nif (!updated_html.includes(`PIPELINE:START:${section}`)) errors.push('PIPELINE start marker missing from homepage');\nif (!updated_html.includes(`PIPELINE:END:${section}`)) errors.push('PIPELINE end marker missing from homepage');\nif (!updated_html.includes(slug)) errors.push(`Article slug not found in homepage: ${slug}`);\nif (!article_page_html.includes(article.title)) errors.push('Title missing from article page');\nif (site_id !== 'sinabarimd' && !article_page_html.includes('sinabarimd.com')) errors.push('Missing sinabarimd.com link in article page');\n\n// Outbound source link check (warning, not blocker)\nconst externalLinkPattern = /href=[\"']https?:\\/\\/(?!sinabarimd\\.com|sinabari\\.net|sinabariplasticsurgery\\.com|drsinabari\\.com)[^\"']+[\"']/gi;\nconst externalLinks = (article_page_html || '').match(externalLinkPattern) || [];\nif (externalLinks.length === 0) {\n  warnings.push('No outbound source links found in article. Articles should include 2-3 external authority links for E-E-A-T signals.');\n}\n\nif (errors.length > 0) throw new Error(`QA failed: ${errors.join('; ')}`);\nreturn [{ json: { ...$json, qa_passed: true, qa_warnings: warnings, outbound_link_count: externalLinks.length } }];"
+        }
+      },
+      {
+        "id": "9ce3c610-18b2-4414-85f9-b56cd554ed5b",
+        "name": "Build Deploy Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1920,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const { site_id, domain, deploy_path, live_url, updated_html, article_page_html, article_slug, articles_index_html, styles_css, article_register } = $json;\n\nconst files = [\n  { path: 'index.html', content: updated_html },\n  { path: `articles/${article_slug}.html`, content: article_page_html },\n  { path: 'articles/index.html', content: articles_index_html },\n];\n\n// CRITICAL: Fetch ALL existing article pages to preserve them during full-sync deploy\nconst existingArticles = article_register || [];\nfor (const article of existingArticles) {\n  if (article.slug && article.slug !== article_slug) {\n    try {\n      const existingPage = await this.helpers.httpRequest({\n        method: 'GET',\n        url: `${live_url}/articles/${article.slug}.html`,\n        returnFullResponse: true,\n        encoding: 'utf-8',\n        timeout: 10000,\n      });\n      if (existingPage && existingPage.body && existingPage.body.length > 500 && existingPage.statusCode === 200) {\n        files.push({ path: `articles/${article.slug}.html`, content: existingPage.body });\n      }\n    } catch (e) {\n      // Article may not exist yet \u2014 skip silently\n    }\n  }\n}\nif (styles_css && styles_css.length > 10) {\n  files.push({ path: 'styles.css', content: styles_css });\n}\n\n// Generate sitemap from register\nconst today = new Date().toISOString().split('T')[0];\nconst register = article_register || [];\nconst SITE_PAGES = {\n  sinabarimd: ['/', '/about.html', '/press.html', '/articles/'],\n  sinabari_net: ['/', '/articles/'],\n  sinabariplasticsurgery: ['/', '/articles/'],\n};\nconst staticPages = SITE_PAGES[site_id] || ['/', '/articles/'];\n\nlet sitemap = '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\\n';\nfor (const p of staticPages) {\n  const pri = p === '/' ? '1.0' : '0.8';\n  sitemap += `  <url><loc>${live_url}${p}</loc><lastmod>${today}</lastmod><priority>${pri}</priority></url>\\n`;\n}\nfor (const a of register) {\n  if (a.slug) sitemap += `  <url><loc>${live_url}/articles/${a.slug}.html</loc><lastmod>${a.date || today}</lastmod><priority>0.8</priority></url>\\n`;\n}\nsitemap += '</urlset>';\nfiles.push({ path: 'sitemap.xml', content: sitemap });\nfiles.push({ path: 'robots.txt', content: `User-agent: *\\nAllow: /\\n\\nSitemap: ${live_url}/sitemap.xml\\n` });\n\n// For sinabarimd.com: preserve dashboard, about, press pages\nif (site_id === 'sinabarimd') {\n  const extraPaths = ['dashboard.html', 'about.html', 'press.html'];\n  for (const ep of extraPaths) {\n    try {\n      const resp = await this.helpers.httpRequest({\n        method: 'GET',\n        url: `${live_url}/${ep}`,\n        returnFullResponse: true,\n        encoding: 'utf-8',\n      });\n      if (resp && resp.body && resp.body.length > 100) {\n        files.push({ path: ep, content: resp.body });\n      }\n    } catch (e) {\n      // File might not exist \u2014 skip silently\n    }\n  }\n}\n\n\n// For sinabarimd.com: include ALL spotlight articles (current + history)\nif (site_id === 'sinabarimd') {\n  try {\n    const spotlightResp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://n8n.sinabarimd.com/webhook/spotlight',\n      returnFullResponse: true,\n      encoding: 'utf-8',\n      timeout: 5000,\n    });\n    const spotlightData = typeof spotlightResp.body === 'string' ? JSON.parse(spotlightResp.body) : spotlightResp.body;\n    // Current spotlight\n    if (spotlightData?.spotlight?.article_html && spotlightData.spotlight.article_path) {\n      const sp = spotlightData.spotlight;\n      files.push({ path: sp.article_path, content: sp.article_html });\n      sitemap = sitemap.replace('</urlset>', `  <url><loc>${live_url}/${sp.article_path}</loc><lastmod>${sp.publish_date || today}</lastmod><priority>0.9</priority></url>\\n</urlset>`);\n    }\n    // Historical spotlights\n    for (const h of (spotlightData.history || [])) {\n      if (h.article_html && h.slug) {\n        const hPath = 'articles/' + h.slug + '.html';\n        if (!files.some(f => f.path === hPath)) {\n          files.push({ path: hPath, content: h.article_html });\n          sitemap = sitemap.replace('</urlset>', `  <url><loc>${live_url}/${hPath}</loc><lastmod>${h.publish_date || today}</lastmod><priority>0.8</priority></url>\\n</urlset>`);\n        }\n      }\n    }\n    // Update sitemap in files\n    const smIdx = files.findIndex(f => f.path === 'sitemap.xml');\n    if (smIdx >= 0) files[smIdx].content = sitemap;\n  } catch (e) {\n    // Spotlight not set or fetch failed\n  }\n}\n\nconst deploy_payload = {\n  domain, deployPath: deploy_path, verifyUrl: live_url,\n  release_id: `rel_${Date.now()}`,\n  files,\n};\nreturn [{ json: { ...$json, deploy_payload, deploy_payload_str: JSON.stringify(deploy_payload) } }];"
+        }
+      },
+      {
+        "id": "fc0d54e8-aa92-4e45-96b2-20e099cc99c7",
+        "name": "Deploy Files",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2160,
+          350
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://n8n.sinabarimd.com/webhook/deploy-files",
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.deploy_payload_str }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "4cc8f6d9-a7c9-4130-8fac-9a15eb76f45e",
+        "name": "Log Publish to Orchestrator",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2400,
+          350
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://n8n.sinabarimd.com/webhook/log-publish",
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ site_id: $('Extract Publish Fields').first().json.site_id, publish_date: new Date().toISOString().split('T')[0] }) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "8fd4f5dd-d27a-4f04-a25f-d083b0542efd",
+        "name": "Respond to Publisher",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          2640,
+          350
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ success: true, site_id: $('Extract Publish Fields').first().json.site_id, article_title: $('Extract Publish Fields').first().json.article.title, article_url: $('Extract Publish Fields').first().json.live_url + '/articles/' + $('Generate Article Page').first().json.article_slug + '.html', published_at: new Date().toISOString() }) }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "5ae79484-2d59-4c21-a08b-b92a0f6c1427",
+        "name": "Fetch Full Draft",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          120,
+          350
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://n8n.sinabarimd.com/webhook/get-draft",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "draft_id",
+                "value": "={{ $json.body?.draft_id || $json.draft_id }}"
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "a5497bf8-502b-4fd4-a767-2597c72045a1",
+        "name": "Generate Articles Index",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1640,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const { site_id, domain, article_register } = $json;\n\n// Per-site design tokens (same as Generate Article Page)\nconst TOKENS = {\n  sinabarimd:           { bg: '#0f172a', accent: '#6366f1', font: 'Inter', label: 'Writing' },\n  sinabari_net:         { bg: '#0f172a', accent: '#3b82f6', font: 'Inter', label: 'Analysis' },\n  drsinabari:           { bg: '#1a1a1a', accent: '#d4a853', font: 'Georgia', label: 'Essays' },\n  sinabariplasticsurgery: { bg: '#1a1a1a', accent: '#c8a97e', font: 'Inter', label: 'Journal' },\n};\nconst t = TOKENS[site_id] || TOKENS['sinabarimd'];\n\n// Per-site section labels\nconst SECTION_LABELS = {\n  sinabarimd: 'Writing',\n  sinabari_net: 'Analysis',\n  drsinabari: 'Essays',\n  sinabariplasticsurgery: 'Journal',\n};\nconst sectionLabel = SECTION_LABELS[site_id] || 'Articles';\n\n// Merge pinned spotlight articles (permanent, not subject to rotation)\nconst pinned = $json.pinned_articles || [];\nconst articles = [...(article_register || []), ...pinned];\n\nfunction articleCard(a, index) {\n  const badge = index === 0 ? `<span style=\"display:inline-block;background:${t.accent};color:#fff;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 10px;border-radius:3px;margin-bottom:12px;\">Latest</span><br>` : '';\n  return `\n    <article style=\"border-bottom:1px solid rgba(255,255,255,0.08);padding:32px 0;${index===0?'padding-top:0':''}\">\n      ${badge}\n      <p style=\"color:${t.accent};font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin:0 0 10px;\">${a.date || ''}</p>\n      <h2 style=\"font-family:'${t.font}',sans-serif;font-size:22px;font-weight:700;color:#f1f5f9;margin:0 0 12px;line-height:1.35;\">\n        <a href=\"${a.url}\" style=\"color:inherit;text-decoration:none;\">${a.title}</a>\n      </h2>\n      <p style=\"color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 16px;\">${a.excerpt || ''}</p>\n      <a href=\"${a.url}\" style=\"color:${t.accent};font-size:14px;font-weight:600;text-decoration:none;letter-spacing:.02em;\">Read article \u2192</a>\n    </article>`;\n}\n\nconst articleCards = articles.length > 0\n  ? articles.map((a, i) => articleCard(a, i)).join('\\n')\n  : `<p style=\"color:#64748b;font-size:16px;padding:48px 0;\">No articles published yet.</p>`;\n\nconst indexHtml = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>${sectionLabel} | Dr. Sina Bari, MD</title>\n<meta name=\"description\" content=\"Articles and analysis by Dr. Sina Bari, MD\">\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link href=\"https://fonts.googleapis.com/css2?family=${t.font.replace(' ','+')}:wght@400;600;700&display=swap\" rel=\"stylesheet\">\n</head>\n<body style=\"margin:0;padding:0;background:${t.bg};color:#f1f5f9;font-family:'${t.font}',sans-serif;min-height:100vh;\">\n\n<!-- Nav -->\n<nav style=\"border-bottom:1px solid rgba(255,255,255,0.08);padding:20px 0;\">\n  <div style=\"max-width:720px;margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;align-items:center;\">\n    <a href=\"/\" style=\"color:#f1f5f9;text-decoration:none;font-size:15px;font-weight:600;letter-spacing:-.01em;\">Dr. Sina Bari, MD</a>\n    <a href=\"https://sinabarimd.com\" style=\"color:#94a3b8;text-decoration:none;font-size:13px;\">sinabarimd.com</a>\n  </div>\n</nav>\n\n<!-- Header -->\n<header style=\"padding:64px 24px 48px;max-width:720px;margin:0 auto;\">\n  <p style=\"color:${t.accent};font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;margin:0 0 16px;\">${sectionLabel}</p>\n  <h1 style=\"font-size:36px;font-weight:700;color:#f1f5f9;margin:0;line-height:1.2;letter-spacing:-.02em;\">All Articles</h1>\n</header>\n\n<!-- Article list -->\n<main style=\"max-width:720px;margin:0 auto;padding:0 24px 80px;\">\n  ${articleCards}\n</main>\n\n<!-- Footer -->\n<footer style=\"border-top:1px solid rgba(255,255,255,0.08);padding:32px 24px;max-width:720px;margin:0 auto;\">\n  <p style=\"color:#475569;font-size:13px;margin:0;\">\n    Dr. Sina Bari, MD \u00b7 <a href=\"https://sinabarimd.com\" style=\"color:#475569;\">sinabarimd.com</a>\n  </p>\n</footer>\n\n</body>\n</html>`;\n\nreturn [{ json: { ...$json, articles_index_html: indexHtml } }];"
+        }
+      },
+      {
+        "id": "8504d3a9-1301-432c-afc2-514bf378d136",
+        "name": "Fetch Styles CSS",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1200,
+          350
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $('Replace PIPELINE Section').first().json.live_url }}/styles.css",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            },
+            "redirect": {
+              "redirect": {
+                "followRedirects": true
+              }
+            }
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "70feedd9-70ce-4294-b83d-950e194200a0",
+        "name": "Attach Styles CSS",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1320,
+          350
+        ],
+        "parameters": {
+          "jsCode": "const ctx = $('Replace PIPELINE Section').first().json;\nconst styles_css = ($json.data && typeof $json.data === 'string') ? $json.data : '';\nreturn [{ json: { ...ctx, styles_css } }];"
+        }
+      },
+      {
+        "id": "trigger-qa-check-001",
+        "name": "Trigger QA Check",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2650,
+          350
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://n8n.sinabarimd.com/webhook/qa-check",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ site_id: $('Extract Publish Fields').first().json.site_id, article_url: 'https://' + $('Extract Publish Fields').first().json.domain + '/articles/' + $('Extract Publish Fields').first().json.article.slug + '.html', source: 'publisher' }) }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 30000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "mark-published",
+        "name": "Mark Draft Published",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2900,
+          350
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://n8n.sinabarimd.com/webhook/update-draft",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ draft_id: $('Extract Publish Fields').first().json.draft_id, status: 'published' }) }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 10000
+          }
+        },
+        "onError": "continueRegularOutput"
+      }
+    ],
+    "connections": {
+      "Approve Draft Webhook": {
+        "main": [
+          [
+            {
+              "node": "Mark Draft Approved",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Publish Draft Webhook": {
+        "main": [
+          [
+            {
+              "node": "Fetch Full Draft",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Manual Trigger": {
+        "main": [
+          [
+            {
+              "node": "Extract Publish Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Publish Fields": {
+        "main": [
+          [
+            {
+              "node": "Fetch Current Live Page",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Current Live Page": {
+        "main": [
+          [
+            {
+              "node": "Update Article Register",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Article Register": {
+        "main": [
+          [
+            {
+              "node": "Render Featured Section",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Render Featured Section": {
+        "main": [
+          [
+            {
+              "node": "Replace PIPELINE Section",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Replace PIPELINE Section": {
+        "main": [
+          [
+            {
+              "node": "Fetch Styles CSS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Generate Article Page": {
+        "main": [
+          [
+            {
+              "node": "Generate Articles Index",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "QA Check": {
+        "main": [
+          [
+            {
+              "node": "Build Deploy Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Deploy Payload": {
+        "main": [
+          [
+            {
+              "node": "Deploy Files",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Deploy Files": {
+        "main": [
+          [
+            {
+              "node": "Log Publish to Orchestrator",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Log Publish to Orchestrator": {
+        "main": [
+          [
+            {
+              "node": "Trigger QA Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Full Draft": {
+        "main": [
+          [
+            {
+              "node": "Extract Publish Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Generate Articles Index": {
+        "main": [
+          [
+            {
+              "node": "QA Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Styles CSS": {
+        "main": [
+          [
+            {
+              "node": "Attach Styles CSS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Attach Styles CSS": {
+        "main": [
+          [
+            {
+              "node": "Generate Article Page",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Trigger QA Check": {
+        "main": [
+          [
+            {
+              "node": "Mark Draft Published",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Mark Draft Published": {
+        "main": [
+          [
+            {
+              "node": "Respond to Publisher",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Sina Bari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-27T18:55:23.875Z",
+        "id": 6,
+        "workflowId": "1l2mzI2FBoMUBCFX",
+        "versionId": "928b47b9-e348-4994-8d52-8a2a825bc06e",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    ]
+  }
 }

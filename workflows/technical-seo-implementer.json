@@ -1,7 +1,5 @@
 {
-  "updatedAt": "2026-03-26T20:13:59.324Z",
-  "createdAt": "2026-03-26T19:19:46.965Z",
-  "id": "1m5QjQ2KsF9Q6s6U",
+  "id": "knBiNIsXRIOLM8iR",
   "name": "Reputation Engine \u2014 Technical SEO Implementer",
   "description": null,
   "active": false,
@@ -574,5 +572,29 @@
     "availableInMCP": false
   },
   "meta": null,
-  "tags": []
+  "pinData": null,
+  "activeVersionId": null,
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-04-27T18:53:37.404Z",
+      "createdAt": "2026-04-27T18:53:37.404Z",
+      "role": "workflow:owner",
+      "workflowId": "knBiNIsXRIOLM8iR",
+      "projectId": "9sJSA5GTLSjQcRNk",
+      "project": {
+        "updatedAt": "2026-03-20T18:09:16.655Z",
+        "createdAt": "2026-03-20T00:15:30.157Z",
+        "id": "9sJSA5GTLSjQcRNk",
+        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
 }

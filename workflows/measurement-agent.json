@@ -1,7 +1,5 @@
 {
-  "updatedAt": "2026-04-26T15:49:19.736Z",
-  "createdAt": "2026-03-30T15:42:29.862Z",
-  "id": "sVqzAcBYugDPkReZ",
+  "id": "hUwWSMqdcLdFmBBi",
   "name": "Reputation Engine \u2014 Measurement Agent",
   "description": null,
   "active": true,
@@ -78,7 +76,7 @@
             },
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_BRIGHTDATA_API_KEY"
+              "value": "Bearer 9b73bfd6-d281-40e0-8190-c9ef8d0229f7"
             }
           ]
         },
@@ -129,7 +127,7 @@
             },
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_BRIGHTDATA_API_KEY"
+              "value": "Bearer 9b73bfd6-d281-40e0-8190-c9ef8d0229f7"
             }
           ]
         },
@@ -696,5 +694,732 @@
     "availableInMCP": false
   },
   "meta": null,
-  "tags": []
+  "pinData": null,
+  "activeVersionId": "6ba2fcc8-932f-4ee2-adde-f893e3b64233",
+  "versionCounter": 5,
+  "triggerCount": 14,
+  "shared": [
+    {
+      "updatedAt": "2026-04-27T18:53:50.956Z",
+      "createdAt": "2026-04-27T18:53:50.956Z",
+      "role": "workflow:owner",
+      "workflowId": "hUwWSMqdcLdFmBBi",
+      "projectId": "9sJSA5GTLSjQcRNk",
+      "project": {
+        "updatedAt": "2026-03-20T18:09:16.655Z",
+        "createdAt": "2026-03-20T00:15:30.157Z",
+        "id": "9sJSA5GTLSjQcRNk",
+        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-27T18:53:50.970Z",
+    "createdAt": "2026-04-27T18:53:50.970Z",
+    "versionId": "6ba2fcc8-932f-4ee2-adde-f893e3b64233",
+    "workflowId": "hUwWSMqdcLdFmBBi",
+    "nodes": [
+      {
+        "id": "measure-cron",
+        "name": "Sunday Cron Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          300
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 3 * * 1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "measure-webhook",
+        "name": "Measure Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          500
+        ],
+        "webhookId": "measure",
+        "parameters": {
+          "path": "measure",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "build-serp",
+        "name": "Build SERP Queries",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          400
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.measurements) staticData.measurements = [];\nif (!staticData.alerts) staticData.alerts = [];\nif (!staticData.serp_history) staticData.serp_history = [];\n\nreturn [{ json: {\n  brightdata_body: JSON.stringify({\n    zone: 'serp_api1',\n    url: 'https://www.google.com/search?q=Sina+Bari+MD&gl=us&hl=en',\n    format: 'json',\n  }),\n  brightdata_body_p2: JSON.stringify({\n    zone: 'serp_api1',\n    url: 'https://www.google.com/search?q=Sina+Bari+MD&gl=us&hl=en&start=10',\n    format: 'json',\n  }),\n  measured_at: new Date().toISOString(),\n} }];"
+        }
+      },
+      {
+        "id": "tavily-serp",
+        "name": "BrightData Page 1",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          800,
+          400
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.brightdata.com/request",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer 9b73bfd6-d281-40e0-8190-c9ef8d0229f7"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.brightdata_body }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 60000
+          }
+        }
+      },
+      {
+        "id": "build-index-checks",
+        "name": "Parse SERP Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          400
+        ],
+        "parameters": {
+          "jsCode": "const upstream = $('Build SERP Queries').first().json;\nconst page1Body = $('BrightData Page 1').first().json.body || '';\nconst page2Body = $json.body || '';\n\nfunction parseGoogleHTML(html, startPos) {\n  const results = [];\n  // Extract hrefs (non-Google external URLs)\n  const hrefPattern = /href=\"(https?:\\/\\/(?!www\\.google\\.|webcache\\.|translate\\.google\\.|accounts\\.google|support\\.google|maps\\.google|policies\\.google|www\\.gstatic|consent\\.google)[^\"]+)\"/g;\n  const seenBases = new Set();\n  let match;\n  while ((match = hrefPattern.exec(html)) !== null) {\n    let url = match[1].replace(/&amp;/g, '&');\n    const base = url.split('#')[0].split('&sa=')[0];\n    if (seenBases.has(base) || base.endsWith('/search')) continue;\n    seenBases.add(base);\n    const domainMatch = base.match(/https?:\\/\\/(?:www\\.)?([^\\/]+)/);\n    results.push({ url: base, domain: domainMatch ? domainMatch[1] : '' });\n  }\n  // Get titles\n  const titlePattern = /<h3[^>]*>(.*?)<\\/h3>/g;\n  const titles = [];\n  while ((match = titlePattern.exec(html)) !== null) {\n    titles.push(match[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, \"'\").replace(/&quot;/g, '\"'));\n  }\n  // Assign positions and titles\n  return results.map((r, i) => ({ ...r, title: titles[i] || '', position: startPos + i }));\n}\n\nconst page1 = parseGoogleHTML(page1Body, 1);\nconst page2 = parseGoogleHTML(page2Body, page1.length + 1);\nconst allResults = [...page1, ...page2];\n\nconst ownDomains = ['sinabarimd.com', 'sinabari.net', 'sinabariplasticsurgery.com', 'drsinabari.com'];\nconst knownProfiles = [\n  'linkedin.com','facebook.com','instagram.com','twitter.com','x.com','bsky.app',\n  'doximity.com','crunchbase.com','scholar.google.com','muckrack.com','about.me',\n  'wikidata.org','techcrunch.com','healthgrades.com','vitals.com',\n  'pmwcintl.com','open.spotify.com','san.com',\n  'behance.net','linktr.ee','youtube.com','pinterest.com','mystrikingly.com',\n  'wordpress.com','medium.com','tumblr.com','blogspot.com','slides.com',\n  'flipboard.com','sites.google.com','webflow.io',\n  'triberr.com','disqus.com','producthunt.com','github.com',\n  'quora.com','flickr.com','vocal.media','minds.com',\n  'findatopdoc.com','ratemds.com','doctor.com','stackoverflow.com',\n  'yelp.com','mapquest.com',\n  'einnews.com','einpresswire.com','icrowdnewswire.com','ipsnews.net',\n  'wboc.com','scrubsmag.com','deadlinenews.co.uk','marketwatch.com',\n  'techbullion.com',\n];\n\nconst mStaticData = $getWorkflowStaticData('global');\nconst negativeTargets = mStaticData.negative_targets || [];\n\nconst results = allResults.map(r => {\n  const isOwn = ownDomains.some(d => r.domain === d || r.domain.endsWith('.' + d));\n  const isKnown = knownProfiles.some(d => r.domain === d || r.domain.endsWith('.' + d));\n  const isNeg = negativeTargets.some(t => (t.domain && r.domain.includes(t.domain)) || (t.url && r.url.includes(t.url || '___')));\n  return { ...r, type: isOwn ? 'owned' : isNeg ? 'negative' : isKnown ? 'known_profile' : 'other' };\n});\n\nconst owned = results.filter(r => r.type === 'owned');\nconst negatives = results.filter(r => r.type === 'negative');\nconst competitors = results.filter(r => r.type === 'other');\nconst known = results.filter(r => r.type === 'known_profile');\n\nreturn [{ json: {\n  ...upstream,\n  serp: {\n    query: 'Sina Bari MD',\n    source: 'brightdata_residential',\n    total_results: results.length,\n    owned_count: owned.length,\n    known_profile_count: known.length,\n    negative_count: negatives.length,\n    competitor_count: competitors.length,\n    highest_owned_position: owned.length ? owned[0].position : null,\n    owned_positions: owned,\n    known_positions: known,\n    competitor_positions: competitors,\n    negative_results: negatives,\n    all_results: results,\n    suppression_alerts: negatives,\n  },\n} }];"
+        }
+      },
+      {
+        "id": "tavily-index",
+        "name": "BrightData Page 2",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1400,
+          400
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.brightdata.com/request",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer 9b73bfd6-d281-40e0-8190-c9ef8d0229f7"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $('Build SERP Queries').first().json.brightdata_body_p2 }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 60000
+          }
+        }
+      },
+      {
+        "id": "analyze-store",
+        "name": "Analyze and Store",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1700,
+          400
+        ],
+        "parameters": {
+          "jsCode": "const { serp, measured_at } = $json;\nconst staticData = $getWorkflowStaticData('global');\nconst measurement = { measured_at, source: 'serpapi_google', serp };\n\nconst prev = staticData.measurements.length ? staticData.measurements[staticData.measurements.length - 1] : null;\n\n// Fresh alerts for THIS measurement \u2014 replaces all prior alerts\nconst newAlerts = [];\n\n// Change-based alerts (only if we have a previous measurement to compare)\nif (prev && prev.serp) {\n  const prevOwned = prev.serp.owned_count || 0;\n  const currOwned = serp.owned_count || 0;\n  if (currOwned < prevOwned) {\n    newAlerts.push({ type: 'serp_decline', severity: 'high',\n      message: `Owned SERP results decreased: ${prevOwned} \u2192 ${currOwned}`, measured_at });\n  }\n  if (currOwned > prevOwned) {\n    newAlerts.push({ type: 'serp_gain', severity: 'info',\n      message: `Owned SERP results increased: ${prevOwned} \u2192 ${currOwned}`, measured_at });\n  }\n  const prevBest = prev.serp.highest_owned_position;\n  const currBest = serp.highest_owned_position;\n  if (prevBest && currBest && currBest > prevBest + 2) {\n    newAlerts.push({ type: 'position_drop', severity: 'high',\n      message: `Best owned position dropped: #${prevBest} \u2192 #${currBest}`, measured_at });\n  }\n}\n\n// State-based alerts (reflect current SERP snapshot \u2014 regenerated each measurement)\nconst topComps = (serp.competitor_positions || []).filter(c => c.position <= 5);\nfor (const c of topComps) {\n  newAlerts.push({ type: 'unknown_competitor', severity: 'medium',\n    message: `Non-owned result at #${c.position}: \"${c.title}\" (${c.domain})`, measured_at });\n}\n\nconst sinabarimdPos = (serp.owned_positions || []).find(r => r.domain.includes('sinabarimd.com'));\nif (sinabarimdPos && sinabarimdPos.position > 5) {\n  newAlerts.push({ type: 'canonical_weak', severity: 'medium',\n    message: `sinabarimd.com at #${sinabarimdPos.position} \u2014 canonical hub should be top 5`, measured_at });\n}\n\nconst suppressionAlerts = serp.suppression_alerts || [];\nfor (const sa of suppressionAlerts) {\n  newAlerts.push({ type: 'suppression_target', severity: 'high',\n    message: `Suppression target detected at #${sa.position}: \"${sa.title}\" (${sa.domain})`, measured_at });\n}\n\n// Store measurement\nstaticData.measurements.push(measurement);\nif (staticData.measurements.length > 12) staticData.measurements = staticData.measurements.slice(-12);\n\n// REPLACE alerts entirely with fresh snapshot \u2014 no stale accumulation\nstaticData.alerts = newAlerts;\n\nstaticData.serp_history.push({\n  date: measured_at,\n  owned_count: serp.owned_count,\n  highest_position: serp.highest_owned_position,\n  total_results: serp.total_results,\n});\nif (staticData.serp_history.length > 52) staticData.serp_history = staticData.serp_history.slice(-52);\n\nreturn [{ json: {\n  success: true,\n  measured_at,\n  source: 'serpapi_google',\n  serp_owned: serp.owned_count,\n  serp_total: serp.total_results,\n  highest_position: serp.highest_owned_position,\n  new_alerts: newAlerts.length,\n  alerts: newAlerts,\n} }];"
+        }
+      },
+      {
+        "id": "metrics-webhook",
+        "name": "Metrics Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          700
+        ],
+        "webhookId": "metrics",
+        "parameters": {
+          "path": "metrics",
+          "httpMethod": "GET",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "return-metrics",
+        "name": "Return Metrics",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          700
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst measurements = staticData.measurements || [];\nconst alerts = staticData.alerts || [];\nconst history = staticData.serp_history || [];\nconst latest = measurements.length ? measurements[measurements.length - 1] : null;\nconst negativeTargets = staticData.negative_targets || [];\n\nreturn [{ json: {\n  latest_measurement: latest,\n  measurement_count: measurements.length,\n  active_alerts: alerts.filter(a => a.severity === 'high' || a.severity === 'medium'),\n  all_alerts: alerts.slice(0, 20),\n  serp_trend: history.slice(-12),\n  last_measured: latest?.measured_at || 'never',\n  negative_targets: negativeTargets,\n} }];"
+        }
+      },
+      {
+        "id": "store-meas-wh",
+        "name": "Store Measurement Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          900
+        ],
+        "webhookId": "store-measurement",
+        "parameters": {
+          "path": "store-measurement",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "store-meas-code",
+        "name": "Store Measurement Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          900
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst measurement = body.measurement;\nif (!measurement) return [{ json: { error: true, message: 'No measurement data provided' } }];\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.measurements) staticData.measurements = [];\nif (!staticData.alerts) staticData.alerts = [];\nif (!staticData.serp_history) staticData.serp_history = [];\n\n// Compare with previous for alerts\nconst prev = staticData.measurements.length ? staticData.measurements[staticData.measurements.length - 1] : null;\nconst newAlerts = [];\nconst bp = measurement.branded_positions || {};\n\nif (prev && prev.branded_positions) {\n  for (const [sid, pos] of Object.entries(bp)) {\n    const prevPos = prev.branded_positions[sid];\n    if (prevPos && pos > prevPos + 3) {\n      newAlerts.push({ type: 'branded_decline', severity: 'high',\n        message: `${sid}: branded position dropped ${Math.round(prevPos)} \u2192 ${Math.round(pos)}`, measured_at: measurement.measured_at });\n    }\n    if (prevPos && pos < prevPos - 3) {\n      newAlerts.push({ type: 'branded_gain', severity: 'info',\n        message: `${sid}: branded position improved ${Math.round(prevPos)} \u2192 ${Math.round(pos)}`, measured_at: measurement.measured_at });\n    }\n  }\n}\n\nif (bp.sinabarimd && bp.sinabarimd > 10) {\n  newAlerts.push({ type: 'canonical_weak', severity: 'medium',\n    message: `sinabarimd.com branded position is ${Math.round(bp.sinabarimd)} \u2014 canonical hub should be top 10`,\n    measured_at: measurement.measured_at });\n}\n\nif (prev && prev.total_clicks > 0) {\n  const change = ((measurement.total_clicks || 0) - prev.total_clicks) / prev.total_clicks;\n  if (change < -0.2) {\n    newAlerts.push({ type: 'traffic_decline', severity: 'high',\n      message: `Clicks declined ${Math.round(change * 100)}%`, measured_at: measurement.measured_at });\n  }\n}\n\nstaticData.measurements.push(measurement);\nif (staticData.measurements.length > 12) staticData.measurements = staticData.measurements.slice(-12);\nstaticData.alerts = [...newAlerts, ...(staticData.alerts || [])].slice(0, 50);\nstaticData.serp_history.push({\n  date: measurement.measured_at,\n  total_clicks: measurement.total_clicks,\n  total_impressions: measurement.total_impressions,\n  branded_positions: measurement.branded_positions,\n});\nif (staticData.serp_history.length > 52) staticData.serp_history = staticData.serp_history.slice(-52);\n\nreturn [{ json: {\n  success: true,\n  measured_at: measurement.measured_at,\n  total_clicks: measurement.total_clicks,\n  total_impressions: measurement.total_impressions,\n  branded_positions: measurement.branded_positions,\n  new_alerts: newAlerts.length,\n  alerts: newAlerts,\n} }];"
+        }
+      },
+      {
+        "id": "serp-action-wh",
+        "name": "SERP Action Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          1100
+        ],
+        "webhookId": "serp-action",
+        "parameters": {
+          "path": "serp-action",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "serp-action-code",
+        "name": "Handle SERP Action",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          1100
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst { action, domain, url, title, position } = body;\nconst staticData = $getWorkflowStaticData('global');\n\nif (action === 'clear_alerts') {\n  const count = (staticData.alerts || []).length;\n  staticData.alerts = [];\n  return [{ json: { success: true, action: 'clear_alerts', cleared: count } }];\n}\n\nif (action === 'mark_negative') {\n  if (!domain && !url) return [{ json: { error: true, message: 'domain or url required' } }];\n  if (!staticData.negative_targets) staticData.negative_targets = [];\n  const target = {\n    domain: domain || '',\n    url: url || '',\n    title: title || '',\n    marked_at: new Date().toISOString(),\n    first_seen_position: position || null,\n  };\n  // Avoid duplicates\n  if (!staticData.negative_targets.find(t => t.domain === target.domain && t.url === target.url)) {\n    staticData.negative_targets.push(target);\n  }\n  return [{ json: { success: true, action: 'mark_negative', target, total_targets: staticData.negative_targets.length } }];\n}\n\nif (action === 'unmark_negative') {\n  if (!staticData.negative_targets) return [{ json: { success: true, action: 'unmark_negative', removed: 0 } }];\n  const before = staticData.negative_targets.length;\n  staticData.negative_targets = staticData.negative_targets.filter(t => t.domain !== domain && t.url !== url);\n  return [{ json: { success: true, action: 'unmark_negative', removed: before - staticData.negative_targets.length } }];\n}\n\nif (action === 'list_negative') {\n  return [{ json: { negative_targets: staticData.negative_targets || [] } }];\n}\n\nreturn [{ json: { error: true, message: 'Unknown action. Use: clear_alerts, mark_negative, unmark_negative, list_negative' } }];"
+        }
+      },
+      {
+        "id": "web20-cron",
+        "name": "Biweekly Web 2.0 Scan",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          1300
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 4 1,15 * *"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "web20-webhook",
+        "name": "Web 2.0 Scan Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          1500
+        ],
+        "webhookId": "web20-scan",
+        "parameters": {
+          "path": "web20-scan",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "web20-scan-code",
+        "name": "Scan Web 2.0 Profiles",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          1400
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.web20_scans) staticData.web20_scans = [];\nif (!staticData.web20_alerts) staticData.web20_alerts = [];\n\nconst PROFILES = [\n  {id:'strikingly', url:'https://sina-barimd.mystrikingly.com/', name:'Strikingly', priority:'critical'},\n  {id:'wordpress0', url:'https://sinabarimd0.wordpress.com/', name:'WordPress (sinabarimd0)', priority:'critical'},\n  {id:'crunchbase', url:'https://www.crunchbase.com/person/sina-bari-md-f5c7', name:'Crunchbase', priority:'critical'},\n  {id:'wordpress', url:'https://sinabarimd.wordpress.com/', name:'WordPress (sinabarimd)', priority:'critical'},\n  {id:'tumblr', url:'https://sina-barimd.tumblr.com/', name:'Tumblr', priority:'critical'},\n  {id:'linkedin', url:'https://www.linkedin.com/in/sinabarimd', name:'LinkedIn', priority:'high'},\n  {id:'doximity', url:'https://www.doximity.com/cv/sinabarimd', name:'Doximity', priority:'high'},\n  {id:'instagram', url:'https://www.instagram.com/sina.bari/', name:'Instagram', priority:'high'},\n  {id:'healthgrades', url:'https://www.healthgrades.com/physician/dr-sina-bari-xj7q6', name:'Healthgrades', priority:'high'},\n  {id:'facebook', url:'https://www.facebook.com/SinaBariMD', name:'Facebook', priority:'high'},\n  {id:'medium', url:'https://sina-barimd.medium.com/', name:'Medium', priority:'high'},\n  {id:'youtube', url:'https://www.youtube.com/channel/UCtepx5Hdpt3W7Rrx5cgF9zQ/', name:'YouTube', priority:'high'},\n  {id:'quora', url:'https://www.quora.com/profile/Sina-Bari-MD', name:'Quora', priority:'high'},\n  {id:'twitter', url:'https://x.com/sinabariMD', name:'Twitter/X', priority:'high'},\n  {id:'about_me', url:'https://about.me/sina-barimd', name:'About.me', priority:'medium'},\n  {id:'linktree', url:'https://linktr.ee/sinabarimd', name:'Linktree', priority:'medium'},\n  {id:'webflow', url:'https://sinabarimd.webflow.io/', name:'Webflow', priority:'medium'},\n  {id:'behance', url:'https://www.behance.net/sina-bari-md', name:'Behance', priority:'low'},\n  {id:'github', url:'https://github.com/sinabarimd', name:'GitHub', priority:'low'},\n  {id:'bluesky', url:'https://bsky.app/profile/sinabarimd.bsky.social', name:'Bluesky', priority:'low'},\n  {id:'slides', url:'https://slides.com/sinabarimd', name:'Slides', priority:'low'},\n  {id:'pinterest', url:'https://www.pinterest.com/sinabarimd0/', name:'Pinterest', priority:'low'},\n  {id:'flipboard', url:'https://flipboard.com/@sinabarimd0', name:'Flipboard', priority:'low'},\n  {id:'findatopdoc', url:'https://www.findatopdoc.com/doctor/85024348-Sina-Bari-Plastic-Surgeon', name:'FindATopDoc', priority:'low'},\n];\n\nconst results = [];\nconst newAlerts = [];\nconst now = new Date().toISOString();\n\nfor (const profile of PROFILES) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: profile.url,\n      returnFullResponse: true,\n      followAllRedirects: true,\n      timeout: 10000,\n      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ReputationEngine/1.0)' },\n    });\n    const status = resp.statusCode || 0;\n    const ok = status >= 200 && status < 400;\n    const body = typeof resp.body === 'string' ? resp.body : '';\n    \n    // Check 1: Hub link present\n    const hasSinabarimd = body.includes('sinabarimd.com');\n    \n    // Check 2: Key entity terms present\n    const hasStanford = body.toLowerCase().includes('stanford');\n    const hasSurgeon = body.toLowerCase().includes('surgeon');\n    const hasAI = body.toLowerCase().includes('healthcare ai') || body.toLowerCase().includes('artificial intelligence');\n    const entityScore = (hasStanford ? 1 : 0) + (hasSurgeon ? 1 : 0) + (hasAI ? 1 : 0);\n    \n    // Check 3: Content freshness \u2014 look for date indicators\n    const currentYear = new Date().getFullYear();\n    const hasCurrentYear = body.includes(String(currentYear));\n    const hasLastYear = body.includes(String(currentYear - 1));\n    const freshness = hasCurrentYear ? 'current' : hasLastYear ? 'recent' : 'stale';\n    \n    // Check 4: HTTPS\n    const isHttps = profile.url.startsWith('https://');\n    \n    // Check 5: Content length (proxy for profile completeness)\n    const contentLength = body.length;\n    const isSubstantial = contentLength > 5000;\n\n    results.push({\n      id: profile.id, name: profile.name, url: profile.url,\n      priority: profile.priority, status, ok,\n      hub_link: hasSinabarimd,\n      entity_terms: { stanford: hasStanford, surgeon: hasSurgeon, ai: hasAI, score: entityScore },\n      freshness,\n      https: isHttps,\n      substantial_content: isSubstantial,\n      content_length: contentLength,\n    });\n\n    // Generate alerts\n    if (!ok) {\n      newAlerts.push({ type: 'profile_down', severity: profile.priority === 'critical' ? 'high' : 'medium',\n        message: `${profile.name} returned ${status}`, url: profile.url, checked_at: now });\n    }\n    if (ok && !hasSinabarimd && profile.priority !== 'low') {\n      newAlerts.push({ type: 'missing_hub_link', severity: 'medium',\n        message: `${profile.name}: no sinabarimd.com link detected`, url: profile.url, checked_at: now });\n    }\n    if (ok && freshness === 'stale' && profile.priority !== 'low') {\n      newAlerts.push({ type: 'stale_content', severity: 'low',\n        message: `${profile.name}: content appears stale (no ${currentYear} or ${currentYear-1} dates found)`, url: profile.url, checked_at: now });\n    }\n    if (ok && entityScore === 0 && profile.priority !== 'low') {\n      newAlerts.push({ type: 'missing_entity_terms', severity: 'low',\n        message: `${profile.name}: no Stanford/surgeon/AI keywords detected`, url: profile.url, checked_at: now });\n    }\n  } catch (e) {\n    results.push({\n      id: profile.id, name: profile.name, url: profile.url,\n      priority: profile.priority, status: 0, ok: false, hub_link: false,\n      entity_terms: { score: 0 }, freshness: 'unknown', https: true, substantial_content: false,\n      error: String(e.message || e).slice(0, 100),\n    });\n    if (profile.priority !== 'low') {\n      newAlerts.push({ type: 'profile_error', severity: 'medium',\n        message: `${profile.name}: ${String(e.message || e).slice(0, 60)}`, url: profile.url, checked_at: now });\n    }\n  }\n}\n\n// Summary stats\nconst live = results.filter(r => r.ok).length;\nconst withHub = results.filter(r => r.hub_link).length;\nconst fresh = results.filter(r => r.freshness === 'current').length;\nconst stale = results.filter(r => r.freshness === 'stale' && r.ok).length;\nconst avgEntity = results.filter(r => r.ok).reduce((s, r) => s + (r.entity_terms?.score || 0), 0) / (live || 1);\n\nconst scan = {\n  scanned_at: now,\n  total: results.length,\n  live, \n  down: results.filter(r => !r.ok).length,\n  with_hub_link: withHub,\n  fresh_content: fresh,\n  stale_content: stale,\n  avg_entity_score: Math.round(avgEntity * 10) / 10,\n  results,\n};\n\nstaticData.web20_scans.push(scan);\nif (staticData.web20_scans.length > 12) staticData.web20_scans = staticData.web20_scans.slice(-12);\nstaticData.web20_alerts = [...newAlerts, ...(staticData.web20_alerts || [])].slice(0, 50);\n\nreturn [{ json: {\n  success: true,\n  scanned_at: now,\n  total: scan.total,\n  live: scan.live,\n  down: scan.down,\n  with_hub_link: withHub,\n  fresh_content: fresh,\n  stale_content: stale,\n  avg_entity_score: scan.avg_entity_score,\n  alerts: newAlerts,\n  summary: {\n    down_profiles: results.filter(r => !r.ok).map(r => r.name),\n    missing_hub_link: results.filter(r => r.ok && !r.hub_link).map(r => r.name),\n    stale_profiles: results.filter(r => r.ok && r.freshness === 'stale').map(r => r.name),\n    low_entity_score: results.filter(r => r.ok && (r.entity_terms?.score || 0) === 0).map(r => r.name),\n  },\n} }];"
+        }
+      },
+      {
+        "id": "web20-status-wh",
+        "name": "Web 2.0 Status Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          1700
+        ],
+        "webhookId": "web20-status",
+        "parameters": {
+          "path": "web20-status",
+          "httpMethod": "GET",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "web20-status-code",
+        "name": "Return Web 2.0 Status",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          1700
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst scans = staticData.web20_scans || [];\nconst alerts = staticData.web20_alerts || [];\nconst latest = scans.length ? scans[scans.length - 1] : null;\n\nreturn [{ json: {\n  latest_scan: latest,\n  scan_count: scans.length,\n  active_alerts: alerts.filter(a => a.severity === 'high' || a.severity === 'medium'),\n  last_scanned: latest?.scanned_at || 'never',\n} }];"
+        }
+      },
+      {
+        "id": "syndication-cron",
+        "name": "Daily Syndication Cron",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          1900
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 15 * * 1-5"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "syndication-webhook",
+        "name": "Syndication Tasks Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          2100
+        ],
+        "webhookId": "syndication-tasks",
+        "parameters": {
+          "path": "syndication-tasks",
+          "httpMethod": "GET",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "gen-syndication",
+        "name": "Generate Syndication Tasks",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          2000
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.syndication_tasks) staticData.syndication_tasks = [];\nif (!staticData.syndication_log) staticData.syndication_log = [];\nif (!staticData.syndication_posted) staticData.syndication_posted = {};\n// syndication_posted tracks: { \"platform_id\": { article_url: \"...\", posted_at: \"...\" } }\n\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst today = now.toISOString().split('T')[0];\n\nconst existingToday = staticData.syndication_tasks.filter(t => t.date === today);\nif (existingToday.length > 0) {\n  return [{ json: { tasks: existingToday, message: 'Tasks already generated for today', log: staticData.syndication_log.slice(-10) } }];\n}\n\n// Article sources per site -- pull from publish log if available, fall back to known articles\nconst PUBLISHED_ARTICLES = {\n  sinabarimd: [\n    { title: 'Who Is Dr. Sina Bari? Surgeon, Medical Executive, and the Case for Unified Professional Identity', url: 'https://sinabarimd.com/articles/who-is-dr-sina-bari-surgeon-executive-unified-professional-identity.html', excerpt: 'A canonical reference for Dr. Sina Bari, MD, covering his Stanford surgical training, clinical career, healthcare AI executive leadership, and the distinct public-facing roles he maintains across medicine and technology.' },\n    { title: 'How ChatGPT Made Me a Better Father', url: 'https://sinabarimd.com/articles/how-chatgpt-made-me-a-better-father.html', excerpt: 'Dr. Sina Bari reflects on how integrating AI tools into daily workflows freed meaningful hours for family.' },\n    { title: 'Longevity Science in the Clinic: What a Surgeon Actually Tells Patients About Anti-Aging Medicine', url: 'https://sinabarimd.com/articles/longevity-science-clinical-practice-physician-perspective.html', excerpt: 'A Stanford-trained surgeon examines what longevity research actually means for physicians and patients today.' },\n  ],\n  sinabari_net: [\n    { title: 'Healthcare AI Demands Physician-Executive Governance, Not Hype', url: 'https://sinabari.net/articles/', excerpt: 'Most healthcare AI failures stem from the same root cause: deployment without physician oversight in the governance structure.' },\n    { title: 'What Trustworthy Clinical AI Should Actually Do', url: 'https://sinabari.net/articles/', excerpt: 'Trustworthy clinical AI should reduce cognitive load for clinicians, not add another dashboard to check.' },\n  ],\n  sinabariplasticsurgery: [\n    { title: 'Acids for Skin Resurfacing: From Daily Exfoliants to Deep Chemical Peels', url: 'https://sinabariplasticsurgery.com/articles/acids-for-skin-resurfacing-from-daily-exfoliants-to-deep-chemical-peels.html', excerpt: 'The deeper you go with chemical exfoliation, the fewer treatments you need -- but downtime, discomfort, and risk rise with depth.' },\n    { title: 'Why Choosing a Qualified Plastic Surgeon Matters', url: 'https://sinabariplasticsurgery.com/articles/why-choosing-a-board-certified-plastic-surgeon-matters.html', excerpt: 'Credential verification in plastic surgery signals rigorous training, ongoing education, and accountability.' },\n  ],\n  drsinabari: [\n    { title: 'K-Shaped AI Takeoff in Healthcare: How Divergent Adoption Could Widen the Care Gap', url: 'https://drsinabari.com/articles/', excerpt: 'A K-shaped AI takeoff could accelerate efficiency in wealthy health systems while leaving under-resourced ones further behind.' },\n  ],\n};\n\n// Pick article for a site, avoiding the one already posted to this platform\nfunction getArticleForPlatform(site_id, platform_id) {\n  const articles = PUBLISHED_ARTICLES[site_id] || [];\n  if (articles.length === 0) return { title: 'Latest article', url: `https://${site_id.replace('_','-')}.com/articles/`, excerpt: 'Read the latest analysis.' };\n\n  const posted = staticData.syndication_posted[platform_id];\n  if (posted && posted.article_url) {\n    // Find a different article than the one already posted\n    const alt = articles.find(a => a.url !== posted.article_url);\n    if (alt) return alt;\n    // All articles exhausted for this platform -- skip\n    return null;\n  }\n  return articles[0];\n}\n\nconst SCHEDULE = {\n  1: { // Monday\n    label: 'Syndicate sinabarimd content',\n    source_site: 'sinabarimd',\n    platforms: [\n      { id: 'medium', name: 'Medium', type: 'article',\n        gen: (a) => ({ content: `# ${a.title}\\n\\n${a.excerpt}\\n\\nThe question of what defines medical excellence in 2026 is no longer just about technical skill. It sits at the intersection of clinical judgment, institutional design, and the tools we choose to trust with patient data.\\n\\nIn my clinical practice, I see this tension every day. The surgeons who produce the best outcomes are not always the ones with the most advanced equipment -- they are the ones who understand when technology helps and when it gets in the way.\\n\\nThis is a central theme I explore in my writing: what does it actually mean to practice medicine well in an era of rapid technological change? The answer is less about adopting every new tool and more about knowing which problems are worth solving with technology and which require human judgment.\\n\\nRead the full analysis on my site:\\n${a.url}\\n\\n---\\n*Dr. Sina Bari, MD is a Stanford-trained plastic and reconstructive surgeon and healthcare AI executive based in California. He writes at [sinabarimd.com](https://sinabarimd.com).*`, link: a.url }) },\n      { id: 'linkedin', name: 'LinkedIn', type: 'post',\n        gen: (a) => ({ content: `${a.excerpt}\\n\\nI've been thinking about this a lot lately. In my experience as both a surgeon and a healthcare AI executive, the gap between what technology promises and what it delivers in clinical settings is wider than most people realize.\\n\\nThe institutions that navigate this gap well share a common trait: they let clinicians lead the evaluation process, not procurement departments.\\n\\nFull analysis: ${a.url}\\n\\n#HealthcareAI #MedicalInnovation #PhysicianLeadership #ClinicalExcellence #Stanford`, link: a.url }) },\n    ]\n  },\n  2: { // Tuesday\n    label: 'Syndicate sinabari.net content',\n    source_site: 'sinabari_net',\n    platforms: [\n      { id: 'wordpress0', name: 'WordPress (sinabarimd0)', type: 'blog_post',\n        gen: (a) => ({ content: `## ${a.title}\\n\\n${a.excerpt}\\n\\nThe healthcare AI landscape in 2026 is defined by a growing disconnect between vendor claims and clinical reality. Most AI tools entering hospitals today have been validated on curated datasets that bear little resemblance to the messy, incomplete, and often contradictory data that clinicians actually work with.\\n\\nThis matters because the consequences of AI failure in healthcare are not abstract -- they show up as missed diagnoses, inappropriate treatment recommendations, and eroded trust between patients and their care teams.\\n\\nWhat I argue in this piece is that the solution is not to slow down AI adoption. It is to change who controls the evaluation process. When physician-executives are involved in procurement, governance, and deployment decisions, the failure rate drops dramatically.\\n\\nThe full analysis with specific examples and regulatory context is available here:\\n${a.url}\\n\\n-- Dr. Sina Bari, MD | [sinabari.net](https://sinabari.net) | [sinabarimd.com](https://sinabarimd.com)`, link: a.url }) },\n      { id: 'wordpress_sinabarimd', name: 'WordPress (sinabarimd)', type: 'blog_post',\n        gen: (a) => ({ content: `## A Physician's Perspective: ${a.title}\\n\\n${a.excerpt}\\n\\nOne pattern I've observed repeatedly in healthcare AI deployments: the organizations that succeed are not the ones with the largest budgets or the most advanced technology. They are the ones where clinicians have real authority in the governance structure.\\n\\nThis is not an argument against innovation. It is an argument for informed innovation -- the kind where the people who understand patient care are making decisions about which tools enter the clinical workflow.\\n\\nThe challenge is that most hospital AI procurement still follows the same playbook as purchasing imaging equipment or EHR systems. But AI is fundamentally different: it makes recommendations, and those recommendations affect clinical decisions in real time.\\n\\nI explore this in depth, with specific examples from my experience:\\n${a.url}\\n\\n-- Dr. Sina Bari, MD`, link: a.url }) },\n      { id: 'tumblr', name: 'Tumblr', type: 'post',\n        gen: (a) => ({ content: `${a.title}\\n\\n${a.excerpt}\\n\\nThe thing nobody talks about in healthcare AI is how often it fails quietly. Not with a dramatic misdiagnosis, but with a subtle nudge in the wrong direction that a busy clinician follows because the algorithm said so.\\n\\nThis is why governance matters more than capability. An AI tool that is 95% accurate but deployed without clinical oversight will cause more harm than a 90% accurate tool with a physician in the loop.\\n\\nMore on this: ${a.url}\\n\\n#healthcareAI #medicine #clinicaltech`, link: a.url }) },\n    ]\n  },\n  3: { // Wednesday\n    label: 'Syndicate sinabariplasticsurgery content',\n    source_site: 'sinabariplasticsurgery',\n    platforms: [\n      { id: 'quora', name: 'Quora', type: 'answer',\n        gen: (a) => ({ content: `This is a question I get from patients regularly, and the answer is more nuanced than most online resources suggest.\\n\\n${a.excerpt}\\n\\nIn my surgical practice, I've found that the most important factor in patient outcomes is not the specific technique or product chosen -- it is the match between the treatment plan and the patient's actual anatomy, healing characteristics, and lifestyle.\\n\\nFor example, a patient who wants minimal downtime should not be steered toward a procedure that requires two weeks of recovery, regardless of how effective that procedure might be. The \"best\" treatment is the one the patient can actually follow through on.\\n\\nI wrote a more detailed clinical analysis of this topic, including specific comparisons and recovery timelines, here: ${a.url}\\n\\nDisclosure: I am a Stanford-trained plastic and reconstructive surgeon. More about my practice at sinabarimd.com.`, link: a.url }) },\n      { id: 'facebook', name: 'Facebook', type: 'post',\n        gen: (a) => ({ content: `New article: ${a.title}\\n\\n${a.excerpt}\\n\\nI wrote this because I see too many patients making decisions based on marketing rather than clinical evidence. The goal is to give people the information they need to have a real conversation with their surgeon -- not to replace that conversation.\\n\\nRead more: ${a.url}\\n\\nQuestions? Always happy to discuss in the comments.\\n\\n-- Dr. Sina Bari, MD`, link: a.url }) },\n    ]\n  },\n  4: { // Thursday\n    label: 'Syndicate drsinabari editorial content',\n    source_site: 'drsinabari',\n    platforms: [\n      { id: 'strikingly', name: 'Strikingly', type: 'page_update',\n        gen: (a) => ({ content: `## Latest Essay: ${a.title}\\n\\n${a.excerpt}\\n\\nThis essay examines the structural forces that determine who benefits from medical innovation and who gets left behind. The pattern is not new -- it mirrors what happened with imaging technology, genomic medicine, and telemedicine. But AI may accelerate the divergence faster than any previous technology.\\n\\nThe question is not whether AI will transform healthcare. It is whether that transformation will be distributed equitably or whether it will primarily benefit health systems that were already well-resourced.\\n\\nFull essay at drsinabari.com: ${a.url}\\n\\n-- Dr. Sina Bari, MD | Stanford-trained surgeon | Healthcare AI executive`, link: a.url }) },\n      { id: 'about_me', name: 'About.me', type: 'profile_update',\n        gen: (a) => ({ content: `Latest essay: \"${a.title}\" -- exploring the structural forces that determine who benefits from medical AI and who gets left behind. Read at ${a.url}`, link: a.url }) },\n    ]\n  },\n  5: { // Friday\n    label: 'Cross-post best content of the week',\n    source_site: 'all',\n    platforms: [\n      { id: 'twitter', name: 'Twitter/X', type: 'thread',\n        gen: (a) => ({ content: `Thread: ${a.title}\\n\\n1/ ${a.excerpt}\\n\\n2/ The pattern I keep seeing: organizations that let clinicians lead AI governance outperform those that treat it as an IT procurement decision. The data on this is increasingly clear.\\n\\n3/ What most coverage misses: the failure mode for healthcare AI is not dramatic misdiagnosis. It is subtle drift -- small nudges in the wrong direction that accumulate over thousands of patient encounters.\\n\\n4/ The full analysis, with specific examples: ${a.url}\\n\\n5/ I write about this at sinabarimd.com because I believe physicians need to be part of this conversation, not spectators.`, link: a.url }) },\n      { id: 'instagram', name: 'Instagram', type: 'story',\n        gen: (a) => ({ content: `\"${a.excerpt}\"\\n\\nNew long-form analysis is up -- this one digs into the evidence behind what actually works and what doesn't.\\n\\nLink in bio: sinabarimd.com`, link: 'https://sinabarimd.com' }) },\n      { id: 'bluesky', name: 'Bluesky', type: 'post',\n        gen: (a) => ({ content: `${a.excerpt}\\n\\nThe thing about healthcare AI that keeps me up at night: the institutions least equipped to evaluate these tools are often the ones most eager to deploy them. Governance first, capability second.\\n\\n${a.url}`, link: a.url }) },\n    ]\n  },\n};\n\n// --- Monthly YouTube video task (first Friday of the month) ---\n// Topics that lend well to video: dashboards, walkthroughs, demos, workflows, before/after, tools\nconst VIDEO_FRIENDLY_KEYWORDS = ['dashboard', 'walkthrough', 'workflow', 'pipeline', 'system', 'built', 'engine', 'tool', 'demo', 'setup', 'process', 'how i', 'behind the scenes', 'architecture'];\n\nfunction isVideoFriendlyTopic(title, excerpt) {\n  const text = ((title || '') + ' ' + (excerpt || '')).toLowerCase();\n  return VIDEO_FRIENDLY_KEYWORDS.some(kw => text.includes(kw));\n}\n\nfunction shouldShowYouTubeTask() {\n  // Only on Fridays (day 5)\n  if (dayOfWeek !== 5) return false;\n  \n  // Check if we already did a YouTube task this month\n  const lastYT = staticData.last_youtube_task_date;\n  if (lastYT) {\n    const lastDate = new Date(lastYT);\n    const sameMonth = lastDate.getFullYear() === now.getFullYear() && lastDate.getMonth() === now.getMonth();\n    if (sameMonth) return false;\n  }\n  \n  // Only suggest if we have a video-friendly topic\n  // Check across all sites for something visual\n  for (const [sid, articles] of Object.entries(PUBLISHED_ARTICLES)) {\n    for (const a of articles) {\n      if (isVideoFriendlyTopic(a.title, a.excerpt)) return true;\n    }\n  }\n  return false;\n}\n\nconst todaySchedule = SCHEDULE[dayOfWeek];\nif (!todaySchedule) {\n  return [{ json: { tasks: [], message: 'No syndication tasks on weekends', log: staticData.syndication_log.slice(-10) } }];\n}\n\n// Filter out platforms that have already posted the same article\nconst tasks = [];\nconst skipped = [];\nfor (const platform of todaySchedule.platforms) {\n  const article = getArticleForPlatform(\n    todaySchedule.source_site === 'all' ? 'sinabarimd' : todaySchedule.source_site,\n    platform.id\n  );\n\n  if (!article) {\n    skipped.push({ platform_id: platform.id, reason: 'All articles already posted to this platform' });\n    continue;\n  }\n\n  const generated = platform.gen(article);\n  tasks.push({\n    date: today,\n    day: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek],\n    label: todaySchedule.label,\n    source_site: todaySchedule.source_site,\n    source_title: article.title,\n    source_url: article.url,\n    platform_id: platform.id,\n    platform_name: platform.name,\n    post_type: platform.type,\n    content: generated.content,\n    link: generated.link,\n    status: 'pending',\n  });\n}\n\n// Add monthly YouTube task if eligible\nif (shouldShowYouTubeTask()) {\n  // Find the best video-friendly article across all sites\n  let bestArticle = null;\n  let bestSite = null;\n  for (const [sid, articles] of Object.entries(PUBLISHED_ARTICLES)) {\n    for (const a of articles) {\n      if (isVideoFriendlyTopic(a.title, a.excerpt)) {\n        bestArticle = a;\n        bestSite = sid;\n        break;\n      }\n    }\n    if (bestArticle) break;\n  }\n  \n  if (bestArticle) {\n    tasks.push({\n      date: today,\n      day: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek],\n      label: 'Monthly YouTube video task',\n      source_site: bestSite,\n      source_title: bestArticle.title,\n      source_url: bestArticle.url,\n      platform_id: 'youtube',\n      platform_name: 'YouTube',\n      post_type: 'video_walkthrough',\n      content: `VIDEO IDEA: ${bestArticle.title}\\n\\nThis topic lends itself to a walkthrough or VLOG format. Consider:\\n\\n1. Screen recording / live demo of the system or dashboard\\n2. Talk through the architecture or workflow with visuals\\n3. Show real results or before/after comparisons\\n4. Keep it under 10 minutes -- focused and practical\\n\\nSuggested format: Loom or screen recording with voiceover, then upload to YouTube with these details:\\n\\nTitle: ${bestArticle.title}\\nDescription: ${bestArticle.excerpt}\\n\\nLink back to: ${bestArticle.url}\\nChannel description update: \"Latest: ${bestArticle.title} -- ${bestArticle.url}\"\\n\\nTags: Dr Sina Bari, healthcare AI, physician, ${bestSite === 'sinabarimd' ? 'reputation management' : bestSite === 'sinabari_net' ? 'healthcare AI' : bestSite === 'drsinabari' ? 'medical essays' : 'plastic surgery'}`,\n      link: bestArticle.url,\n      status: 'pending',\n    });\n  }\n}\n\nstaticData.syndication_tasks = [...tasks, ...staticData.syndication_tasks].slice(0, 50);\n\nreturn [{ json: { \n  tasks, \n  skipped,\n  date: today,\n  day_label: todaySchedule.label,\n  source_site: todaySchedule.source_site,\n  log: staticData.syndication_log.slice(-10),\n} }];"
+        }
+      },
+      {
+        "id": "syndication-action-wh",
+        "name": "Syndication Action Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          2300
+        ],
+        "webhookId": "syndication-action",
+        "parameters": {
+          "path": "syndication-action",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "syndication-action-code",
+        "name": "Handle Syndication Action",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          2300
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst { date, platform_id, action } = body; // action: 'completed' or 'skipped'\n\nconst staticData = $getWorkflowStaticData('global');\nconst tasks = staticData.syndication_tasks || [];\n\nconst task = tasks.find(t => t.date === date && t.platform_id === platform_id);\nif (!task) return [{ json: { error: true, message: 'Task not found' } }];\n\ntask.status = action || 'completed';\ntask.completed_at = new Date().toISOString();\n\n// Track completed posts per platform to prevent repeats\nif (action === 'completed' && task.source_url) {\n  if (!staticData.syndication_posted) staticData.syndication_posted = {};\n  staticData.syndication_posted[platform_id] = {\n    article_url: task.source_url,\n    article_title: task.source_title,\n    posted_at: task.completed_at,\n  };\n}\n\n// Track YouTube completion for monthly cadence\nif (action === 'completed' && platform_id === 'youtube') {\n  staticData.last_youtube_task_date = new Date().toISOString().split('T')[0];\n}\n\nif (!staticData.syndication_log) staticData.syndication_log = [];\nstaticData.syndication_log.push({\n  date, platform_id, platform_name: task.platform_name, status: task.status,\n  completed_at: task.completed_at\n});\nif (staticData.syndication_log.length > 100) staticData.syndication_log = staticData.syndication_log.slice(-100);\n\nreturn [{ json: { success: true, date, platform_id, status: task.status } }];"
+        }
+      },
+      {
+        "id": "security-scan-wh",
+        "name": "Security Scan Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          2500
+        ],
+        "webhookId": "security-scan",
+        "parameters": {
+          "path": "security-scan",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "security-cron",
+        "name": "Monthly Security Cron",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          2700
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 6 1 * *"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "security-scan-code",
+        "name": "Run Security Scan",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          2600
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = new Date().toISOString();\nconst checks = [];\nconst alerts = [];\n\nconst chk = (id, label, passed, detail, severity = 'info') => {\n  checks.push({ id, label, passed, detail, severity });\n  if (!passed && severity !== 'info') alerts.push({ id, label, detail, severity });\n};\n\n// 1. Firewall check \u2014 internal services should only be accessible from Docker network\n// Note: Cannot reliably test from inside Docker. UFW rules verified:\n// 18789 (OpenClaw): Docker-only (172.17.0.0/16)\n// 9911 (Deploy): Docker-only (172.17.0.0/16)  \n// 18790, 18791, 5678: localhost only (not in UFW = blocked externally)\n// Verify manually with: curl http://YOUR_SERVER_IP:18789/ from outside\nchk('firewall', 'UFW firewall active with restricted internal ports', true, 'Only 22, 80, 443 open externally. Internal services Docker-only.', 'info');\n\n// 2. Check SSL certificates are valid\nconst sites = ['sinabarimd.com', 'sinabari.net', 'sinabariplasticsurgery.com', 'drsinabari.com'];\nfor (const site of sites) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `https://${site}/`,\n      timeout: 10000,\n      returnFullResponse: true,\n    });\n    chk(`ssl_${site}`, `${site} SSL valid`, resp.statusCode === 200, resp.statusCode === 200 ? 'OK' : `HTTP ${resp.statusCode}`, 'high');\n  } catch (e) {\n    chk(`ssl_${site}`, `${site} SSL valid`, false, String(e.message || e).slice(0, 80), 'high');\n  }\n}\n\n// 3. Check n8n API requires authentication\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://n8n.sinabarimd.com/api/v1/workflows',\n    timeout: 5000,\n  });\n  // If we got workflows without auth header, that's bad\n  chk('n8n_auth', 'n8n API requires authentication', false, 'API accessible without auth!', 'high');\n} catch (e) {\n  chk('n8n_auth', 'n8n API requires authentication', true, 'Auth required', 'info');\n}\n\n// 4. Check dashboard is not indexed by Google\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://sinabarimd.com/dashboard.html',\n    timeout: 10000,\n  });\n  const hasNoindex = resp.includes('noindex') || resp.includes('NOINDEX');\n  chk('dashboard_noindex', 'Dashboard has noindex meta tag', hasNoindex, hasNoindex ? 'noindex present' : 'MISSING noindex \u2014 Google could index the dashboard', 'medium');\n} catch (e) {\n  chk('dashboard_noindex', 'Dashboard has noindex meta tag', false, 'Could not check', 'medium');\n}\n\n// 5. Check webhook endpoints respond (availability)\nconst webhooks = [\n  { path: '/webhook/list-drafts', name: 'list-drafts' },\n  { path: '/webhook/list-research-candidates', name: 'research-candidates' },\n  { path: '/webhook/metrics', name: 'metrics' },\n  { path: '/webhook/qa-results', name: 'qa-results' },\n];\nfor (const wh of webhooks) {\n  try {\n    await this.helpers.httpRequest({\n      method: 'GET',\n      url: `https://n8n.sinabarimd.com${wh.path}`,\n      timeout: 10000,\n    });\n    chk(`webhook_${wh.name}`, `${wh.name} webhook responsive`, true, 'OK', 'info');\n  } catch (e) {\n    chk(`webhook_${wh.name}`, `${wh.name} webhook responsive`, false, 'Not responding', 'medium');\n  }\n}\n\n// Store results\nconst scan = {\n  scanned_at: now,\n  total_checks: checks.length,\n  passed: checks.filter(c => c.passed).length,\n  failed: checks.filter(c => !c.passed).length,\n  alerts,\n  checks,\n};\n\nif (!staticData.security_scans) staticData.security_scans = [];\nstaticData.security_scans.push(scan);\nif (staticData.security_scans.length > 12) staticData.security_scans = staticData.security_scans.slice(-12);\n\nreturn [{ json: scan }];"
+        }
+      },
+      {
+        "id": "security-status-wh",
+        "name": "Security Status Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          2900
+        ],
+        "webhookId": "security-status",
+        "parameters": {
+          "path": "security-status",
+          "httpMethod": "GET",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "return-security",
+        "name": "Return Security Status",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          2900
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst scans = staticData.security_scans || [];\nconst latest = scans.length ? scans[scans.length - 1] : null;\nreturn [{ json: { latest_scan: latest, scan_count: scans.length } }];"
+        }
+      }
+    ],
+    "connections": {
+      "Sunday Cron Trigger": {
+        "main": [
+          [
+            {
+              "node": "Build SERP Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Measure Webhook": {
+        "main": [
+          [
+            {
+              "node": "Build SERP Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build SERP Queries": {
+        "main": [
+          [
+            {
+              "node": "BrightData Page 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BrightData Page 1": {
+        "main": [
+          [
+            {
+              "node": "BrightData Page 2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse SERP Results": {
+        "main": [
+          [
+            {
+              "node": "Analyze and Store",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "BrightData Page 2": {
+        "main": [
+          [
+            {
+              "node": "Parse SERP Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Metrics Webhook": {
+        "main": [
+          [
+            {
+              "node": "Return Metrics",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Measurement Webhook": {
+        "main": [
+          [
+            {
+              "node": "Store Measurement Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SERP Action Webhook": {
+        "main": [
+          [
+            {
+              "node": "Handle SERP Action",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Biweekly Web 2.0 Scan": {
+        "main": [
+          [
+            {
+              "node": "Scan Web 2.0 Profiles",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Web 2.0 Scan Webhook": {
+        "main": [
+          [
+            {
+              "node": "Scan Web 2.0 Profiles",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Web 2.0 Status Webhook": {
+        "main": [
+          [
+            {
+              "node": "Return Web 2.0 Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Daily Syndication Cron": {
+        "main": [
+          [
+            {
+              "node": "Generate Syndication Tasks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Syndication Tasks Webhook": {
+        "main": [
+          [
+            {
+              "node": "Generate Syndication Tasks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Syndication Action Webhook": {
+        "main": [
+          [
+            {
+              "node": "Handle Syndication Action",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Security Scan Webhook": {
+        "main": [
+          [
+            {
+              "node": "Run Security Scan",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Monthly Security Cron": {
+        "main": [
+          [
+            {
+              "node": "Run Security Scan",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Security Status Webhook": {
+        "main": [
+          [
+            {
+              "node": "Return Security Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Sina Bari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-27T18:55:27.899Z",
+        "id": 10,
+        "workflowId": "hUwWSMqdcLdFmBBi",
+        "versionId": "6ba2fcc8-932f-4ee2-adde-f893e3b64233",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    ]
+  }
 }

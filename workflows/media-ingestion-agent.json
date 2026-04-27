@@ -1,7 +1,5 @@
 {
-  "updatedAt": "2026-04-13T18:09:22.767Z",
-  "createdAt": "2026-03-26T22:50:28.714Z",
-  "id": "GrUFalRTkkQjqEgT",
+  "id": "4DpoFWCUglQuM4lz",
   "name": "Reputation Engine \u2014 Media Ingestion Agent",
   "description": null,
   "active": true,
@@ -508,5 +506,544 @@
     "availableInMCP": false
   },
   "meta": null,
-  "tags": []
+  "pinData": null,
+  "activeVersionId": "179d9aad-fc54-4554-aff5-0b85b0846a8c",
+  "versionCounter": 4,
+  "triggerCount": 5,
+  "shared": [
+    {
+      "updatedAt": "2026-04-27T18:53:40.737Z",
+      "createdAt": "2026-04-27T18:53:40.737Z",
+      "role": "workflow:owner",
+      "workflowId": "4DpoFWCUglQuM4lz",
+      "projectId": "9sJSA5GTLSjQcRNk",
+      "project": {
+        "updatedAt": "2026-03-20T18:09:16.655Z",
+        "createdAt": "2026-03-20T00:15:30.157Z",
+        "id": "9sJSA5GTLSjQcRNk",
+        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-04-27T18:53:40.743Z",
+    "createdAt": "2026-04-27T18:53:40.743Z",
+    "versionId": "179d9aad-fc54-4554-aff5-0b85b0846a8c",
+    "workflowId": "4DpoFWCUglQuM4lz",
+    "nodes": [
+      {
+        "id": "media-cron",
+        "name": "Wednesday Cron Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          300
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 16 * * 3"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "media-webhook",
+        "name": "Ingest Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          500
+        ],
+        "webhookId": "media-ingest",
+        "parameters": {
+          "path": "media-ingest",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "build-queries",
+        "name": "Build Tavily Queries",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          400
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
+        }
+      },
+      {
+        "id": "tavily-search",
+        "name": "Tavily Media Search",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          800,
+          400
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.tavily.com/search",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ api_key: \"YOUR_TAVILY_API_KEY\", query: \"\\\"Sina Bari\\\" OR \\\"Dr. Sina Bari\\\" OR \\\"sinabarimd\\\" healthcare AI physician executive\", search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false, days: 14 }) }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 30000
+          }
+        }
+      },
+      {
+        "id": "dedup-filter",
+        "name": "Deduplicate and Filter",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          400
+        ],
+        "parameters": {
+          "jsCode": "const upstream = $('Build Tavily Queries').first().json;\nconst processed_urls = upstream.processed_urls || [];\nconst tavilyResults = $json.results || [];\n\nconst ownDomains = ['sinabarimd.com', 'sinabari.net', 'drsinabari.com', 'sinabariplasticsurgery.com'];\nconst seen = new Set(processed_urls);\nconst filtered = [];\n\nfor (const r of tavilyResults) {\n  if (!r.url) continue;\n  \n  // Check own domain \u2014 simple string includes on the URL\n  let isOwn = false;\n  for (const d of ownDomains) {\n    // Match exact domain (not substrings like \"sinabarimd\" in \"sinabarimd.webflow.io\")\n    if (r.url.includes('://' + d + '/') || r.url.includes('://' + d + '\"') || r.url.endsWith('://' + d)) {\n      isOwn = true;\n      break;\n    }\n    // Also check www variant\n    if (r.url.includes('://www.' + d + '/') || r.url.includes('://www.' + d)) {\n      isOwn = true;\n      break;\n    }\n  }\n  if (isOwn) continue;\n  \n  // Simple dedup hash\n  const hash = r.url.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40);\n  if (seen.has(hash)) continue;\n  seen.add(hash);\n  \n  filtered.push({\n    title: r.title || '',\n    url: r.url,\n    content: (r.content || '').slice(0, 500),\n    published_date: r.published_date || null,\n    score: r.score || 0,\n    url_hash: hash,\n  });\n}\n\nreturn [{ json: { filtered_results: filtered, new_count: filtered.length } }];"
+        }
+      },
+      {
+        "id": "if-new",
+        "name": "IF: New Items?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1400,
+          400
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "id": "new-check",
+                "leftValue": "={{ $json.new_count }}",
+                "rightValue": "0",
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "no-new",
+        "name": "No New Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1700,
+          550
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.last_run = new Date().toISOString();\nreturn [{ json: { success: true, message: 'No new media items found', last_run: staticData.last_run } }];"
+        }
+      },
+      {
+        "id": "build-openclaw",
+        "name": "Build OpenClaw Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1700,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const { filtered_results, tavily_answer } = $json;\n\nconst resultsText = filtered_results.map((r, i) =>\n  `[${i+1}] TITLE: ${r.title}\\n    URL: ${r.url}\\n    DATE: ${r.published_date || 'unknown'}\\n    CONTENT: ${r.content}`\n).join('\\n\\n');\n\nconst prompt = `You are a media monitoring analyst for Dr. Sina Bari, MD \u2014 a physician executive, healthcare AI leader, and plastic surgeon based in California.\n\nAnalyze these search results and extract structured media items. For each genuinely relevant result, produce a JSON object. Skip results that are not actually about or relevant to Dr. Sina Bari or his professional domains.\n\nTAVILY SUMMARY: ${tavily_answer || 'None'}\n\nSEARCH RESULTS:\n${resultsText}\n\nFor each relevant result, output:\n- type: \"news\" | \"publication\" | \"mention\" | \"negative\" | \"award\"\n- title: clean article/mention title\n- url: the source URL\n- source: publication or website name\n- date: YYYY-MM-DD\n- summary: 1-2 sentence factual summary\n- relevance: \"high\" | \"medium\" | \"low\" (negative content = always \"high\")\n- sentiment: \"positive\" | \"neutral\" | \"negative\"\n- target_site_id: \"sinabarimd\" | \"sinabari_net\" | \"sinabariplasticsurgery\" | \"all\"\n- suggested_angle: one sentence on how to reference in content\n\nOutput a JSON array only. No markdown, no commentary. If nothing is relevant, output [].`;\n\nreturn [{ json: {\n  ...($json),\n  openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }),\n  openclawAgentId: 'media-ingestion',\n} }];"
+        }
+      },
+      {
+        "id": "openclaw-synth",
+        "name": "OpenClaw Synthesize",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2000,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:18789/v1/responses",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer YOUR_OPENCLAW_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "x-openclaw-agent-id",
+                "value": "={{ $json.openclawAgentId }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "JSON",
+          "body": "={{ $json.openclaw_request_body }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "parse-store",
+        "name": "Parse and Store Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2300,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const ctx = $('Build OpenClaw Request').first().json;\nconst rawContent = $json.output?.[0]?.content?.[0]?.text || '';\n\nlet items = [];\ntry {\n  const cleaned = rawContent.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const match = cleaned.match(/\\[[\\s\\S]*\\]/);\n  items = JSON.parse(match ? match[0] : cleaned);\n  if (!Array.isArray(items)) items = [items];\n} catch { items = []; }\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nconst now = new Date().toISOString();\nconst newItems = items.filter(i => i.url && i.title).map(item => ({\n  item_id: `media_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n  type: item.type || 'mention',\n  title: item.title,\n  url: item.url,\n  source: item.source || 'Unknown',\n  date: item.date || now.split('T')[0],\n  summary: item.summary || '',\n  relevance: item.relevance || 'medium',\n  sentiment: item.sentiment || 'neutral',\n  target_site_id: item.target_site_id || 'sinabarimd',\n  suggested_angle: item.suggested_angle || '',\n  consumed: false,\n  ingested_at: now,\n}));\n\nstaticData.media_items = [...newItems, ...staticData.media_items].slice(0, 100);\nconst newHashes = (ctx.filtered_results || []).map(r => r.url_hash).filter(Boolean);\nstaticData.processed_urls = [...new Set([...staticData.processed_urls, ...newHashes])].slice(-500);\nstaticData.last_run = now;\n\nconst queuePayload = staticData.media_items.filter(m => !m.consumed);\n\nreturn [{ json: {\n  success: true,\n  new_item_count: newItems.length,\n  total_unconsumed: queuePayload.length,\n  negative_items: newItems.filter(i => i.sentiment === 'negative').length,\n  items_for_orchestrator: queuePayload,\n} }];"
+        }
+      },
+      {
+        "id": "queue-orch",
+        "name": "Queue to Orchestrator",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2600,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://n8n.sinabarimd.com/webhook/store-media",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ media_items: $json.items_for_orchestrator }) }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "json"
+              }
+            },
+            "timeout": 15000
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "list-webhook",
+        "name": "List Items Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          700
+        ],
+        "webhookId": "media-items",
+        "parameters": {
+          "path": "media-items",
+          "httpMethod": "GET",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "return-items",
+        "name": "Return Media Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          700
+        ],
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst items = staticData.media_items || [];\nconst unconsumed = items.filter(m => !m.consumed);\nconst negative = unconsumed.filter(m => m.sentiment === 'negative');\n\nreturn [{ json: {\n  last_run: staticData.last_run || 'never',\n  total_items: items.length,\n  unconsumed_count: unconsumed.length,\n  negative_alerts: negative.length,\n  negative_items: negative,\n  items_by_site: {\n    sinabarimd: unconsumed.filter(m => m.target_site_id === 'sinabarimd' || m.target_site_id === 'all'),\n    sinabari_net: unconsumed.filter(m => m.target_site_id === 'sinabari_net' || m.target_site_id === 'all'),\n    sinabariplasticsurgery: unconsumed.filter(m => m.target_site_id === 'sinabariplasticsurgery' || m.target_site_id === 'all'),\n  },\n  all_unconsumed: unconsumed,\n} }];"
+        }
+      },
+      {
+        "id": "dismiss-webhook",
+        "name": "Dismiss Item Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          900
+        ],
+        "webhookId": "dismiss-media-item",
+        "parameters": {
+          "path": "dismiss-media-item",
+          "httpMethod": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "dismiss-code",
+        "name": "Dismiss Item",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          500,
+          900
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst { item_id } = body;\nif (!item_id) return [{ json: { error: true, message: 'Missing item_id' } }];\nconst staticData = $getWorkflowStaticData('global');\nconst item = (staticData.media_items || []).find(m => m.item_id === item_id);\nif (!item) return [{ json: { error: true, message: 'Item not found' } }];\nitem.consumed = true;\nitem.dismissed_at = new Date().toISOString();\nreturn [{ json: { success: true, item_id, title: item.title } }];"
+        }
+      },
+      {
+        "id": "add-media-item-wh",
+        "name": "Add Media Item Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          800
+        ],
+        "webhookId": "add-media-item",
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "add-media-item",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "add-media-item-handler",
+        "name": "Add Media Item",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          240,
+          800
+        ],
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst { url, title, source, date, summary, type, target_site_id, sentiment } = body;\n\nif (!url || !title) {\n  return [{ json: { success: false, error: 'Required: url, title' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\n\nconst item = {\n  item_id: 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),\n  type: type || 'mention',\n  title,\n  url,\n  source: source || 'Manual',\n  date: date || new Date().toISOString().split('T')[0],\n  summary: summary || '',\n  relevance: 'high',\n  sentiment: sentiment || 'positive',\n  target_site_id: target_site_id || 'sinabarimd',\n  suggested_angle: '',\n  consumed: false,\n  ingested_at: new Date().toISOString(),\n  manual: true,\n};\n\nstaticData.media_items = [item, ...staticData.media_items].slice(0, 100);\n\nreturn [{ json: { success: true, item_id: item.item_id, title: item.title } }];\n"
+        }
+      },
+      {
+        "id": "add-media-item-respond",
+        "name": "Respond Add Media Item",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          460,
+          800
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify($json) }}"
+        }
+      }
+    ],
+    "connections": {
+      "Wednesday Cron Trigger": {
+        "main": [
+          [
+            {
+              "node": "Build Tavily Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ingest Webhook": {
+        "main": [
+          [
+            {
+              "node": "Build Tavily Queries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Tavily Queries": {
+        "main": [
+          [
+            {
+              "node": "Tavily Media Search",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tavily Media Search": {
+        "main": [
+          [
+            {
+              "node": "Deduplicate and Filter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Deduplicate and Filter": {
+        "main": [
+          [
+            {
+              "node": "IF: New Items?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF: New Items?": {
+        "main": [
+          [
+            {
+              "node": "Build OpenClaw Request",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No New Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build OpenClaw Request": {
+        "main": [
+          [
+            {
+              "node": "OpenClaw Synthesize",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenClaw Synthesize": {
+        "main": [
+          [
+            {
+              "node": "Parse and Store Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse and Store Items": {
+        "main": [
+          [
+            {
+              "node": "Queue to Orchestrator",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "List Items Webhook": {
+        "main": [
+          [
+            {
+              "node": "Return Media Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dismiss Item Webhook": {
+        "main": [
+          [
+            {
+              "node": "Dismiss Item",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Add Media Item Webhook": {
+        "main": [
+          [
+            {
+              "node": "Add Media Item",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Add Media Item": {
+        "main": [
+          [
+            {
+              "node": "Respond Add Media Item",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Sina Bari",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-27T18:55:20.783Z",
+        "id": 3,
+        "workflowId": "4DpoFWCUglQuM4lz",
+        "versionId": "179d9aad-fc54-4554-aff5-0b85b0846a8c",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      }
+    ]
+  }
 }
