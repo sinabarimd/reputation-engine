@@ -300,7 +300,7 @@ So I built a system to fix that. Not a single website or a social media push - a
 </p>
 
 <p>
-This article is the full technical walkthrough. The <a href="https://github.com/sinabarimd/reputation-engine">code is on GitHub</a>.
+This article is the full technical walkthrough. The <a href="https://github.com/drsinabari/reputation-engine">code is on GitHub</a>.
 </p>
 
 <h2>The Core Idea: Entity-First SEO</h2>
@@ -310,7 +310,7 @@ Most SEO advice focuses on keywords and backlinks. That's fine if you're selling
 </p>
 
 <p>
-Google's Knowledge Graph thinks in entities. When someone searches a professional's name, Google isn't just matching keywords - it's trying to assemble a coherent picture of a person. The results it surfaces are the sources it considers most authoritative for understanding that entity.
+Google's Knowledge Graph thinks in entities. When someone searches "Sina Bari MD," Google isn't just matching keywords - it's trying to assemble a coherent picture of a person. The results it surfaces are the sources it considers most authoritative for understanding that entity.
 </p>
 
 <p>
@@ -370,7 +370,7 @@ The <strong>Content Publisher</strong> is the most complex workflow - twenty nod
 </p>
 
 <p>
-The <strong>SEO QA Agent</strong> runs three levels of validation. Article-level checks verify meta tags, structured data, author attribution, canonical links, word count, and forbidden topic compliance - for example, catching if a sinabari.net article about healthcare AI accidentally drifts into plastic surgery content, which would violate the domain's topic boundary and dilute the entity signal. Domain-level checks validate the homepage, pipeline markers, broken internal links, and site-wide schema. Portfolio-level checks verify cross-site consistency: are all satellites linking to the hub? Is topic separation clean? Is author attribution uniform?
+The <strong>SEO QA Agent</strong> runs three levels of validation. Article-level checks verify meta tags, structured data, author attribution, canonical links, word count, forbidden topic compliance, and - critically - that no content claims board certification (because I'm not board certified, and inaccuracy in medical credentials isn't just an SEO problem, it's a legal one). Domain-level checks validate the homepage, pipeline markers, and site-wide schema. Portfolio-level checks verify cross-site consistency: are all satellites linking to the hub? Is topic separation clean? Is author attribution uniform?
 </p>
 
 <p>
@@ -424,7 +424,7 @@ Article pages also auto-generate <code>FAQPage</code> schema by scanning the con
 <h2>The Dashboard</h2>
 
 <p>
-All of this is managed through a password-protected dashboard hosted at sinabarimd.com/dashboard.html. It has eight tabs: Overview (system status and daily action items), Research (topic candidates and deep research triggers), Drafts (review, edit, approve, or dismiss generated content), Publish (approved drafts queued with scheduled dates), QA (three-level quality reports), SEO Actions (generated from intelligence briefs), Metrics (SERP positions and Search Console data), and Web 2.0 (social media campaign tracking and profile management).
+All of this is managed through a password-protected dashboard hosted at sinabarimd.com/dashboard.html. It has eight tabs: Overview (system status and daily action items), Research (topic candidates and deep research triggers), Drafts (review, edit, approve, or dismiss generated content), Publish (approved drafts queued with scheduled dates), QA (three-level quality reports), SEO Actions (generated from intelligence briefs), Metrics (SERP positions and Search Console data), and Web 2.0 (56 profile pages across platforms, organized by suppression priority).
 </p>
 
 <p>
@@ -481,11 +481,15 @@ This pattern turned out to be one of the most reusable pieces of the architectur
 <h3>Google Stitch: AI-Generated Site Design</h3>
 
 <p>
-All four site designs were built using <a href="https://stitch.withgoogle.com">Google Stitch</a>, an AI web design tool that generates complete site designs from prompts and reference materials. I connected to Stitch through its MCP (Model Context Protocol) server, which let Claude interact with Stitch directly during our planning sessions - creating design systems, generating screens, iterating on layouts, and exporting final designs without leaving the conversation.
+The current site designs are functional but minimal - I built the initial HTML templates by hand with help from Claude Code. The next phase involves <a href="https://stitch.withgoogle.com">Google Stitch</a>, an AI web design tool that generates complete site designs from prompts and reference materials.
 </p>
 
 <p>
-Each site got a distinct visual identity through Stitch: sinabarimd.com has a clinical-professional feel with navy and white, sinabari.net uses a tech-forward layout for healthcare AI analysis, drsinabari.com has an editorial design with Newsreader serif and monochrome palette, and sinabariplasticsurgery.com uses warm tones with a patient-friendly aesthetic. The designs were generated as complete HTML/CSS, which I then adapted for the deploy pipeline - the pipeline injects articles and dynamic content into the Stitch-generated templates using pipeline injection markers without overwriting the design layer.
+The plan is to use Stitch to redesign all four domains with professional, polished templates, then adapt the deploy pipeline to work in a "content-only" mode - where the pipeline injects articles and dynamic content into the Stitch-generated templates without overwriting the design layer. This requires a fundamental change to the deploy model: instead of full-file-sync (where the pipeline owns everything), the pipeline would own only a content subdirectory while Stitch owns the template shell.
+</p>
+
+<p>
+I haven't made this transition yet, but it's the next major architectural decision. The site profile schema is already being extended with a <code>content_path</code> field and the deploy service contract with a <code>deploy_mode: content_only</code> parameter to support it.
 </p>
 
 <h3>Claude: The Development Partner</h3>
@@ -521,15 +525,15 @@ The four owned domains are the core of the strategy, but they're not the whole p
 </p>
 
 <p>
-Every article I publish triggers a social media campaign. The system generates platform-specific posts for LinkedIn, Twitter, Medium, WordPress, and other channels - each adapted to the platform's format and audience. A LinkedIn post about a healthcare AI article leads with the executive angle. A Medium repost includes the full excerpt with a canonical link back to the source. A Quora answer references the article while responding to a real question someone asked.
+I maintain 56 profiles across platforms, each with a unique bio tailored to that platform's context and audience. The LinkedIn bio emphasizes healthcare AI leadership. The Healthgrades profile focuses on clinical credentials. The Behance profile highlights visual and design work. Every profile includes a consistent name ("Sina Bari, MD" or "Dr. Sina Bari"), links back to sinabarimd.com, and uses the same professional headshot.
 </p>
 
 <p>
-These aren't automated posts firing into the void. They're written prompts that I review, edit, and publish manually - the system just generates the content and tracks which platforms have been covered and which haven't. The dashboard shows the campaign progress: what's been posted, what's pending, and what's next. After I post, I mark it done and the system logs it. This means every article gets multichannel distribution over one to three weeks instead of a single publish-and-forget.
+The dashboard's Web 2.0 tab organizes these profiles by suppression priority - which profiles are closest to displacing unwanted results, and which are already ranking well and need maintenance. This isn't about gaming review sites or creating fake profiles. Every one of these is a legitimate professional presence on a platform where I actually have an account. The system just makes sure they're consistent, current, and optimized.
 </p>
 
 <p>
-The effect compounds. Each social post drives traffic back to the article. Each platform where the content appears creates another signal that the article (and the author) are real, active, and relevant. High domain authority platforms like LinkedIn (DA 98), GitHub (DA 95), and Medium (DA 95) often rank for branded queries faster than your own domains. When I created a well-optimized <a href="https://github.com/sinabarimd/reputation-engine">GitHub repository</a> for this project, it ranked on page one within weeks. The cross-linking between these high-DA profiles and the hub site strengthens both.
+A crucial insight: platforms with high domain authority (LinkedIn at DA 98, GitHub at DA 95, YouTube at DA 100) tend to rank faster for branded queries than your own domains. When I created a well-optimized GitHub repository for this project, it had potential to rank on page one within weeks - faster than most content I publish on my own sites. That's why this article links to a GitHub repo, and why the repo links back here. The cross-reference strengthens both.
 </p>
 
 <h2>Content Quality as a Ranking Signal</h2>
@@ -596,78 +600,11 @@ Four owned domains are ranking on page one for branded queries. Six articles hav
 It's early. SERP positions shift, Google's algorithm changes, and three weeks isn't enough to draw conclusions about long-term effectiveness. But the system is running, the data is flowing, and I'm not manually updating HTML files at midnight anymore.
 </p>
 
-<h2>What It Costs</h2>
-
-<p>
-One of the most common questions I get about this system is what it costs to run. The answer is surprisingly little. The entire infrastructure runs on free and open-source tools, a single cheap VPS, and minimal API usage.
-</p>
-
-<table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:0.95em;">
-<thead>
-<tr style="border-bottom:2px solid rgba(255,255,255,0.15);text-align:left;">
-<th style="padding:10px 12px;color:#94a3b8;">Item</th>
-<th style="padding:10px 12px;color:#94a3b8;text-align:right;">Monthly</th>
-<th style="padding:10px 12px;color:#94a3b8;text-align:right;">Annual</th>
-</tr>
-</thead>
-<tbody>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">Claude Pro (Code + Cowork)</td>
-<td style="padding:10px 12px;text-align:right;">$20</td>
-<td style="padding:10px 12px;text-align:right;">$240</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">Hetzner VPS (CX22 - 2 vCPU, 4GB RAM)</td>
-<td style="padding:10px 12px;text-align:right;">$5</td>
-<td style="padding:10px 12px;text-align:right;">$60</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">Domains (4 - .com and .net)</td>
-<td style="padding:10px 12px;text-align:right;">~$4</td>
-<td style="padding:10px 12px;text-align:right;">~$50</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">AI tokens (content generation, research, rewrites)</td>
-<td style="padding:10px 12px;text-align:right;">~$3-5</td>
-<td style="padding:10px 12px;text-align:right;">~$40-60</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">BrightData SERP monitoring</td>
-<td style="padding:10px 12px;text-align:right;">~$1-2</td>
-<td style="padding:10px 12px;text-align:right;">~$15-25</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">n8n (self-hosted, community edition)</td>
-<td style="padding:10px 12px;text-align:right;">$0</td>
-<td style="padding:10px 12px;text-align:right;">$0</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">OpenClaw (self-hosted LLM gateway)</td>
-<td style="padding:10px 12px;text-align:right;">$0</td>
-<td style="padding:10px 12px;text-align:right;">$0</td>
-</tr>
-<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
-<td style="padding:10px 12px;">Tavily (web search API - free tier)</td>
-<td style="padding:10px 12px;text-align:right;">$0</td>
-<td style="padding:10px 12px;text-align:right;">$0</td>
-</tr>
-<tr style="border-top:2px solid rgba(255,255,255,0.15);font-weight:600;">
-<td style="padding:10px 12px;color:#6366f1;">Total</td>
-<td style="padding:10px 12px;text-align:right;color:#6366f1;">~$33-36</td>
-<td style="padding:10px 12px;text-align:right;color:#6366f1;">~$405-435</td>
-</tr>
-</tbody>
-</table>
-
-<p>
-The token costs are low because the system is efficient about when it calls the LLM. Content generation happens a few times per week, not continuously. Research briefs reuse web search results rather than generating everything from scratch. The QA agent validates HTML with regex and HTTP checks, no AI needed. Most of the orchestration is just n8n moving data between webhooks.
-</p>
-
 <h2>Open Source</h2>
 
 <div class="github-banner">
   <strong>The code is open source.</strong><br>
-  Repository: <a href="https://github.com/sinabarimd/reputation-engine">github.com/sinabarimd/reputation-engine</a><br>
+  Repository: <a href="https://github.com/drsinabari/reputation-engine">github.com/drsinabari/reputation-engine</a><br>
   Includes the deploy service, site profiles, QA validation logic, structured data templates, GSC measurement scripts, and architecture documentation.
 </div>
 
