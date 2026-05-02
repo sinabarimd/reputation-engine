@@ -8,11 +8,11 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 ### Latest Changes (May 2, 2026)
 
+- **Quill WYSIWYG draft editor** -- rich text editor replaces raw HTML textarea in Drafts tab, with H2/H3, formatting, links, and HTML source toggle
 - **SEO implementation log** -- SEO Actions tab now shows Claude Code implementation history; overview card shows last run date with stale warning after 14 days
 - **Dashboard secrets fully externalized** -- all secrets loaded from `dashboard-config.js` (gitignored); zero secrets in committed HTML
-- **Publish log fix** -- fixed Orchestrator `publish_log` not updating after off-cycle publishes
 
-See **[CHANGES_NEXT.md](CHANGES_NEXT.md)** for the full changelog.
+See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 
 ---
 
