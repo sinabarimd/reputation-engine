@@ -189,7 +189,22 @@
     .status-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
     .status-row:last-child { border-bottom: none; }
     .loading-msg { color: var(--muted); font-size: 0.8rem; display: flex; align-items: center; padding: 1rem 0; }
+    /* ── Quill WYSIWYG overrides ── */
+    .ql-toolbar.ql-snow { border: 1px solid var(--border); border-bottom: none; background: var(--bg2); border-radius: 2px 2px 0 0; }
+    .ql-container.ql-snow { border: 1px solid var(--border); border-radius: 0 0 2px 2px; background: white; font-family: 'Inter', sans-serif; font-size: 0.9rem; }
+    .ql-editor { min-height: 350px; line-height: 1.7; color: #333; }
+    .ql-editor h2 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .ql-editor h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.35rem; }
+    .ql-editor p { margin-bottom: 1rem; }
+    .ql-editor a { color: var(--navy); }
+    .ql-snow .ql-stroke { stroke: var(--text); }
+    .ql-snow .ql-fill { fill: var(--text); }
+    .ql-snow .ql-picker { color: var(--text); }
+    #edit-source-toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+    #edit-source-toggle label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; user-select: none; }
+    #edit-content-source { display: none; min-height: 350px; font-family: monospace; font-size: 0.8rem; line-height: 1.5; width: 100%; border: 1px solid var(--border); padding: 0.75rem; border-radius: 2px; resize: vertical; }
   </style>
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
 </head>
 <body>
 
@@ -419,7 +434,6 @@
         <h2 class="section-title" style="margin-bottom:0;">SEO Actions</h2>
         <div style="display:flex;gap:0.5rem;">
           <button class="btn btn-outline btn-sm" onclick="loadSEOActions()">↻ Refresh</button>
-          <!-- Generate from Brief retired — SEO actions now reviewed in Claude Code -->
         </div>
       </div>
       <div id="seo-summary" style="display:none;margin-bottom:1rem;"></div>
@@ -430,9 +444,8 @@
         </div>
       </div>
       <div id="seo-loading" class="loading-msg"><span class="spinner"></span>Loading SEO actions…</div>
-      <div id="seo-empty" class="empty-state" style="display:none;"><p>No SEO actions pending. Weekly briefs are reviewed and actioned in Claude Code sessions.</p></div>
+      <div id="seo-empty" class="empty-state" style="display:none;"><p>No SEO implementations recorded yet.</p></div>
       <div id="seo-actions-list"></div>
-      <div id="seo-log" style="display:none;margin-top:2rem;"></div>
     </div>
 
     <!-- ── WEB 2.0 CONTENT PANEL (syndication tasks) ── -->
@@ -595,8 +608,13 @@
         <textarea id="edit-excerpt" style="min-height:70px;font-size:0.9rem;line-height:1.6;"></textarea>
       </div>
       <div class="form-group">
-        <label>Content (HTML)</label>
-        <textarea id="edit-content" style="min-height:400px;font-family:monospace;font-size:0.8rem;line-height:1.5;"></textarea>
+        <label>Content</label>
+        <div id="edit-content-wysiwyg"></div>
+        <textarea id="edit-content-source"></textarea>
+        <div id="edit-source-toggle">
+          <input type="checkbox" id="edit-source-check" onchange="toggleSourceView(this.checked)"/>
+          <label for="edit-source-check">View HTML source</label>
+        </div>
       </div>
     </div>
     <!-- Rewrite panel -->
@@ -626,13 +644,17 @@
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script src="dashboard-config.js"></script>
 <script>
-const N8N = CONFIG.N8N_BASE_URL;
-const PW_HASH = CONFIG.PW_HASH;
+const _C = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+const N8N = _C.N8N_BASE_URL || 'https://n8n.sinabarimd.com';
+const PW_HASH = _C.PW_HASH || '';
 let currentModalDraft = null;
 let editMode = false;
 let suppressedChecks = {};
+let quillEditor = null;
+let sourceMode = false;
 
 // ── Auth ──
 async function sha256(str) {
@@ -665,7 +687,7 @@ if (sessionStorage.getItem('re_auth') === '1') {
   document.getElementById('gate').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
   document.getElementById('sidebar').style.display = 'none';
-  loadHome();
+  setTimeout(() => loadHome(), 0);
 }
 
 // ── Tabs ──
@@ -846,7 +868,7 @@ async function loadHome() {
       api('/webhook/list-drafts').catch(() => ({})),
       api('/webhook/publish-log').catch(() => ({})),
       api('/webhook/qa-results').catch(() => ({})),
-      api('/webhook/seo-actions').catch(() => ({})),
+      fetch('/seo-implementations.json?t=' + Date.now()).then(r => r.ok ? r.json() : {}).catch(() => ({})),
       api('/webhook/media-items').catch(() => ({})),
       api('/webhook/seo-intel').catch(() => ({})),
       api('/webhook/metrics').catch(() => ({})),
@@ -862,7 +884,9 @@ async function loadHome() {
     const now = new Date();
     const sched = schedule.schedule || {};
     const publishLog = schedule.publish_log || {};
-    const seoSummary = seoActions.summary || {};
+    const seoImpls = seoActions.implementations || [];
+    const seoLastRun = seoActions.last_run ? new Date(seoActions.last_run) : null;
+    const seoLastBrief = seoActions.last_brief_date || null;
     const domainResults = qa.domain_results || {};
     const articleResults = qa.article_results_by_site || {};
     const latestM = metrics.latest_measurement;
@@ -886,7 +910,7 @@ async function loadHome() {
       { label: 'Next Publish', value: npLabel, sub: nextPublish ? labels[nextPublish.site] : 'none scheduled', color: 'var(--navy)' },
       { label: 'SERP Owned', value: owned ? String(owned) : '\u2014', sub: latestM?.serp ? 'of ' + latestM.serp.total_results + ' results' : 'no data', color: serpColor },
       { label: 'QA Issues', value: String(Object.values(domainResults).reduce((n,d) => n + (d.failed_checks||[]).length, 0)), sub: totalArticles + ' articles tracked', color: 'var(--navy)' },
-      { label: 'SEO Actions', value: String(seoSummary.pending || 0), sub: (seoSummary.completed||0) + ' completed', color: seoSummary.pending ? 'var(--amber)' : 'var(--navy)' },
+      { label: 'SEO Actions', value: seoLastRun ? seoLastRun.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'None', sub: seoImpls.length ? seoImpls.reduce((n,i) => n + (i.changes||[]).length, 0) + ' changes applied' : 'no implementations', color: 'var(--navy)' },
       { label: 'Media', value: String(media.unconsumed_count || 0), sub: media.last_run ? 'last ' + new Date(media.last_run).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'never scanned', color: 'var(--navy)' },
     ];
 
@@ -902,7 +926,7 @@ async function loadHome() {
     const todos = [];
     const seoActionList = seoActions.actions || [];
 
-    // Schedule-driven todos (publish deadlines)
+    // Schedule-driven todos (publish deadlines + draft review when imminent)
     for (const sid of SCHED_ALL_SITES) {
       const nextDate = schedGetNextPublishDate(sid, sched[sid]);
       const diffHrs = (nextDate - now) / (1000*60*60);
@@ -951,21 +975,15 @@ async function loadHome() {
       }
     }
 
-    // New SEO brief — prompt operator to share with Claude Code
-    if (intel.latest_brief) {
-      const briefAge = (now - new Date(intel.latest_brief.generated_at)) / (1000*60*60*24);
-      const briefDateKey = intel.latest_brief.generated_at.split('T')[0];
-      const dismissedBrief = localStorage.getItem('dismissed_seo_brief');
-      if (briefAge < 7 && dismissedBrief !== briefDateKey) {
-        const briefDate = new Date(intel.latest_brief.generated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-        todos.push({ type: 'SEO', priority: 3, icon: '\ud83d\udcca', color: 'var(--navy)',
-          text: `New weekly SEO brief (${briefDate}) -- share with Claude Code for actioning`,
-          actions: [
-            { label: 'View Brief', onclick: `switchTab('seo')` },
-            { label: 'Dismiss', onclick: `localStorage.setItem('dismissed_seo_brief','${briefDateKey}');event.target.closest('[style*=\"border-left\"]').remove()` },
-          ]
-        });
-      }
+    // Pending SEO actions
+    for (const a of seoActionList.filter(a => a.status === 'pending')) {
+      todos.push({ type: 'SEO', priority: 3, icon: '\u2699', color: 'var(--navy)',
+        text: `SEO action: ${(a.title||'').slice(0,55)}`,
+        actions: [
+          { label: 'Approve', style: 'background:var(--green);color:#fff;border-color:var(--green);', onclick: `todoAction('/webhook/approve-seo-action',{action_id:'${a.action_id}'},'Approved')` },
+          { label: 'Dismiss', onclick: `todoAction('/webhook/dismiss-seo-action',{action_id:'${a.action_id}'},'Dismissed')` },
+        ]
+      });
     }
 
     // Media items to review
@@ -1113,10 +1131,18 @@ async function loadHome() {
       }
     }
 
-    if (seoSummary.pending > 0) {
-      seoAlerts.push({ icon: '\u2699', color: 'var(--navy)',
-        text: `${seoSummary.pending} action${seoSummary.pending>1?'s':''} pending`,
-        action: { label: 'Review', tab: 'seo' } });
+    if (seoLastRun) {
+      const daysSince = Math.floor((now - seoLastRun) / 86400000);
+      const runLabel = seoLastRun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      if (daysSince > 14) {
+        seoAlerts.push({ icon: '\u2699', color: 'var(--amber)',
+          text: `Last SEO implementation: ${runLabel} (${daysSince}d ago)`,
+          action: { label: 'Review', tab: 'seo' } });
+      } else {
+        seoAlerts.push({ icon: '\u2699', color: 'var(--green)',
+          text: `Last SEO implementation: ${runLabel}`,
+          action: { label: 'View', tab: 'seo' } });
+      }
     }
 
     if (latestM && latestM.serp) {
@@ -1303,10 +1329,9 @@ async function suggestTopics() {
   btn.innerHTML = '<span class="spinner"></span>Thinking\u2026';
   resultsEl.style.display = 'none';
   try {
-    const seed_text = (document.getElementById('add-topic-text').value || '').trim();
     const data = await api('/webhook/suggest-topic', {
       method: 'POST',
-      body: JSON.stringify({ site_id, content_type, seed_text })
+      body: JSON.stringify({ site_id, content_type })
     });
     const suggestions = data.suggestions || [];
     if (!suggestions.length) {
@@ -1315,9 +1340,7 @@ async function suggestTopics() {
     }
     let h = '<div style="font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Suggested Topics (click to use)</div>';
     for (const s of suggestions) {
-      const esc = str => (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
-      const fullText = [s.topic, s.rationale ? 'Rationale: ' + s.rationale : '', s.angle ? 'Angle: ' + s.angle : ''].filter(Boolean).join('\n');
-      const escaped = esc(fullText);
+      const escaped = (s.topic || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
       h += `<div style="background:white;border:1px solid var(--border);border-radius:3px;padding:0.75rem;margin-bottom:0.5rem;cursor:pointer;transition:border-color 0.15s;" onclick="document.getElementById('add-topic-text').value='${escaped}';this.style.borderColor='var(--navy)';document.querySelectorAll('#suggest-results > div:not(:first-child)').forEach(d=>d!==this&&(d.style.borderColor='var(--border)'));" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="if(!this.classList.contains('selected'))this.style.borderColor='var(--border)'">
         <div style="font-size:0.85rem;font-weight:500;line-height:1.4;margin-bottom:0.25rem;">${s.topic}</div>
         <div style="font-size:0.7rem;color:var(--muted);line-height:1.4;">${s.rationale || ''}</div>
@@ -1613,6 +1636,46 @@ async function previewDraft(draft_id) {
   } catch(e) { toast('Could not load draft: ' + e.message, 'error'); }
 }
 
+function initQuill() {
+  if (quillEditor) return;
+  quillEditor = new Quill('#edit-content-wysiwyg', {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ 'header': [2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        ['link'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['blockquote'],
+        ['clean']
+      ]
+    }
+  });
+}
+
+function getEditorHTML() {
+  if (sourceMode) return document.getElementById('edit-content-source').value;
+  return quillEditor ? quillEditor.root.innerHTML : '';
+}
+
+function toggleSourceView(checked) {
+  sourceMode = checked;
+  const wysiwyg = document.getElementById('edit-content-wysiwyg');
+  const toolbar = document.querySelector('.ql-toolbar');
+  const source = document.getElementById('edit-content-source');
+  if (checked) {
+    source.value = quillEditor ? quillEditor.root.innerHTML : '';
+    if (toolbar) toolbar.style.display = 'none';
+    wysiwyg.style.display = 'none';
+    source.style.display = 'block';
+  } else {
+    if (quillEditor) quillEditor.clipboard.dangerouslyPasteHTML(source.value);
+    source.style.display = 'none';
+    if (toolbar) toolbar.style.display = '';
+    wysiwyg.style.display = '';
+  }
+}
+
 function toggleEditMode() {
   if (!currentModalDraft) return;
   editMode = !editMode;
@@ -1624,8 +1687,17 @@ function toggleEditMode() {
     document.getElementById('edit-site').value = currentModalDraft.site_id || 'sinabarimd';
     document.getElementById('edit-title').value = currentModalDraft.article?.title || '';
     document.getElementById('edit-excerpt').value = currentModalDraft.article?.excerpt || '';
-    document.getElementById('edit-content').value = currentModalDraft.article?.content_html || '';
+    // Initialize Quill and load content
+    initQuill();
+    sourceMode = false;
+    document.getElementById('edit-source-check').checked = false;
+    document.getElementById('edit-content-source').style.display = 'none';
+    const toolbarEl = document.querySelector('.ql-toolbar');
+    if (toolbarEl) toolbarEl.style.display = '';
+    document.getElementById('edit-content-wysiwyg').style.display = '';
+    quillEditor.clipboard.dangerouslyPasteHTML(currentModalDraft.article?.content_html || '');
   } else {
+    const currentHTML = getEditorHTML();
     document.getElementById('modal-edit-mode').style.display = 'none';
     document.getElementById('modal-read-mode').style.display = 'block';
     document.getElementById('modal-edit-toggle').textContent = 'Edit';
@@ -1633,7 +1705,7 @@ function toggleEditMode() {
     // Refresh preview with current edit values
     document.getElementById('modal-article-title').textContent = document.getElementById('edit-title').value;
     document.getElementById('modal-excerpt').textContent = document.getElementById('edit-excerpt').value;
-    document.getElementById('modal-content').innerHTML = document.getElementById('edit-content').value;
+    document.getElementById('modal-content').innerHTML = currentHTML;
   }
 }
 
@@ -1642,7 +1714,7 @@ async function saveEdits() {
   const draft_id = currentModalDraft.draft_id;
   const title = document.getElementById('edit-title').value.trim();
   const excerpt = document.getElementById('edit-excerpt').value.trim();
-  const content_html = document.getElementById('edit-content').value;
+  const content_html = getEditorHTML();
 
   const new_site_id = document.getElementById('edit-site').value;
   const site_changed = new_site_id !== currentModalDraft.site_id;
@@ -2677,8 +2749,8 @@ async function loadMetrics() {
 
     // GitHub repo traffic
     try {
-      const GH_TOKEN = CONFIG.GH_TOKEN;
-      const GH_REPO = CONFIG.GH_REPO;
+      const GH_TOKEN = _C.GH_TOKEN || '';
+      const GH_REPO = _C.GH_REPO || 'sinabarimd/reputation-engine';
       const [ghViews, ghClones, ghReferrers] = await Promise.all([
         fetch(`https://api.github.com/repos/${GH_REPO}/traffic/views`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>({})),
         fetch(`https://api.github.com/repos/${GH_REPO}/traffic/clones`, {headers:{'Authorization':`Bearer ${GH_TOKEN}`}}).then(r=>r.json()).catch(()=>({})),
@@ -2883,66 +2955,70 @@ async function saveSpotlight() {
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
 }
 
-// ── SEO Actions ──
+// ── SEO Actions (Claude Code Implementation Log) ──
 async function loadSEOActions() {
   document.getElementById('seo-loading').style.display = 'flex';
   document.getElementById('seo-actions-list').innerHTML = '';
   document.getElementById('seo-empty').style.display = 'none';
   document.getElementById('seo-summary').style.display = 'none';
-  document.getElementById('seo-log').style.display = 'none';
   try {
-    const data = await api('/webhook/seo-actions');
-    document.getElementById('seo-loading').style.display = 'none';
-    const s = data.summary || {};
-    if (s.pending || s.approved) {
-      const sumEl = document.getElementById('seo-summary');
-      sumEl.style.display = 'block';
-      sumEl.innerHTML = `<div style="display:flex;gap:1.5rem;font-size:0.75rem;">
-        <span><strong style="color:var(--amber);">${s.pending||0}</strong> pending</span>
-        <span><strong style="color:var(--navy);">${s.approved||0}</strong> approved</span>
-        <span><strong style="color:var(--green);">${s.completed||0}</strong> completed</span>
-        <span style="color:var(--muted);">${s.dismissed||0} dismissed</span></div>`;
-    }
-    document.getElementById('seo-brief-toggle').style.display = 'block';
-    const actions = data.actions || [];
-    if (!actions.length) {
+    let data;
+    try {
+      const resp = await fetch('/seo-implementations.json?t=' + Date.now());
+      if (!resp.ok) throw new Error('not found');
+      data = await resp.json();
+    } catch(fetchErr) {
+      document.getElementById('seo-loading').style.display = 'none';
       document.getElementById('seo-empty').style.display = 'block';
+      document.getElementById('seo-brief-toggle').style.display = 'block';
+      return;
     }
+    document.getElementById('seo-loading').style.display = 'none';
+    document.getElementById('seo-brief-toggle').style.display = 'block';
+
+    const impls = data.implementations || [];
+    if (!impls.length) {
+      document.getElementById('seo-empty').style.display = 'block';
+      return;
+    }
+
+    const sumEl = document.getElementById('seo-summary');
+    sumEl.style.display = 'block';
+    const lastDate = data.last_run ? new Date(data.last_run).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Never';
+    const briefDate = data.last_brief_date ? new Date(data.last_brief_date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'N/A';
+    const totalChanges = impls.reduce((n,impl) => n + (impl.changes||[]).length, 0);
+    sumEl.innerHTML = `<div style="display:flex;gap:1.5rem;font-size:0.75rem;flex-wrap:wrap;">
+      <span>Last run: <strong style="color:var(--navy);">${lastDate}</strong></span>
+      <span>Brief applied: <strong style="color:var(--navy);">${briefDate}</strong></span>
+      <span><strong style="color:var(--green);">${totalChanges}</strong> total changes across <strong>${impls.length}</strong> session${impls.length>1?'s':''}</span></div>`;
+
     const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
-    const typeLabels = {site_change:'Site Change',prompt_change:'Prompt Change',config_change:'Config Change',new_content:'New Content'};
     const container = document.getElementById('seo-actions-list');
-    actions.forEach(a => {
+
+    impls.forEach(impl => {
       const card = document.createElement('div');
       card.className = 'card';
-      const riskColor = a.risk_level==='low'?'var(--green)':a.risk_level==='medium'?'var(--amber)':'var(--red)';
-      const statusBadge = a.status==='pending'?'badge-pending':a.status==='approved'?'badge-approved':'badge-site';
-      const autoTag = a.auto_executable ? '<span style="font-size:0.55rem;background:#d4edda;color:var(--green);padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.5rem;">AUTO</span>' : '<span style="font-size:0.55rem;background:#fff3cd;color:var(--amber);padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.5rem;">MANUAL</span>';
+      const runDate = new Date(impl.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+      const briefLabel = impl.brief_date ? 'Brief: ' + new Date(impl.brief_date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
       card.innerHTML = `<div class="card-header"><div>
-        <div class="card-title">${a.title}${autoTag}</div>
+        <div class="card-title">Claude Code SEO Implementation</div>
         <div class="card-meta">
-          <span class="badge badge-site">${labels[a.site_id]||a.site_id}</span>
-          <span class="badge badge-site">${typeLabels[a.type]||a.type}</span>
-          <span style="font-size:0.6rem;color:${riskColor};margin-left:0.5rem;">\u25cf ${a.risk_level} risk</span>
-        </div></div>
-        <span class="badge ${statusBadge}">${a.status}</span></div>
-        <div class="card-excerpt">${a.description||''}</div>
-        <div class="card-actions">
-          ${a.status==='pending'?`<button class="btn btn-success btn-sm" onclick="approveSEO('${a.action_id}')">Approve</button><button class="btn btn-outline btn-sm" onclick="dismissSEO('${a.action_id}')">Dismiss</button>`:''}
-          ${a.status==='approved'?`<button class="btn btn-primary btn-sm" onclick="exportToClaudeCode('${a.action_id}')">Export to Claude Code</button><button class="btn btn-outline btn-sm" onclick="dismissSEO('${a.action_id}')">Dismiss</button>`:''}
-        </div>`;
+          <span style="font-size:0.7rem;color:var(--muted);">${runDate}</span>
+          ${briefLabel ? `<span class="badge badge-site">${briefLabel}</span>` : ''}
+          <span class="badge badge-approved">${(impl.changes||[]).length} change${(impl.changes||[]).length!==1?'s':''}</span>
+        </div></div></div>
+        <div style="margin-top:0.75rem;">
+        ${(impl.changes||[]).map(c => `<div style="padding:0.4rem 0;border-bottom:1px solid var(--border);display:flex;gap:0.5rem;align-items:baseline;">
+          <span class="badge badge-site" style="flex-shrink:0;">${labels[c.site_id]||c.site_id||'all'}</span>
+          <span style="font-size:0.82rem;">${c.description}</span>
+        </div>`).join('')}
+        </div>
+        ${impl.notes ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem;">${impl.notes}</div>` : ''}`;
       container.appendChild(card);
     });
-    const log = data.recent_log || [];
-    if (log.length) {
-      const logEl = document.getElementById('seo-log');
-      logEl.style.display = 'block';
-      logEl.innerHTML = `<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Recent Log</div>` +
-        log.map(l => `<div class="status-row"><span style="font-size:0.75rem;">${l.title}</span><span class="badge ${l.status==='completed'?'badge-approved':'badge-site'}">${l.status}</span></div>`).join('');
-    }
   } catch(e) {
     document.getElementById('seo-loading').style.display = 'none';
-    document.getElementById('seo-empty').style.display = 'block';
-    document.getElementById('seo-brief-toggle').style.display = 'block';
+    toast('Could not load SEO implementations: ' + e.message, 'error');
   }
 }
 
@@ -3021,83 +3097,6 @@ function renderBrief(b) {
   document.getElementById('seo-brief-content').innerHTML = html;
 }
 
-async function generateSEOTasks() {
-  const btn = event.target;
-  btn.disabled = true; btn.textContent = 'Generating\u2026';
-  toast('Analyzing SEO brief and generating tasks\u2026');
-  try {
-    const r = await api('/webhook/seo-implement', {method:'POST', body:JSON.stringify({})});
-    if (r.error) { toast(r.message, 'error'); }
-    else { toast(`${r.tasks_created} tasks generated.`, 'success'); }
-    loadSEOActions();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
-  finally { btn.disabled = false; btn.textContent = 'Generate from Brief'; }
-}
-
-async function approveSEO(action_id) {
-  try {
-    await api('/webhook/approve-seo-action', {method:'POST', body:JSON.stringify({action_id})});
-    toast('Action approved.', 'success');
-    loadSEOActions();
-  } catch(e) { toast('Approve failed: ' + e.message, 'error'); }
-}
-
-async function dismissSEO(action_id) {
-  try {
-    await api('/webhook/dismiss-seo-action', {method:'POST', body:JSON.stringify({action_id})});
-    toast('Action dismissed.', 'success');
-    loadSEOActions();
-  } catch(e) { toast('Dismiss failed: ' + e.message, 'error'); }
-}
-
-async function exportToClaudeCode(action_id) {
-  try {
-    const data = await api('/webhook/seo-actions');
-    const action = (data.actions || []).find(a => a.action_id === action_id);
-    if (!action) { toast('Action not found', 'error'); return; }
-
-    const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
-    const typeLabels = {site_change:'Site Change',prompt_change:'Prompt Change',config_change:'Config Change',new_content:'New Content'};
-
-    const prompt = `Implement this SEO action from the Technical SEO Implementer.
-
-## Action: ${action.title}
-- **Type:** ${typeLabels[action.type] || action.type}
-- **Site:** ${labels[action.site_id] || action.site_id}
-- **Risk:** ${action.risk_level}
-- **Target:** ${action.change_target || 'N/A'}
-
-## Description
-${action.description}
-
-## Source Brief Recommendation
-${action.brief_item || 'N/A'}
-
-## Proposed Change
-- **Method:** ${action.change_method || 'N/A'}
-- **Search pattern:** \`${action.search_pattern || 'N/A'}\`
-- **Replacement:** \`${(action.replacement || 'N/A').slice(0, 500)}\`
-
-## Instructions
-Review the proposed change against the current live state of ${labels[action.site_id] || action.site_id}. Use your knowledge of the Reputation Engine architecture (CLAUDE.md, specs) to:
-1. Verify the change is safe and correct
-2. Adapt or improve the proposed change if needed (the Implementer's suggestion may be rough)
-3. Implement the change
-4. Verify via the QA Agent (POST /webhook/qa-check)
-5. Report what was done
-
-Action ID: ${action.action_id}`;
-
-    showCopyModal(prompt);
-    // Mark as completed
-    try {
-      await api('/webhook/dismiss-seo-action', {method:'POST', body:JSON.stringify({action_id, status:'completed'})});
-    } catch(_) {}
-    loadSEOActions();
-  } catch(e) {
-    toast('Export failed: ' + e.message, 'error');
-  }
-}
 
 // ── QA ──
 let qaFixData = [];
