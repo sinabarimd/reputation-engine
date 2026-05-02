@@ -6,17 +6,13 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 📖 **[Read the full article: How I Built a Personal Reputation Engine with AI Agents](https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html)**
 
-### What's New
+### Latest Changes (May 2, 2026)
 
-- **Full workflow source published** -- all 10 n8n workflow JSONs (sanitized) now in `workflows/`, plus the operator dashboard and host services. You can see exactly how the system works.
-- **Upgraded research pipeline** -- Tavily advanced search depth, deep-researcher with wider academic search (breadth 3, depth 1, 4 iterations), and an OpenClaw synthesis pass that produces richer briefs with quantitative findings, interconnections, and writing hooks.
-- **Smart Web 2.0 syndication** -- no-repeat logic tracks which articles have been posted to each platform. Monthly YouTube video tasks suggest walkthrough/VLOG content for demo-friendly topics.
-- **Spotlight Articles** -- featured articles on the homepage, outside normal rotation, with multi-week social media campaigns across 15+ platforms. Campaign tracking dashboard with per-task copy/complete/skip.
-- **Seed-aware topic suggestions** -- type a rough idea in the topic field, hit Suggest, and the AI riffs on it. Clicking a suggestion copies the full topic, rationale, and angle.
-- **Draft Rewrite with Suggestions** -- review a draft, type what you want changed, and OpenClaw rewrites it while preserving voice and site rules. Iterate before approving.
-- **Research File Attachments** -- attach PDFs, clinical papers, or docs when adding research topics. Server-side text extraction feeds the content into the research pipeline.
-- **Daily Todos Dashboard** -- consolidated actionable items from Content, SEO, and Web 2.0 with inline approve/dismiss/publish buttons. Schedule-aware: only surfaces review reminders when a publish deadline is approaching.
-- **Broken Link Detection** -- domain-level QA now crawls all internal article links and flags 404s before they hurt rankings.
+- **SEO implementation log** -- SEO Actions tab now shows Claude Code implementation history; overview card shows last run date with stale warning after 14 days
+- **Dashboard secrets fully externalized** -- all secrets loaded from `dashboard-config.js` (gitignored); zero secrets in committed HTML
+- **Publish log fix** -- fixed Orchestrator `publish_log` not updating after off-cycle publishes
+
+See **[CHANGES_NEXT.md](CHANGES_NEXT.md)** for the full changelog.
 
 ---
 
