@@ -2,6 +2,18 @@
 
 <!-- Claude Code appends here during sessions. Monthly sync moves these into CHANGELOG.md. -->
 
+## Week of 2026-05-02
+
+### Added
+- **SEO implementation log** (May 2) -- SEO Actions tab now shows Claude Code implementation history from `/seo-implementations.json`; overview card shows last run date with stale warning after 14 days
+
+### Fixed
+- **drsinabari publish_log** (May 2) -- Orchestrator `publish_log.drsinabari` was stuck at 2026-03-31 after Apr 29 grey-market-peptides publish; fixed via `/webhook/log-publish`
+
+### Changed
+- **Dashboard secrets fully externalized** (May 2) -- PW_HASH and GH_TOKEN loaded from `dashboard-config.js` via `<script>` tag; zero secrets in committed HTML
+- **Removed dead SEO workflow UI** (May 2) -- generateSEOTasks, approveSEO, dismissSEO, exportToClaudeCode functions removed; Technical SEO Implementer webhooks no longer called
+
 ## Week of 2026-04-27
 
 ### Added
