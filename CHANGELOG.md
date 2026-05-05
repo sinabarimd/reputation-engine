@@ -5,10 +5,15 @@
 ## Week of 2026-05-02
 
 ### Added
+- **Dashboard SEO brief todo** (May 4) -- Overview tab now shows "New SEO brief" todo with View Brief button when a brief hasn't been actioned; clears when `seo-implementations.json` records the brief date
 - **Quill WYSIWYG draft editor** (May 1) -- Quill 2.0.3 rich text editor replaces raw HTML textarea in Drafts tab; toolbar with H2/H3, bold, italic, underline, link, lists, blockquote, clean; "View HTML source" toggle for raw edits
 - **SEO implementation log** (May 2) -- SEO Actions tab now shows Claude Code implementation history from `/seo-implementations.json`; overview card shows last run date with stale warning after 14 days
 
 ### Fixed
+- **All RE crons were dead** (May 4) -- n8n 2.12.3 bug: `scheduleTrigger` with specific-time `cronExpression` silently fails to register; only `*/N` interval patterns work. Converted all 5 RE workflows to `*/30 * * * *` with time gates in the first Code node that check PT day/hour. Webhook/manual triggers bypass the gate.
+- **RT Drug Test ack logic** (May 4) -- Escalation ack at 9am+ now suppresses redundant "schedule your test" notification (clinic is open, ack doubles as scheduling ack). Direct 7am ack still allows schedule reminder. Fixed 44ms timing drift on escalation intervals.
+- **OpenClaw gateway crash loop** (May 4) -- Gateway was crash-looping (545K restarts) due to missing TELEGRAM_BOT_TOKEN env var. Fixed by disabling Telegram channel in `/root/.openclaw-default/openclaw.json`. Gateway now serves `/v1/responses` on port 18789.
+- **OpenClaw proxy port conflict** (May 4) -- Zombie python process held port 18790; proxy couldn't bind. Killed zombie, proxy restored on 18790, gateway runs on 18789.
 - **drsinabari publish_log** (May 2) -- Orchestrator `publish_log.drsinabari` was stuck at 2026-03-31 after Apr 29 grey-market-peptides publish; fixed via `/webhook/log-publish`
 
 ### Changed

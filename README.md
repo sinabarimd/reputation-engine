@@ -6,11 +6,12 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 📖 **[Read the full article: How I Built a Personal Reputation Engine with AI Agents](https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html)**
 
-### Latest Changes (May 2, 2026)
+### Latest Changes (May 4, 2026)
 
-- **Quill WYSIWYG draft editor** -- rich text editor replaces raw HTML textarea in Drafts tab, with H2/H3, formatting, links, and HTML source toggle
-- **SEO implementation log** -- SEO Actions tab now shows Claude Code implementation history; overview card shows last run date with stale warning after 14 days
-- **Dashboard secrets fully externalized** -- all secrets loaded from `dashboard-config.js` (gitignored); zero secrets in committed HTML
+- **Fixed all RE crons** -- n8n 2.12.3 bug where specific-time crons silently fail; converted to interval triggers with time gates
+- **Dashboard SEO brief todo** -- Overview now shows actionable todo when a new weekly brief needs review
+- **RT Drug Test ack improvements** -- smarter escalation logic; 9am+ ack doubles as scheduling acknowledgement
+- **OpenClaw gateway restored** -- fixed crash loop and port conflict that blocked AI content generation
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 
