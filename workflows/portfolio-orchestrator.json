@@ -1,4 +1,6 @@
 {
+  "updatedAt": "2026-05-09T17:25:25.079Z",
+  "createdAt": "2026-04-27T18:53:25.893Z",
   "id": "ACGP2CgEOZFS4ysL",
   "name": "Portfolio Orchestrator",
   "description": null,
@@ -35,7 +37,7 @@
     },
     {
       "id": "a0b1c2d3-e4f5-4678-8901-234567890123",
-      "name": "Cron Trigger \u2014 Mon sinabarimd",
+      "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -47,7 +49,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 16 * * 1"
+              "expression": "*/30 * * * *"
             }
           ]
         }
@@ -63,7 +65,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (e.g. manual force-run)\nconst body = $json.body || $json || {};\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
+        "jsCode": "// Time gate: only proceed during scheduled publish windows\n// Mon 9am, Tue 10am, Wed 11am, Thu 2pm, Fri 10am PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\nconst m = parseInt(mStr, 10);\n\n// Scheduled windows (day -> hour)\nconst WINDOWS = { Mon: 9, Tue: 10, Wed: 11, Thu: 14, Fri: 10 };\n\n// Skip gate for webhook/manual triggers (they pass body or site_ids)\nconst body = $json.body || $json || {};\nconst isManual = !!body.site_ids || !!body.site_id || !!body.force;\n\nif (!isManual) {\n  const targetHour = WINDOWS[day];\n  if (targetHour === undefined || h !== targetHour || m >= 30) {\n    return [];\n  }\n}\n\n// === Original code below ===\n// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (reuses body from line 16)\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
       }
     },
     {
@@ -76,7 +78,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Evaluate Site Eligibility \u2014 ramp-up schedule + per-site cadence + publish day check\nconst {\n  publish_log, weeks_since_launch, ramp_up_active, requested_sites, force\n} = $json;\n\n// Full-production minimum days between publishes per site\nconst MIN_INTERVALS = {\n  sinabarimd:             7,   // weekly\n  sinabari_net:           3,   // twice/week (Tue + Fri)\n  drsinabari:             14,  // bi-weekly (long-form editorial)\n  sinabariplasticsurgery: 7,   // weekly\n};\n\n// Designated publish day per site (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu)\n// Mon 09:00 PST \u00b7 Tue 10:00 PST \u00b7 Wed 11:00 PST \u00b7 Thu 14:00 PST\nconst PUBLISH_DAYS = {\n  sinabarimd:             1,\n  sinabari_net:           2,\n  drsinabari:             4,\n  sinabariplasticsurgery: 3,\n};\n\n// Ramp-up site allowlist by week (week 6+ = all four sites)\nconst RAMP_SCHEDULE = {\n  1: ['sinabarimd'],\n  2: ['sinabarimd'],\n  3: ['sinabarimd', 'sinabari_net'],\n  4: ['sinabarimd', 'sinabari_net'],\n  5: ['sinabarimd', 'sinabari_net', 'drsinabari'],\n  6: ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'],\n};\n\nconst ALL_SITES = Object.keys(MIN_INTERVALS);\nconst now = Date.now();\nconst todayDay = new Date().getDay(); // 0=Sun ... 6=Sat\n\n// Determine candidate list\nlet candidates;\nif (Array.isArray(requested_sites) && requested_sites.length > 0) {\n  // Operator override: bypass day-of-week check, respect cadence only\n  candidates = requested_sites.filter(s => ALL_SITES.includes(s));\n} else if (ramp_up_active) {\n  const week = Math.min(weeks_since_launch, 6);\n  const rampCandidates = RAMP_SCHEDULE[week] || ['sinabarimd'];\n  // Still respect publish day during ramp\n  candidates = rampCandidates.filter(s => PUBLISH_DAYS[s] === todayDay);\n} else {\n  // Full production: only the site(s) whose day it is\n  candidates = ALL_SITES.filter(s => PUBLISH_DAYS[s] === todayDay);\n}\n\n// Check per-site cadence (skip if force=true)\nconst eligible = [];\nconst skipped = [];\n\nfor (const site_id of candidates) {\n  if (force) {\n    eligible.push(site_id);\n    continue;\n  }\n  const lastPublish = publish_log[site_id];\n  if (!lastPublish) {\n    eligible.push(site_id);\n    continue;\n  }\n  const daysSince = (now - new Date(lastPublish).getTime()) / (1000 * 60 * 60 * 24);\n  const minDays = MIN_INTERVALS[site_id];\n  if (daysSince >= minDays) {\n    eligible.push(site_id);\n  } else {\n    skipped.push({ site_id, days_since: Math.floor(daysSince), min_days: minDays, next_eligible_in: Math.ceil(minDays - daysSince) });\n  }\n}\n\nreturn [{\n  json: {\n    ...$json,\n    eligible_sites: eligible,\n    skipped_sites: skipped,\n    eligible_count: eligible.length,\n    today_day: todayDay,\n  }\n}];"
+        "jsCode": "// Evaluate Site Eligibility \u2014 ramp-up schedule + per-site cadence + publish day check\nconst {\n  publish_log, weeks_since_launch, ramp_up_active, requested_sites, force\n} = $json;\n\n// Full-production minimum days between publishes per site\nconst MIN_INTERVALS = {\n  sinabarimd:             7,   // weekly\n  sinabari_net:           3,   // twice/week (Tue + Fri)\n  drsinabari:             14,  // bi-weekly (long-form editorial)\n  sinabariplasticsurgery: 7,   // weekly\n};\n\n// Designated publish day per site (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu)\n// Mon 09:00 PST \u00b7 Tue 10:00 PST \u00b7 Wed 11:00 PST \u00b7 Thu 14:00 PST\nconst PUBLISH_DAYS = {\n  sinabarimd:             [1],\n  sinabari_net:           [2, 5],\n  drsinabari:             [4],\n  sinabariplasticsurgery: [3],\n};\n\n// Ramp-up site allowlist by week (week 6+ = all four sites)\nconst RAMP_SCHEDULE = {\n  1: ['sinabarimd'],\n  2: ['sinabarimd'],\n  3: ['sinabarimd', 'sinabari_net'],\n  4: ['sinabarimd', 'sinabari_net'],\n  5: ['sinabarimd', 'sinabari_net', 'drsinabari'],\n  6: ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'],\n};\n\nconst ALL_SITES = Object.keys(MIN_INTERVALS);\nconst now = Date.now();\nconst todayDay = new Date().getDay(); // 0=Sun ... 6=Sat\n\n// Determine candidate list\nlet candidates;\nif (Array.isArray(requested_sites) && requested_sites.length > 0) {\n  // Operator override: bypass day-of-week check, respect cadence only\n  candidates = requested_sites.filter(s => ALL_SITES.includes(s));\n} else if (ramp_up_active) {\n  const week = Math.min(weeks_since_launch, 6);\n  const rampCandidates = RAMP_SCHEDULE[week] || ['sinabarimd'];\n  // Still respect publish day during ramp\n  candidates = rampCandidates.filter(s => PUBLISH_DAYS[s].includes(todayDay));\n} else {\n  // Full production: only the site(s) whose day it is\n  candidates = ALL_SITES.filter(s => PUBLISH_DAYS[s].includes(todayDay));\n}\n\n// Check per-site cadence (skip if force=true)\nconst eligible = [];\nconst skipped = [];\n\nfor (const site_id of candidates) {\n  if (force) {\n    eligible.push(site_id);\n    continue;\n  }\n  const lastPublish = publish_log[site_id];\n  if (!lastPublish) {\n    eligible.push(site_id);\n    continue;\n  }\n  const daysSince = (now - new Date(lastPublish).getTime()) / (1000 * 60 * 60 * 24);\n  const minDays = MIN_INTERVALS[site_id];\n  if (daysSince >= minDays) {\n    eligible.push(site_id);\n  } else {\n    skipped.push({ site_id, days_since: Math.floor(daysSince), min_days: minDays, next_eligible_in: Math.ceil(minDays - daysSince) });\n  }\n}\n\nreturn [{\n  json: {\n    ...$json,\n    eligible_sites: eligible,\n    skipped_sites: skipped,\n    eligible_count: eligible.length,\n    today_day: todayDay,\n  }\n}];"
       }
     },
     {
@@ -155,22 +157,20 @@
             {
               "name": "Content-Type",
               "value": "application/json"
-            },
-            {
-              "name": "X-Orchestrator",
-              "value": "portfolio-orchestrator"
             }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 120000
         }
       }
     },
@@ -255,86 +255,6 @@
       ],
       "parameters": {
         "jsCode": "// Store Research Brief \u2014 adds incoming brief to research_queue in static data\nconst body = $json.body || $json;\nconst brief = body.brief || body;\n\nif (!brief || !brief.site_id) {\n  return [{ json: { success: false, error: 'Missing required field: site_id' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nconst queue = staticData.research_queue || [];\n\n// Remove any existing unconsumed brief for the same site (replace with latest)\nconst filtered = queue.filter(b => !(b.site_id === brief.site_id && !b.consumed));\nfiltered.push({ ...brief, consumed: false, queued_at: new Date().toISOString() });\nstaticData.research_queue = filtered;\n\nreturn [{ json: {\n  success: true,\n  site_id: brief.site_id,\n  topic: brief.recommended_topic || brief.approved_topic || '(no topic)',\n  queue_depth: filtered.filter(b => !b.consumed).length,\n} }];"
-      }
-    },
-    {
-      "id": "2ddb3d6c-6ca4-473b-851c-26eabf764067",
-      "name": "Cron Trigger \u2014 Tue sinabari.net",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -480,
-        620
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 17 * * 2"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "cef247ad-443b-4acc-ab72-c546de6bf359",
-      "name": "Cron Trigger \u2014 Wed sinabariplasticsurgery",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -480,
-        800
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 18 * * 3"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "a122b0b9-49d0-4392-b9bc-bdc11329cde7",
-      "name": "Cron Trigger \u2014 Thu drsinabari",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -480,
-        980
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 21 * * 4"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "b0fe2a28-3066-4075-a421-3f976f23c2f9",
-      "name": "Cron Trigger \u2014 Fri sinabari.net",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -480,
-        1160
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 17 * * 5"
-            }
-          ]
-        }
       }
     },
     {
@@ -490,8 +410,9 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ draft_id: $json.draft_id, site_id: $json.site_id }) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ draft_id: $json.draft_id, site_id: $json.site_id }) }}",
         "options": {
           "response": {
             "response": {
@@ -1159,61 +1080,6 @@
         ]
       ]
     },
-    "Cron Trigger \u2014 Tue sinabari.net": {
-      "main": [
-        [
-          {
-            "node": "Initialize State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cron Trigger \u2014 Wed sinabariplasticsurgery": {
-      "main": [
-        [
-          {
-            "node": "Initialize State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cron Trigger \u2014 Thu drsinabari": {
-      "main": [
-        [
-          {
-            "node": "Initialize State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cron Trigger \u2014 Mon sinabarimd": {
-      "main": [
-        [
-          {
-            "node": "Initialize State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cron Trigger \u2014 Fri sinabari.net": {
-      "main": [
-        [
-          {
-            "node": "Initialize State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Increment Exec Count": {
       "main": [
         [
@@ -1545,18 +1411,32 @@
           }
         ]
       ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "timezone": "America/Los_Angeles"
   },
+  "staticData": {},
   "meta": null,
   "pinData": null,
-  "activeVersionId": "800be7d3-6dd3-4872-a59e-4afd6f2d902c",
-  "versionCounter": 11,
-  "triggerCount": 18,
+  "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+  "activeVersionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+  "versionCounter": 51,
+  "triggerCount": 14,
   "shared": [
     {
       "updatedAt": "2026-04-27T18:53:25.896Z",
@@ -1568,7 +1448,7 @@
         "updatedAt": "2026-03-20T18:09:16.655Z",
         "createdAt": "2026-03-20T00:15:30.157Z",
         "id": "9sJSA5GTLSjQcRNk",
-        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "name": "Sina Bari <YOUR_EMAIL>",
         "type": "personal",
         "icon": null,
         "description": null,
@@ -1578,9 +1458,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-27T21:39:51.311Z",
-    "createdAt": "2026-04-27T21:39:51.311Z",
-    "versionId": "800be7d3-6dd3-4872-a59e-4afd6f2d902c",
+    "updatedAt": "2026-05-09T17:25:25.081Z",
+    "createdAt": "2026-05-09T17:25:25.081Z",
+    "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
     "workflowId": "ACGP2CgEOZFS4ysL",
     "nodes": [
       {
@@ -1613,7 +1493,7 @@
       },
       {
         "id": "a0b1c2d3-e4f5-4678-8901-234567890123",
-        "name": "Cron Trigger \u2014 Mon sinabarimd",
+        "name": "Schedule Trigger",
         "type": "n8n-nodes-base.scheduleTrigger",
         "typeVersion": 1.2,
         "position": [
@@ -1625,7 +1505,7 @@
             "interval": [
               {
                 "field": "cronExpression",
-                "expression": "0 16 * * 1"
+                "expression": "*/30 * * * *"
               }
             ]
           }
@@ -1641,7 +1521,7 @@
           300
         ],
         "parameters": {
-          "jsCode": "// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (e.g. manual force-run)\nconst body = $json.body || $json || {};\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
+          "jsCode": "// Time gate: only proceed during scheduled publish windows\n// Mon 9am, Tue 10am, Wed 11am, Thu 2pm, Fri 10am PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\nconst m = parseInt(mStr, 10);\n\n// Scheduled windows (day -> hour)\nconst WINDOWS = { Mon: 9, Tue: 10, Wed: 11, Thu: 14, Fri: 10 };\n\n// Skip gate for webhook/manual triggers (they pass body or site_ids)\nconst body = $json.body || $json || {};\nconst isManual = !!body.site_ids || !!body.site_id || !!body.force;\n\nif (!isManual) {\n  const targetHour = WINDOWS[day];\n  if (targetHour === undefined || h !== targetHour || m >= 30) {\n    return [];\n  }\n}\n\n// === Original code below ===\n// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (reuses body from line 16)\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
         }
       },
       {
@@ -1654,7 +1534,7 @@
           300
         ],
         "parameters": {
-          "jsCode": "// Evaluate Site Eligibility \u2014 ramp-up schedule + per-site cadence + publish day check\nconst {\n  publish_log, weeks_since_launch, ramp_up_active, requested_sites, force\n} = $json;\n\n// Full-production minimum days between publishes per site\nconst MIN_INTERVALS = {\n  sinabarimd:             7,   // weekly\n  sinabari_net:           3,   // twice/week (Tue + Fri)\n  drsinabari:             14,  // bi-weekly (long-form editorial)\n  sinabariplasticsurgery: 7,   // weekly\n};\n\n// Designated publish day per site (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu)\n// Mon 09:00 PST \u00b7 Tue 10:00 PST \u00b7 Wed 11:00 PST \u00b7 Thu 14:00 PST\nconst PUBLISH_DAYS = {\n  sinabarimd:             1,\n  sinabari_net:           2,\n  drsinabari:             4,\n  sinabariplasticsurgery: 3,\n};\n\n// Ramp-up site allowlist by week (week 6+ = all four sites)\nconst RAMP_SCHEDULE = {\n  1: ['sinabarimd'],\n  2: ['sinabarimd'],\n  3: ['sinabarimd', 'sinabari_net'],\n  4: ['sinabarimd', 'sinabari_net'],\n  5: ['sinabarimd', 'sinabari_net', 'drsinabari'],\n  6: ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'],\n};\n\nconst ALL_SITES = Object.keys(MIN_INTERVALS);\nconst now = Date.now();\nconst todayDay = new Date().getDay(); // 0=Sun ... 6=Sat\n\n// Determine candidate list\nlet candidates;\nif (Array.isArray(requested_sites) && requested_sites.length > 0) {\n  // Operator override: bypass day-of-week check, respect cadence only\n  candidates = requested_sites.filter(s => ALL_SITES.includes(s));\n} else if (ramp_up_active) {\n  const week = Math.min(weeks_since_launch, 6);\n  const rampCandidates = RAMP_SCHEDULE[week] || ['sinabarimd'];\n  // Still respect publish day during ramp\n  candidates = rampCandidates.filter(s => PUBLISH_DAYS[s] === todayDay);\n} else {\n  // Full production: only the site(s) whose day it is\n  candidates = ALL_SITES.filter(s => PUBLISH_DAYS[s] === todayDay);\n}\n\n// Check per-site cadence (skip if force=true)\nconst eligible = [];\nconst skipped = [];\n\nfor (const site_id of candidates) {\n  if (force) {\n    eligible.push(site_id);\n    continue;\n  }\n  const lastPublish = publish_log[site_id];\n  if (!lastPublish) {\n    eligible.push(site_id);\n    continue;\n  }\n  const daysSince = (now - new Date(lastPublish).getTime()) / (1000 * 60 * 60 * 24);\n  const minDays = MIN_INTERVALS[site_id];\n  if (daysSince >= minDays) {\n    eligible.push(site_id);\n  } else {\n    skipped.push({ site_id, days_since: Math.floor(daysSince), min_days: minDays, next_eligible_in: Math.ceil(minDays - daysSince) });\n  }\n}\n\nreturn [{\n  json: {\n    ...$json,\n    eligible_sites: eligible,\n    skipped_sites: skipped,\n    eligible_count: eligible.length,\n    today_day: todayDay,\n  }\n}];"
+          "jsCode": "// Evaluate Site Eligibility \u2014 ramp-up schedule + per-site cadence + publish day check\nconst {\n  publish_log, weeks_since_launch, ramp_up_active, requested_sites, force\n} = $json;\n\n// Full-production minimum days between publishes per site\nconst MIN_INTERVALS = {\n  sinabarimd:             7,   // weekly\n  sinabari_net:           3,   // twice/week (Tue + Fri)\n  drsinabari:             14,  // bi-weekly (long-form editorial)\n  sinabariplasticsurgery: 7,   // weekly\n};\n\n// Designated publish day per site (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu)\n// Mon 09:00 PST \u00b7 Tue 10:00 PST \u00b7 Wed 11:00 PST \u00b7 Thu 14:00 PST\nconst PUBLISH_DAYS = {\n  sinabarimd:             [1],\n  sinabari_net:           [2, 5],\n  drsinabari:             [4],\n  sinabariplasticsurgery: [3],\n};\n\n// Ramp-up site allowlist by week (week 6+ = all four sites)\nconst RAMP_SCHEDULE = {\n  1: ['sinabarimd'],\n  2: ['sinabarimd'],\n  3: ['sinabarimd', 'sinabari_net'],\n  4: ['sinabarimd', 'sinabari_net'],\n  5: ['sinabarimd', 'sinabari_net', 'drsinabari'],\n  6: ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'],\n};\n\nconst ALL_SITES = Object.keys(MIN_INTERVALS);\nconst now = Date.now();\nconst todayDay = new Date().getDay(); // 0=Sun ... 6=Sat\n\n// Determine candidate list\nlet candidates;\nif (Array.isArray(requested_sites) && requested_sites.length > 0) {\n  // Operator override: bypass day-of-week check, respect cadence only\n  candidates = requested_sites.filter(s => ALL_SITES.includes(s));\n} else if (ramp_up_active) {\n  const week = Math.min(weeks_since_launch, 6);\n  const rampCandidates = RAMP_SCHEDULE[week] || ['sinabarimd'];\n  // Still respect publish day during ramp\n  candidates = rampCandidates.filter(s => PUBLISH_DAYS[s].includes(todayDay));\n} else {\n  // Full production: only the site(s) whose day it is\n  candidates = ALL_SITES.filter(s => PUBLISH_DAYS[s].includes(todayDay));\n}\n\n// Check per-site cadence (skip if force=true)\nconst eligible = [];\nconst skipped = [];\n\nfor (const site_id of candidates) {\n  if (force) {\n    eligible.push(site_id);\n    continue;\n  }\n  const lastPublish = publish_log[site_id];\n  if (!lastPublish) {\n    eligible.push(site_id);\n    continue;\n  }\n  const daysSince = (now - new Date(lastPublish).getTime()) / (1000 * 60 * 60 * 24);\n  const minDays = MIN_INTERVALS[site_id];\n  if (daysSince >= minDays) {\n    eligible.push(site_id);\n  } else {\n    skipped.push({ site_id, days_since: Math.floor(daysSince), min_days: minDays, next_eligible_in: Math.ceil(minDays - daysSince) });\n  }\n}\n\nreturn [{\n  json: {\n    ...$json,\n    eligible_sites: eligible,\n    skipped_sites: skipped,\n    eligible_count: eligible.length,\n    today_day: todayDay,\n  }\n}];"
         }
       },
       {
@@ -1733,22 +1613,20 @@
               {
                 "name": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "name": "X-Orchestrator",
-                "value": "portfolio-orchestrator"
               }
             ]
           },
           "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json) }}",
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify($json) }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
-            }
+            },
+            "timeout": 120000
           }
         }
       },
@@ -1833,86 +1711,6 @@
         ],
         "parameters": {
           "jsCode": "// Store Research Brief \u2014 adds incoming brief to research_queue in static data\nconst body = $json.body || $json;\nconst brief = body.brief || body;\n\nif (!brief || !brief.site_id) {\n  return [{ json: { success: false, error: 'Missing required field: site_id' } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nconst queue = staticData.research_queue || [];\n\n// Remove any existing unconsumed brief for the same site (replace with latest)\nconst filtered = queue.filter(b => !(b.site_id === brief.site_id && !b.consumed));\nfiltered.push({ ...brief, consumed: false, queued_at: new Date().toISOString() });\nstaticData.research_queue = filtered;\n\nreturn [{ json: {\n  success: true,\n  site_id: brief.site_id,\n  topic: brief.recommended_topic || brief.approved_topic || '(no topic)',\n  queue_depth: filtered.filter(b => !b.consumed).length,\n} }];"
-        }
-      },
-      {
-        "id": "2ddb3d6c-6ca4-473b-851c-26eabf764067",
-        "name": "Cron Trigger \u2014 Tue sinabari.net",
-        "type": "n8n-nodes-base.scheduleTrigger",
-        "typeVersion": 1.2,
-        "position": [
-          -480,
-          620
-        ],
-        "parameters": {
-          "rule": {
-            "interval": [
-              {
-                "field": "cronExpression",
-                "expression": "0 17 * * 2"
-              }
-            ]
-          }
-        }
-      },
-      {
-        "id": "cef247ad-443b-4acc-ab72-c546de6bf359",
-        "name": "Cron Trigger \u2014 Wed sinabariplasticsurgery",
-        "type": "n8n-nodes-base.scheduleTrigger",
-        "typeVersion": 1.2,
-        "position": [
-          -480,
-          800
-        ],
-        "parameters": {
-          "rule": {
-            "interval": [
-              {
-                "field": "cronExpression",
-                "expression": "0 18 * * 3"
-              }
-            ]
-          }
-        }
-      },
-      {
-        "id": "a122b0b9-49d0-4392-b9bc-bdc11329cde7",
-        "name": "Cron Trigger \u2014 Thu drsinabari",
-        "type": "n8n-nodes-base.scheduleTrigger",
-        "typeVersion": 1.2,
-        "position": [
-          -480,
-          980
-        ],
-        "parameters": {
-          "rule": {
-            "interval": [
-              {
-                "field": "cronExpression",
-                "expression": "0 21 * * 4"
-              }
-            ]
-          }
-        }
-      },
-      {
-        "id": "b0fe2a28-3066-4075-a421-3f976f23c2f9",
-        "name": "Cron Trigger \u2014 Fri sinabari.net",
-        "type": "n8n-nodes-base.scheduleTrigger",
-        "typeVersion": 1.2,
-        "position": [
-          -480,
-          1160
-        ],
-        "parameters": {
-          "rule": {
-            "interval": [
-              {
-                "field": "cronExpression",
-                "expression": "0 17 * * 5"
-              }
-            ]
-          }
         }
       },
       {
@@ -2068,8 +1866,9 @@
             ]
           },
           "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ draft_id: $json.draft_id, site_id: $json.site_id }) }}",
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ draft_id: $json.draft_id, site_id: $json.site_id }) }}",
           "options": {
             "response": {
               "response": {
@@ -2737,61 +2536,6 @@
           ]
         ]
       },
-      "Cron Trigger \u2014 Tue sinabari.net": {
-        "main": [
-          [
-            {
-              "node": "Initialize State",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Cron Trigger \u2014 Wed sinabariplasticsurgery": {
-        "main": [
-          [
-            {
-              "node": "Initialize State",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Cron Trigger \u2014 Thu drsinabari": {
-        "main": [
-          [
-            {
-              "node": "Initialize State",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Cron Trigger \u2014 Mon sinabarimd": {
-        "main": [
-          [
-            {
-              "node": "Initialize State",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Cron Trigger \u2014 Fri sinabari.net": {
-        "main": [
-          [
-            {
-              "node": "Initialize State",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "Increment Exec Count": {
         "main": [
           [
@@ -3123,6 +2867,17 @@
             }
           ]
         ]
+      },
+      "Schedule Trigger": {
+        "main": [
+          [
+            {
+              "node": "Initialize State",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Sina Bari",
@@ -3131,34 +2886,34 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-27T21:39:51.485Z",
-        "id": 76,
+        "createdAt": "2026-05-09T17:25:25.173Z",
+        "id": 187,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "800be7d3-6dd3-4872-a59e-4afd6f2d902c",
+        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T21:39:52.675Z",
-        "id": 78,
+        "createdAt": "2026-05-09T17:25:26.480Z",
+        "id": 189,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "800be7d3-6dd3-4872-a59e-4afd6f2d902c",
+        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T21:39:51.379Z",
-        "id": 75,
+        "createdAt": "2026-05-09T17:25:25.132Z",
+        "id": 186,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "800be7d3-6dd3-4872-a59e-4afd6f2d902c",
+        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T21:39:52.623Z",
-        "id": 77,
+        "createdAt": "2026-05-09T17:25:26.413Z",
+        "id": 188,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "800be7d3-6dd3-4872-a59e-4afd6f2d902c",
+        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }

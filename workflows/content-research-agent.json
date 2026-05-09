@@ -1,4 +1,6 @@
 {
+  "updatedAt": "2026-05-04T18:33:32.091Z",
+  "createdAt": "2026-04-27T18:53:46.553Z",
   "id": "luiFMIAgKKxrNreT",
   "name": "Reputation Engine \u2014 Content Research Agent",
   "description": null,
@@ -19,7 +21,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 9 * * 5"
+              "expression": "*/30 * * * *"
             }
           ]
         }
@@ -99,7 +101,7 @@
         90
       ],
       "parameters": {
-        "jsCode": "// Build Scout Queries per site \u2014 aligned to domain profiles\nconst SITE_PROFILES = {\n  sinabarimd: {\n    role: 'Canonical identity hub \u2014 biography, current work, entity clarity',\n    allowed_topics: 'bio, current work, media, selected writing, entity',\n    forbidden_topics: 'thin blog spam, clinic impersonation',\n    queries: [\n      '\"Sina Bari\" OR \"Dr. Sina Bari\" news 2026',\n      'physician executive personal brand search visibility',\n      'healthcare AI leader profile search results',\n    ]\n  },\n  sinabari_net: {\n    role: 'Health technology authority (75% AI, 25% broader medtech)',\n    allowed_topics: 'healthcare AI, clinical AI, surgical robotics, digital health, medical devices, EHR innovation, precision medicine, telemedicine, wearable health tech, pharma technology, health data interoperability, genomics, clinical decision support',\n    forbidden_topics: 'plastic surgery, aesthetics, generic consumer AI, cryptocurrency',\n    queries: [\n      'healthcare AI clinical workflow automation news 2026',\n      'medical technology innovation digital health breakthroughs this week',\n      'FDA AI medical device surgical robotics approval 2026',\n      'precision medicine health data interoperability EHR update 2026',\n    ]\n  },\n  drsinabari: {\n    role: 'Editorial node \u2014 essays, interviews, long-form commentary',\n    allowed_topics: 'essays, interviews, commentary, long-form narrative',\n    forbidden_topics: 'clinic marketing, generic AI news',\n    queries: [\n      'medicine technology ethics commentary 2026',\n      'physician writer opinion AI healthcare current debate',\n      'doctor perspective technology society essay topics',\n    ]\n  },\n  sinabariplasticsurgery: {\n    role: 'Legacy specialty \u2014 aesthetics education, aging, rejuvenation',\n    allowed_topics: 'aesthetics education, aging, rejuvenation, surgery',\n    forbidden_topics: 'healthcare AI, enterprise tech',\n    queries: [\n      'plastic surgery innovation patient safety 2026',\n      'facial rejuvenation new technique research',\n      'aesthetic medicine trends surgeon education',\n    ]\n  },\n};\n\nconst sites = Object.keys(SITE_PROFILES);\nreturn sites.map(site_id => ({\n  json: {\n    site_id,\n    phase: 'scout',\n    profile: SITE_PROFILES[site_id],\n    queries: SITE_PROFILES[site_id].queries,\n  }\n}));"
+        "jsCode": "// Time gate: only proceed on Friday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Fri' || h !== 9)) {\n  return [];\n}\n\n// === Original code below ===\n// Build Scout Queries per site \u2014 aligned to domain profiles\nconst SITE_PROFILES = {\n  sinabarimd: {\n    role: 'Canonical identity hub \u2014 biography, current work, entity clarity',\n    allowed_topics: 'bio, current work, media, selected writing, entity',\n    forbidden_topics: 'thin blog spam, clinic impersonation',\n    queries: [\n      '\"Sina Bari\" OR \"Dr. Sina Bari\" news 2026',\n      'physician executive personal brand search visibility',\n      'healthcare AI leader profile search results',\n    ]\n  },\n  sinabari_net: {\n    role: 'Health technology authority (75% AI, 25% broader medtech)',\n    allowed_topics: 'healthcare AI, clinical AI, surgical robotics, digital health, medical devices, EHR innovation, precision medicine, telemedicine, wearable health tech, pharma technology, health data interoperability, genomics, clinical decision support',\n    forbidden_topics: 'plastic surgery, aesthetics, generic consumer AI, cryptocurrency',\n    queries: [\n      'healthcare AI clinical workflow automation news 2026',\n      'medical technology innovation digital health breakthroughs this week',\n      'FDA AI medical device surgical robotics approval 2026',\n      'precision medicine health data interoperability EHR update 2026',\n    ]\n  },\n  drsinabari: {\n    role: 'Editorial node \u2014 essays, interviews, long-form commentary',\n    allowed_topics: 'essays, interviews, commentary, long-form narrative',\n    forbidden_topics: 'clinic marketing, generic AI news',\n    queries: [\n      'medicine technology ethics commentary 2026',\n      'physician writer opinion AI healthcare current debate',\n      'doctor perspective technology society essay topics',\n    ]\n  },\n  sinabariplasticsurgery: {\n    role: 'Legacy specialty \u2014 aesthetics education, aging, rejuvenation',\n    allowed_topics: 'aesthetics education, aging, rejuvenation, surgery',\n    forbidden_topics: 'healthcare AI, enterprise tech',\n    queries: [\n      'plastic surgery innovation patient safety 2026',\n      'facial rejuvenation new technique research',\n      'aesthetic medicine trends surgeon education',\n    ]\n  },\n};\n\nconst sites = Object.keys(SITE_PROFILES);\nreturn sites.map(site_id => ({\n  json: {\n    site_id,\n    phase: 'scout',\n    profile: SITE_PROFILES[site_id],\n    queries: SITE_PROFILES[site_id].queries,\n  }\n}));"
       }
     },
     {
@@ -1284,12 +1286,15 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "timezone": "America/Los_Angeles"
   },
+  "staticData": {},
   "meta": null,
   "pinData": null,
-  "activeVersionId": "ae269d07-03e6-47cd-b254-bc8178e7126d",
-  "versionCounter": 24,
+  "versionId": "4abda954-7da1-4303-b786-d08f3b458c12",
+  "activeVersionId": "4abda954-7da1-4303-b786-d08f3b458c12",
+  "versionCounter": 39,
   "triggerCount": 6,
   "shared": [
     {
@@ -1302,7 +1307,7 @@
         "updatedAt": "2026-03-20T18:09:16.655Z",
         "createdAt": "2026-03-20T00:15:30.157Z",
         "id": "9sJSA5GTLSjQcRNk",
-        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "name": "Sina Bari <YOUR_EMAIL>",
         "type": "personal",
         "icon": null,
         "description": null,
@@ -1312,9 +1317,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-27T21:25:39.504Z",
-    "createdAt": "2026-04-27T21:25:39.504Z",
-    "versionId": "ae269d07-03e6-47cd-b254-bc8178e7126d",
+    "updatedAt": "2026-05-04T18:33:32.095Z",
+    "createdAt": "2026-05-04T18:33:32.095Z",
+    "versionId": "4abda954-7da1-4303-b786-d08f3b458c12",
     "workflowId": "luiFMIAgKKxrNreT",
     "nodes": [
       {
@@ -1331,7 +1336,7 @@
             "interval": [
               {
                 "field": "cronExpression",
-                "expression": "0 9 * * 5"
+                "expression": "*/30 * * * *"
               }
             ]
           }
@@ -1411,7 +1416,7 @@
           90
         ],
         "parameters": {
-          "jsCode": "// Build Scout Queries per site \u2014 aligned to domain profiles\nconst SITE_PROFILES = {\n  sinabarimd: {\n    role: 'Canonical identity hub \u2014 biography, current work, entity clarity',\n    allowed_topics: 'bio, current work, media, selected writing, entity',\n    forbidden_topics: 'thin blog spam, clinic impersonation',\n    queries: [\n      '\"Sina Bari\" OR \"Dr. Sina Bari\" news 2026',\n      'physician executive personal brand search visibility',\n      'healthcare AI leader profile search results',\n    ]\n  },\n  sinabari_net: {\n    role: 'Health technology authority (75% AI, 25% broader medtech)',\n    allowed_topics: 'healthcare AI, clinical AI, surgical robotics, digital health, medical devices, EHR innovation, precision medicine, telemedicine, wearable health tech, pharma technology, health data interoperability, genomics, clinical decision support',\n    forbidden_topics: 'plastic surgery, aesthetics, generic consumer AI, cryptocurrency',\n    queries: [\n      'healthcare AI clinical workflow automation news 2026',\n      'medical technology innovation digital health breakthroughs this week',\n      'FDA AI medical device surgical robotics approval 2026',\n      'precision medicine health data interoperability EHR update 2026',\n    ]\n  },\n  drsinabari: {\n    role: 'Editorial node \u2014 essays, interviews, long-form commentary',\n    allowed_topics: 'essays, interviews, commentary, long-form narrative',\n    forbidden_topics: 'clinic marketing, generic AI news',\n    queries: [\n      'medicine technology ethics commentary 2026',\n      'physician writer opinion AI healthcare current debate',\n      'doctor perspective technology society essay topics',\n    ]\n  },\n  sinabariplasticsurgery: {\n    role: 'Legacy specialty \u2014 aesthetics education, aging, rejuvenation',\n    allowed_topics: 'aesthetics education, aging, rejuvenation, surgery',\n    forbidden_topics: 'healthcare AI, enterprise tech',\n    queries: [\n      'plastic surgery innovation patient safety 2026',\n      'facial rejuvenation new technique research',\n      'aesthetic medicine trends surgeon education',\n    ]\n  },\n};\n\nconst sites = Object.keys(SITE_PROFILES);\nreturn sites.map(site_id => ({\n  json: {\n    site_id,\n    phase: 'scout',\n    profile: SITE_PROFILES[site_id],\n    queries: SITE_PROFILES[site_id].queries,\n  }\n}));"
+          "jsCode": "// Time gate: only proceed on Friday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Fri' || h !== 9)) {\n  return [];\n}\n\n// === Original code below ===\n// Build Scout Queries per site \u2014 aligned to domain profiles\nconst SITE_PROFILES = {\n  sinabarimd: {\n    role: 'Canonical identity hub \u2014 biography, current work, entity clarity',\n    allowed_topics: 'bio, current work, media, selected writing, entity',\n    forbidden_topics: 'thin blog spam, clinic impersonation',\n    queries: [\n      '\"Sina Bari\" OR \"Dr. Sina Bari\" news 2026',\n      'physician executive personal brand search visibility',\n      'healthcare AI leader profile search results',\n    ]\n  },\n  sinabari_net: {\n    role: 'Health technology authority (75% AI, 25% broader medtech)',\n    allowed_topics: 'healthcare AI, clinical AI, surgical robotics, digital health, medical devices, EHR innovation, precision medicine, telemedicine, wearable health tech, pharma technology, health data interoperability, genomics, clinical decision support',\n    forbidden_topics: 'plastic surgery, aesthetics, generic consumer AI, cryptocurrency',\n    queries: [\n      'healthcare AI clinical workflow automation news 2026',\n      'medical technology innovation digital health breakthroughs this week',\n      'FDA AI medical device surgical robotics approval 2026',\n      'precision medicine health data interoperability EHR update 2026',\n    ]\n  },\n  drsinabari: {\n    role: 'Editorial node \u2014 essays, interviews, long-form commentary',\n    allowed_topics: 'essays, interviews, commentary, long-form narrative',\n    forbidden_topics: 'clinic marketing, generic AI news',\n    queries: [\n      'medicine technology ethics commentary 2026',\n      'physician writer opinion AI healthcare current debate',\n      'doctor perspective technology society essay topics',\n    ]\n  },\n  sinabariplasticsurgery: {\n    role: 'Legacy specialty \u2014 aesthetics education, aging, rejuvenation',\n    allowed_topics: 'aesthetics education, aging, rejuvenation, surgery',\n    forbidden_topics: 'healthcare AI, enterprise tech',\n    queries: [\n      'plastic surgery innovation patient safety 2026',\n      'facial rejuvenation new technique research',\n      'aesthetic medicine trends surgeon education',\n    ]\n  },\n};\n\nconst sites = Object.keys(SITE_PROFILES);\nreturn sites.map(site_id => ({\n  json: {\n    site_id,\n    phase: 'scout',\n    profile: SITE_PROFILES[site_id],\n    queries: SITE_PROFILES[site_id].queries,\n  }\n}));"
         }
       },
       {
@@ -2599,34 +2604,26 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-27T21:25:39.581Z",
-        "id": 72,
+        "createdAt": "2026-05-04T18:33:33.032Z",
+        "id": 143,
         "workflowId": "luiFMIAgKKxrNreT",
-        "versionId": "ae269d07-03e6-47cd-b254-bc8178e7126d",
+        "versionId": "4abda954-7da1-4303-b786-d08f3b458c12",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T21:25:40.608Z",
-        "id": 74,
+        "createdAt": "2026-05-04T18:36:08.690Z",
+        "id": 153,
         "workflowId": "luiFMIAgKKxrNreT",
-        "versionId": "ae269d07-03e6-47cd-b254-bc8178e7126d",
+        "versionId": "4abda954-7da1-4303-b786-d08f3b458c12",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T21:25:39.557Z",
-        "id": 71,
+        "createdAt": "2026-05-04T18:36:06.641Z",
+        "id": 152,
         "workflowId": "luiFMIAgKKxrNreT",
-        "versionId": "ae269d07-03e6-47cd-b254-bc8178e7126d",
-        "event": "deactivated",
-        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
-      },
-      {
-        "createdAt": "2026-04-27T21:25:40.566Z",
-        "id": 73,
-        "workflowId": "luiFMIAgKKxrNreT",
-        "versionId": "ae269d07-03e6-47cd-b254-bc8178e7126d",
+        "versionId": "4abda954-7da1-4303-b786-d08f3b458c12",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }

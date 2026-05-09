@@ -1,4 +1,6 @@
 {
+  "updatedAt": "2026-05-04T20:12:08.416Z",
+  "createdAt": "2026-04-27T18:53:47.796Z",
   "id": "PHM1QYKaaGf3X480",
   "name": "Reputation Engine \u2014 SEO Research Agent",
   "description": null,
@@ -19,7 +21,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 14 * * 1"
+              "expression": "*/30 * * * *"
             }
           ]
         }
@@ -63,7 +65,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Build targeted SEO research queries \u2014 emit one item per query\nconst today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\nconst month = today.toLocaleString('en-US', { month: 'long' });\nconst research_date = today.toISOString().split('T')[0];\n\nconst staticData = $getWorkflowStaticData('global');\nconst tavily_key = staticData.tavily_key;\nif (!tavily_key) throw new Error('tavily_key not set in staticData');\n\nconst queries = [\n  { label: 'algorithm_updates', query: `Google algorithm update core update spam update ${month} ${year}`, days: 10, max_results: 8 },\n  { label: 'healthcare_seo', query: `healthcare SEO EEAT physician authorship medical website ranking ${year}`, days: 14, max_results: 8 },\n  { label: 'aeo_schema', query: `AI Overviews healthcare featured snippets structured data schema markup ${year}`, days: 14, max_results: 8 },\n  { label: 'personal_brand_serp', query: `personal brand SERP strategy reputation management physician online presence ${year}`, days: 14, max_results: 6 },\n];\n\nreturn queries.map(q => ({\n  json: {\n    is_monthly: isFirstMonday,\n    research_date,\n    label: q.label,\n    tavily_body: JSON.stringify({\n      api_key: tavily_key,\n      query: q.query,\n      search_depth: 'advanced',\n      max_results: q.max_results,\n      days: q.days,\n      include_answer: true,\n      include_raw_content: false,\n    }),\n  }\n}));"
+        "jsCode": "// Time gate: only proceed on Monday 7:00-7:29 AM PT (schedule trigger only)\n// Webhook triggers set $json.headers; schedule trigger $json is empty\nif (!$json.headers) {\n  const _now = new Date();\n  const _ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\n  const _ptStr = _now.toLocaleString('en-US', _ptOpts);\n  const [_dayPart, _timePart] = _ptStr.split(', ');\n  const _day = _dayPart.trim();\n  const [_hStr] = (_timePart || '').split(':');\n  const _h = parseInt(_hStr, 10);\n  if (_day !== 'Mon' || _h !== 7) return [];\n}\n\n// Build targeted SEO research queries \u2014 emit one item per query\nconst today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\nconst month = today.toLocaleString('en-US', { month: 'long' });\nconst research_date = today.toISOString().split('T')[0];\n\nconst staticData = $getWorkflowStaticData('global');\nconst tavily_key = staticData.tavily_key;\nif (!tavily_key) throw new Error('tavily_key not set in staticData');\n\nconst queries = [\n  { label: 'algorithm_updates', query: `Google algorithm update core update spam update ${month} ${year}`, days: 10, max_results: 8 },\n  { label: 'healthcare_seo', query: `healthcare SEO EEAT physician authorship medical website ranking ${year}`, days: 14, max_results: 8 },\n  { label: 'aeo_schema', query: `AI Overviews healthcare featured snippets structured data schema markup ${year}`, days: 14, max_results: 8 },\n  { label: 'personal_brand_serp', query: `personal brand SERP strategy reputation management physician online presence ${year}`, days: 14, max_results: 6 },\n];\n\nreturn queries.map(q => ({\n  json: {\n    is_monthly: isFirstMonday,\n    research_date,\n    label: q.label,\n    query: q.query,\n    tavily_body: JSON.stringify({\n      api_key: tavily_key,\n      query: q.query,\n      search_depth: 'advanced',\n      include_answer: true,\n      max_results: q.max_results,\n      days: q.days,\n    }),\n  }\n}));"
       }
     },
     {
@@ -433,12 +435,15 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "timezone": "America/Los_Angeles"
   },
+  "staticData": {},
   "meta": null,
   "pinData": null,
-  "activeVersionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
-  "versionCounter": 61,
+  "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+  "activeVersionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+  "versionCounter": 124,
   "triggerCount": 3,
   "shared": [
     {
@@ -451,7 +456,7 @@
         "updatedAt": "2026-03-20T18:09:16.655Z",
         "createdAt": "2026-03-20T00:15:30.157Z",
         "id": "9sJSA5GTLSjQcRNk",
-        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "name": "Sina Bari <YOUR_EMAIL>",
         "type": "personal",
         "icon": null,
         "description": null,
@@ -461,9 +466,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-27T19:31:58.372Z",
-    "createdAt": "2026-04-27T19:31:58.372Z",
-    "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+    "updatedAt": "2026-05-04T20:12:08.417Z",
+    "createdAt": "2026-05-04T20:12:08.417Z",
+    "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
     "workflowId": "PHM1QYKaaGf3X480",
     "nodes": [
       {
@@ -480,7 +485,7 @@
             "interval": [
               {
                 "field": "cronExpression",
-                "expression": "0 14 * * 1"
+                "expression": "*/30 * * * *"
               }
             ]
           }
@@ -524,7 +529,7 @@
           300
         ],
         "parameters": {
-          "jsCode": "// Build targeted SEO research queries \u2014 emit one item per query\nconst today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\nconst month = today.toLocaleString('en-US', { month: 'long' });\nconst research_date = today.toISOString().split('T')[0];\n\nconst staticData = $getWorkflowStaticData('global');\nconst tavily_key = staticData.tavily_key;\nif (!tavily_key) throw new Error('tavily_key not set in staticData');\n\nconst queries = [\n  { label: 'algorithm_updates', query: `Google algorithm update core update spam update ${month} ${year}`, days: 10, max_results: 8 },\n  { label: 'healthcare_seo', query: `healthcare SEO EEAT physician authorship medical website ranking ${year}`, days: 14, max_results: 8 },\n  { label: 'aeo_schema', query: `AI Overviews healthcare featured snippets structured data schema markup ${year}`, days: 14, max_results: 8 },\n  { label: 'personal_brand_serp', query: `personal brand SERP strategy reputation management physician online presence ${year}`, days: 14, max_results: 6 },\n];\n\nreturn queries.map(q => ({\n  json: {\n    is_monthly: isFirstMonday,\n    research_date,\n    label: q.label,\n    tavily_body: JSON.stringify({\n      api_key: tavily_key,\n      query: q.query,\n      search_depth: 'advanced',\n      max_results: q.max_results,\n      days: q.days,\n      include_answer: true,\n      include_raw_content: false,\n    }),\n  }\n}));"
+          "jsCode": "// Time gate: only proceed on Monday 7:00-7:29 AM PT (schedule trigger only)\n// Webhook triggers set $json.headers; schedule trigger $json is empty\nif (!$json.headers) {\n  const _now = new Date();\n  const _ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\n  const _ptStr = _now.toLocaleString('en-US', _ptOpts);\n  const [_dayPart, _timePart] = _ptStr.split(', ');\n  const _day = _dayPart.trim();\n  const [_hStr] = (_timePart || '').split(':');\n  const _h = parseInt(_hStr, 10);\n  if (_day !== 'Mon' || _h !== 7) return [];\n}\n\n// Build targeted SEO research queries \u2014 emit one item per query\nconst today = new Date();\nconst isFirstMonday = today.getDate() <= 7;\nconst year = today.getFullYear();\nconst month = today.toLocaleString('en-US', { month: 'long' });\nconst research_date = today.toISOString().split('T')[0];\n\nconst staticData = $getWorkflowStaticData('global');\nconst tavily_key = staticData.tavily_key;\nif (!tavily_key) throw new Error('tavily_key not set in staticData');\n\nconst queries = [\n  { label: 'algorithm_updates', query: `Google algorithm update core update spam update ${month} ${year}`, days: 10, max_results: 8 },\n  { label: 'healthcare_seo', query: `healthcare SEO EEAT physician authorship medical website ranking ${year}`, days: 14, max_results: 8 },\n  { label: 'aeo_schema', query: `AI Overviews healthcare featured snippets structured data schema markup ${year}`, days: 14, max_results: 8 },\n  { label: 'personal_brand_serp', query: `personal brand SERP strategy reputation management physician online presence ${year}`, days: 14, max_results: 6 },\n];\n\nreturn queries.map(q => ({\n  json: {\n    is_monthly: isFirstMonday,\n    research_date,\n    label: q.label,\n    query: q.query,\n    tavily_body: JSON.stringify({\n      api_key: tavily_key,\n      query: q.query,\n      search_depth: 'advanced',\n      include_answer: true,\n      max_results: q.max_results,\n      days: q.days,\n    }),\n  }\n}));"
         }
       },
       {
@@ -897,34 +902,34 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-27T19:31:58.449Z",
-        "id": 64,
+        "createdAt": "2026-05-04T20:12:08.472Z",
+        "id": 179,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T19:31:59.329Z",
-        "id": 66,
+        "createdAt": "2026-05-04T20:12:09.389Z",
+        "id": 181,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T19:31:58.423Z",
-        "id": 63,
+        "createdAt": "2026-05-04T20:12:08.452Z",
+        "id": 178,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T19:31:59.302Z",
-        "id": 65,
+        "createdAt": "2026-05-04T20:12:09.370Z",
+        "id": 180,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "a0cee02e-b43a-47b5-aceb-c6095752826f",
+        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }

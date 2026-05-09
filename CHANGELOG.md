@@ -2,6 +2,22 @@
 
 <!-- Claude Code appends here during sessions, grouped by week. -->
 
+## Week of 2026-05-09
+
+### Fixed
+- **Orchestrator cron crash -- duplicate `const body`** (May 9) -- Time gate added in May 4 session introduced a duplicate `const body` declaration in Initialize State; every cron trigger threw `SyntaxError` and silently failed. System was 10 days dark. Removed duplicate declaration.
+- **sinabari_net PUBLISH_DAYS missing Friday** (May 9) -- `PUBLISH_DAYS` mapped sinabari_net to Tuesday only; changed to array-based `[2, 5]` with `.includes()` checks to match the Tue/Fri cron schedule.
+- **Auto Publish Draft HTTP body format** (May 9) -- Switched Auto Publish Draft and Execute Content Agent nodes from `specifyBody: "json"` to `contentType: "raw"` + `rawContentType: "application/json"` per n8n webhook requirements.
+- **sinabari.net missing PIPELINE markers** (May 9) -- Homepage had no `PIPELINE:START:ANALYSIS` / `PIPELINE:END:ANALYSIS` markers; Publisher could not inject featured section. Added markers.
+- **Publisher sinabari_net template wrong design system** (May 9) -- Template used Tailwind/Material Design 3 classes that don't exist in sinabari.net's CSS; rewrote to use site's editorial CSS (`--serif`, `--accent`, `.wrap`, `.kicker`).
+- **Broken `/topics/healthcare-ai` link on sinabari.net** (May 9) -- Hero CTA pointed to nonexistent path; changed to `/articles/`.
+
+### Improved
+- **SEO QA broken link check broadened** (May 9) -- Domain-level QA now crawls all internal links (`/anything`) on homepages, not just `/articles/*.html`. Catches 404s from nav, CTAs, and hero links.
+
+### Published
+- **sinabari.net first article** (May 9) -- "Clinical AI in Healthcare: What Hospital Leaders Should Actually Watch" deployed to sinabari.net/articles/
+
 ## Week of 2026-05-02
 
 ### Added

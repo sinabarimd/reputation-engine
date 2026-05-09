@@ -1,4 +1,6 @@
 {
+  "updatedAt": "2026-04-27T18:55:58.936Z",
+  "createdAt": "2026-04-27T18:53:39.302Z",
   "id": "R6Tw9GAj1NX8EzUN",
   "name": "Reputation Engine \u2014 Content Generator",
   "description": null,
@@ -738,10 +740,12 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
+  "staticData": {},
   "meta": null,
   "pinData": null,
+  "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
   "activeVersionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
-  "versionCounter": 9,
+  "versionCounter": 17,
   "triggerCount": 7,
   "shared": [
     {
@@ -754,7 +758,7 @@
         "updatedAt": "2026-03-20T18:09:16.655Z",
         "createdAt": "2026-03-20T00:15:30.157Z",
         "id": "9sJSA5GTLSjQcRNk",
-        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "name": "Sina Bari <YOUR_EMAIL>",
         "type": "personal",
         "icon": null,
         "description": null,

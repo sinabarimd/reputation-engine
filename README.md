@@ -6,12 +6,12 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 📖 **[Read the full article: How I Built a Personal Reputation Engine with AI Agents](https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html)**
 
-### Latest Changes (May 4, 2026)
+### Latest Changes (May 9, 2026)
 
-- **Fixed all RE crons** -- n8n 2.12.3 bug where specific-time crons silently fail; converted to interval triggers with time gates
-- **Dashboard SEO brief todo** -- Overview now shows actionable todo when a new weekly brief needs review
-- **RT Drug Test ack improvements** -- smarter escalation logic; 9am+ ack doubles as scheduling acknowledgement
-- **OpenClaw gateway restored** -- fixed crash loop and port conflict that blocked AI content generation
+- **Fixed Orchestrator cron crash** -- duplicate `const body` from time gate patch silently killed all cron triggers for ~3 days; system was 10 days dark
+- **sinabari.net first publish** -- PIPELINE markers added, Publisher template rewritten to match site's editorial CSS
+- **SEO QA broadened** -- domain-level broken link check now crawls all internal paths, not just `/articles/`
+- **sinabari_net Friday schedule restored** -- PUBLISH_DAYS was missing day 5, now fires Tue + Fri
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 

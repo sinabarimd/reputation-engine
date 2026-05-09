@@ -1,4 +1,6 @@
 {
+  "updatedAt": "2026-05-04T18:33:28.232Z",
+  "createdAt": "2026-04-27T18:53:40.735Z",
   "id": "4DpoFWCUglQuM4lz",
   "name": "Reputation Engine \u2014 Media Ingestion Agent",
   "description": null,
@@ -19,7 +21,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 16 * * 3"
+              "expression": "*/30 * * * *"
             }
           ]
         }
@@ -52,7 +54,7 @@
         400
       ],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
+        "jsCode": "// Time gate: only proceed on Wednesday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Wed' || h !== 9)) {\n  return [];\n}\n\n// === Original code below ===\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
       }
     },
     {
@@ -503,12 +505,15 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "timezone": "America/Los_Angeles"
   },
+  "staticData": {},
   "meta": null,
   "pinData": null,
-  "activeVersionId": "179d9aad-fc54-4554-aff5-0b85b0846a8c",
-  "versionCounter": 4,
+  "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+  "activeVersionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+  "versionCounter": 19,
   "triggerCount": 5,
   "shared": [
     {
@@ -521,7 +526,7 @@
         "updatedAt": "2026-03-20T18:09:16.655Z",
         "createdAt": "2026-03-20T00:15:30.157Z",
         "id": "9sJSA5GTLSjQcRNk",
-        "name": "Sina Bari <YOUR_EMAIL@example.com>",
+        "name": "Sina Bari <YOUR_EMAIL>",
         "type": "personal",
         "icon": null,
         "description": null,
@@ -531,9 +536,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-27T18:53:40.743Z",
-    "createdAt": "2026-04-27T18:53:40.743Z",
-    "versionId": "179d9aad-fc54-4554-aff5-0b85b0846a8c",
+    "updatedAt": "2026-05-04T18:33:28.235Z",
+    "createdAt": "2026-05-04T18:33:28.235Z",
+    "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
     "workflowId": "4DpoFWCUglQuM4lz",
     "nodes": [
       {
@@ -550,7 +555,7 @@
             "interval": [
               {
                 "field": "cronExpression",
-                "expression": "0 16 * * 3"
+                "expression": "*/30 * * * *"
               }
             ]
           }
@@ -583,7 +588,7 @@
           400
         ],
         "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
+          "jsCode": "// Time gate: only proceed on Wednesday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Wed' || h !== 9)) {\n  return [];\n}\n\n// === Original code below ===\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
         }
       },
       {
@@ -1037,11 +1042,27 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-27T18:55:20.783Z",
-        "id": 3,
+        "createdAt": "2026-05-04T18:33:29.161Z",
+        "id": 141,
         "workflowId": "4DpoFWCUglQuM4lz",
-        "versionId": "179d9aad-fc54-4554-aff5-0b85b0846a8c",
+        "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
         "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-05-04T18:36:01.972Z",
+        "id": 149,
+        "workflowId": "4DpoFWCUglQuM4lz",
+        "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-05-04T18:35:59.990Z",
+        "id": 148,
+        "workflowId": "4DpoFWCUglQuM4lz",
+        "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+        "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }
     ]
