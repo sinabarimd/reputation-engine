@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-04-27T18:55:58.936Z",
+  "updatedAt": "2026-05-09T21:01:50.491Z",
   "createdAt": "2026-04-27T18:53:39.302Z",
   "id": "R6Tw9GAj1NX8EzUN",
   "name": "Reputation Engine \u2014 Content Generator",
@@ -112,7 +112,7 @@
         200
       ],
       "parameters": {
-        "jsCode": "return [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: 'openclaw',\n      input: $json.injected_prompt,\n    })\n  }\n}];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nreturn [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: 'openclaw',\n      input: $json.injected_prompt,\n    })\n  }\n}];"
       }
     },
     {
@@ -132,7 +132,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -411,7 +411,7 @@
         1200
       ],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { draft_id, suggestions } = body;\n\nif (!draft_id || !suggestions) {\n  return [{ json: { success: false, error: 'Required: draft_id, suggestions' } }];\n}\n\nconst draft = staticData.drafts?.[draft_id];\nif (!draft) {\n  return [{ json: { success: false, error: 'Draft not found: ' + draft_id } }];\n}\n\nconst article = draft.article || {};\nconst agentMap = {\"sinabarimd\": \"publisher-sinabarimd\", \"sinabari_net\": \"publisher-sinabari-net\", \"drsinabari\": \"publisher-drsinabari\", \"sinabariplasticsurgery\": \"publisher-sinabariplasticsurgery\"};\nconst prompt = `You are rewriting an article draft based on operator feedback.\n\nCURRENT DRAFT:\nTitle: ${article.title}\nExcerpt: ${article.excerpt}\nSite: ${draft.site_id}\n\nContent:\n${article.content_html}\n\nOPERATOR SUGGESTIONS FOR REWRITE:\n${suggestions}\n\nRULES:\n- Preserve the topic, site assignment, and general structure unless the suggestions explicitly ask to change them.\n- Apply the suggestions thoughtfully - improve the draft, don't just mechanically insert changes.\n- Maintain the same first-person physician voice and clinical perspective.\n- NEVER use em-dashes. Use commas, colons, semicolons, periods, or \" - \" (space-dash-space) instead.\n- NEVER claim board certification.\n- Keep approximately the same word count unless suggestions ask for more or less.\n- Output valid YAML with these fields:\ntitle: (revised title)\nslug: (url-safe slug)\nexcerpt: (1-2 sentence excerpt)\ncontent_html: |\n  (full article HTML)\nword_count: (approximate)`;\n\nreturn [{ json: {\n  draft_id,\n  site_id: draft.site_id,\n  openclawAgentId: agentMap[draft.site_id] || 'publisher-drsinabari',\n  rewrite_body: JSON.stringify({\n    model: 'openclaw',\n    input: prompt,\n  }),\n} }];\n"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { draft_id, suggestions } = body;\n\nif (!draft_id || !suggestions) {\n  return [{ json: { openclaw_key: _openclaw_key, { success: false, error: 'Required: draft_id, suggestions' } }];\n}\n\nconst draft = staticData.drafts?.[draft_id];\nif (!draft) {\n  return [{ json: { openclaw_key: _openclaw_key, { success: false, error: 'Draft not found: ' + draft_id } }];\n}\n\nconst article = draft.article || {};\nconst agentMap = {\"sinabarimd\": \"publisher-sinabarimd\", \"sinabari_net\": \"publisher-sinabari-net\", \"drsinabari\": \"publisher-drsinabari\", \"sinabariplasticsurgery\": \"publisher-sinabariplasticsurgery\"};\nconst prompt = `You are rewriting an article draft based on operator feedback.\n\nCURRENT DRAFT:\nTitle: ${article.title}\nExcerpt: ${article.excerpt}\nSite: ${draft.site_id}\n\nContent:\n${article.content_html}\n\nOPERATOR SUGGESTIONS FOR REWRITE:\n${suggestions}\n\nRULES:\n- Preserve the topic, site assignment, and general structure unless the suggestions explicitly ask to change them.\n- Apply the suggestions thoughtfully - improve the draft, don't just mechanically insert changes.\n- Maintain the same first-person physician voice and clinical perspective.\n- NEVER use em-dashes. Use commas, colons, semicolons, periods, or \" - \" (space-dash-space) instead.\n- NEVER claim board certification.\n- Keep approximately the same word count unless suggestions ask for more or less.\n- Output valid YAML with these fields:\ntitle: (revised title)\nslug: (url-safe slug)\nexcerpt: (1-2 sentence excerpt)\ncontent_html: |\n  (full article HTML)\nword_count: (approximate)`;\n\nreturn [{ json: { openclaw_key: _openclaw_key, {\n  draft_id,\n  site_id: draft.site_id,\n  openclawAgentId: agentMap[draft.site_id] || 'publisher-drsinabari',\n  rewrite_body: JSON.stringify({\n    model: 'openclaw',\n    input: prompt,\n  }),\n} }];\n"
       }
     },
     {
@@ -431,7 +431,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -743,9 +743,9 @@
   "staticData": {},
   "meta": null,
   "pinData": null,
-  "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
-  "activeVersionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
-  "versionCounter": 17,
+  "versionId": "72c743aa-943b-48d4-891e-54627ff09821",
+  "activeVersionId": "72c743aa-943b-48d4-891e-54627ff09821",
+  "versionCounter": 27,
   "triggerCount": 7,
   "shared": [
     {
@@ -768,9 +768,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-27T18:55:58.940Z",
-    "createdAt": "2026-04-27T18:55:58.940Z",
-    "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
+    "updatedAt": "2026-05-09T21:01:50.494Z",
+    "createdAt": "2026-05-09T21:01:50.494Z",
+    "versionId": "72c743aa-943b-48d4-891e-54627ff09821",
     "workflowId": "R6Tw9GAj1NX8EzUN",
     "nodes": [
       {
@@ -878,7 +878,7 @@
           200
         ],
         "parameters": {
-          "jsCode": "return [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: 'openclaw',\n      input: $json.injected_prompt,\n    })\n  }\n}];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nreturn [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: 'openclaw',\n      input: $json.injected_prompt,\n    })\n  }\n}];"
         }
       },
       {
@@ -898,7 +898,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -1177,7 +1177,7 @@
           1200
         ],
         "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { draft_id, suggestions } = body;\n\nif (!draft_id || !suggestions) {\n  return [{ json: { success: false, error: 'Required: draft_id, suggestions' } }];\n}\n\nconst draft = staticData.drafts?.[draft_id];\nif (!draft) {\n  return [{ json: { success: false, error: 'Draft not found: ' + draft_id } }];\n}\n\nconst article = draft.article || {};\nconst agentMap = {\"sinabarimd\": \"publisher-sinabarimd\", \"sinabari_net\": \"publisher-sinabari-net\", \"drsinabari\": \"publisher-drsinabari\", \"sinabariplasticsurgery\": \"publisher-sinabariplasticsurgery\"};\nconst prompt = `You are rewriting an article draft based on operator feedback.\n\nCURRENT DRAFT:\nTitle: ${article.title}\nExcerpt: ${article.excerpt}\nSite: ${draft.site_id}\n\nContent:\n${article.content_html}\n\nOPERATOR SUGGESTIONS FOR REWRITE:\n${suggestions}\n\nRULES:\n- Preserve the topic, site assignment, and general structure unless the suggestions explicitly ask to change them.\n- Apply the suggestions thoughtfully - improve the draft, don't just mechanically insert changes.\n- Maintain the same first-person physician voice and clinical perspective.\n- NEVER use em-dashes. Use commas, colons, semicolons, periods, or \" - \" (space-dash-space) instead.\n- NEVER claim board certification.\n- Keep approximately the same word count unless suggestions ask for more or less.\n- Output valid YAML with these fields:\ntitle: (revised title)\nslug: (url-safe slug)\nexcerpt: (1-2 sentence excerpt)\ncontent_html: |\n  (full article HTML)\nword_count: (approximate)`;\n\nreturn [{ json: {\n  draft_id,\n  site_id: draft.site_id,\n  openclawAgentId: agentMap[draft.site_id] || 'publisher-drsinabari',\n  rewrite_body: JSON.stringify({\n    model: 'openclaw',\n    input: prompt,\n  }),\n} }];\n"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { draft_id, suggestions } = body;\n\nif (!draft_id || !suggestions) {\n  return [{ json: { openclaw_key: _openclaw_key, { success: false, error: 'Required: draft_id, suggestions' } }];\n}\n\nconst draft = staticData.drafts?.[draft_id];\nif (!draft) {\n  return [{ json: { openclaw_key: _openclaw_key, { success: false, error: 'Draft not found: ' + draft_id } }];\n}\n\nconst article = draft.article || {};\nconst agentMap = {\"sinabarimd\": \"publisher-sinabarimd\", \"sinabari_net\": \"publisher-sinabari-net\", \"drsinabari\": \"publisher-drsinabari\", \"sinabariplasticsurgery\": \"publisher-sinabariplasticsurgery\"};\nconst prompt = `You are rewriting an article draft based on operator feedback.\n\nCURRENT DRAFT:\nTitle: ${article.title}\nExcerpt: ${article.excerpt}\nSite: ${draft.site_id}\n\nContent:\n${article.content_html}\n\nOPERATOR SUGGESTIONS FOR REWRITE:\n${suggestions}\n\nRULES:\n- Preserve the topic, site assignment, and general structure unless the suggestions explicitly ask to change them.\n- Apply the suggestions thoughtfully - improve the draft, don't just mechanically insert changes.\n- Maintain the same first-person physician voice and clinical perspective.\n- NEVER use em-dashes. Use commas, colons, semicolons, periods, or \" - \" (space-dash-space) instead.\n- NEVER claim board certification.\n- Keep approximately the same word count unless suggestions ask for more or less.\n- Output valid YAML with these fields:\ntitle: (revised title)\nslug: (url-safe slug)\nexcerpt: (1-2 sentence excerpt)\ncontent_html: |\n  (full article HTML)\nword_count: (approximate)`;\n\nreturn [{ json: { openclaw_key: _openclaw_key, {\n  draft_id,\n  site_id: draft.site_id,\n  openclawAgentId: agentMap[draft.site_id] || 'publisher-drsinabari',\n  rewrite_body: JSON.stringify({\n    model: 'openclaw',\n    input: prompt,\n  }),\n} }];\n"
         }
       },
       {
@@ -1197,7 +1197,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -1507,34 +1507,34 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-27T18:55:59.067Z",
-        "id": 12,
+        "createdAt": "2026-05-09T21:01:50.600Z",
+        "id": 224,
         "workflowId": "R6Tw9GAj1NX8EzUN",
-        "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
+        "versionId": "72c743aa-943b-48d4-891e-54627ff09821",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T18:56:00.326Z",
-        "id": 14,
+        "createdAt": "2026-05-09T21:01:51.782Z",
+        "id": 226,
         "workflowId": "R6Tw9GAj1NX8EzUN",
-        "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
+        "versionId": "72c743aa-943b-48d4-891e-54627ff09821",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T18:55:59.002Z",
-        "id": 11,
+        "createdAt": "2026-05-09T21:01:50.570Z",
+        "id": 223,
         "workflowId": "R6Tw9GAj1NX8EzUN",
-        "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
+        "versionId": "72c743aa-943b-48d4-891e-54627ff09821",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-04-27T18:56:00.294Z",
-        "id": 13,
+        "createdAt": "2026-05-09T21:01:51.747Z",
+        "id": 225,
         "workflowId": "R6Tw9GAj1NX8EzUN",
-        "versionId": "1a7b1869-8061-42f2-96b6-569c7497ae92",
+        "versionId": "72c743aa-943b-48d4-891e-54627ff09821",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }

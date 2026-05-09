@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-04T18:33:28.232Z",
+  "updatedAt": "2026-05-09T21:07:21.068Z",
   "createdAt": "2026-04-27T18:53:40.735Z",
   "id": "4DpoFWCUglQuM4lz",
   "name": "Reputation Engine \u2014 Media Ingestion Agent",
@@ -54,7 +54,7 @@
         400
       ],
       "parameters": {
-        "jsCode": "// Time gate: only proceed on Wednesday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Wed' || h !== 9)) {\n  return [];\n}\n\n// === Original code below ===\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
+        "jsCode": "// Time gate: only proceed on Wednesday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Wed' || h !== 9)) {\n  return [];\n}\n\n\n// Read secrets from staticData\nconst _sd = $getWorkflowStaticData('global');\n// === Original code below ===\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: _sd.tavily_key || '',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
       }
     },
     {
@@ -80,7 +80,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ api_key: \"YOUR_TAVILY_API_KEY\", query: \"\\\"Sina Bari\\\" OR \\\"Dr. Sina Bari\\\" OR \\\"sinabarimd\\\" healthcare AI physician executive\", search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false, days: 14 }) }}",
+        "jsonBody": "={{ JSON.stringify({ api_key: \"\" + $json.tavily_key + \"\", query: \"\\\"Sina Bari\\\" OR \\\"Dr. Sina Bari\\\" OR \\\"sinabarimd\\\" healthcare AI physician executive\", search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false, days: 14 }) }}",
         "options": {
           "response": {
             "response": {
@@ -158,7 +158,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const { filtered_results, tavily_answer } = $json;\n\nconst resultsText = filtered_results.map((r, i) =>\n  `[${i+1}] TITLE: ${r.title}\\n    URL: ${r.url}\\n    DATE: ${r.published_date || 'unknown'}\\n    CONTENT: ${r.content}`\n).join('\\n\\n');\n\nconst prompt = `You are a media monitoring analyst for Dr. Sina Bari, MD \u2014 a physician executive, healthcare AI leader, and plastic surgeon based in California.\n\nAnalyze these search results and extract structured media items. For each genuinely relevant result, produce a JSON object. Skip results that are not actually about or relevant to Dr. Sina Bari or his professional domains.\n\nTAVILY SUMMARY: ${tavily_answer || 'None'}\n\nSEARCH RESULTS:\n${resultsText}\n\nFor each relevant result, output:\n- type: \"news\" | \"publication\" | \"mention\" | \"negative\" | \"award\"\n- title: clean article/mention title\n- url: the source URL\n- source: publication or website name\n- date: YYYY-MM-DD\n- summary: 1-2 sentence factual summary\n- relevance: \"high\" | \"medium\" | \"low\" (negative content = always \"high\")\n- sentiment: \"positive\" | \"neutral\" | \"negative\"\n- target_site_id: \"sinabarimd\" | \"sinabari_net\" | \"sinabariplasticsurgery\" | \"all\"\n- suggested_angle: one sentence on how to reference in content\n\nOutput a JSON array only. No markdown, no commentary. If nothing is relevant, output [].`;\n\nreturn [{ json: {\n  ...($json),\n  openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }),\n  openclawAgentId: 'media-ingestion',\n} }];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst { filtered_results, tavily_answer } = $json;\n\nconst resultsText = filtered_results.map((r, i) =>\n  `[${i+1}] TITLE: ${r.title}\\n    URL: ${r.url}\\n    DATE: ${r.published_date || 'unknown'}\\n    CONTENT: ${r.content}`\n).join('\\n\\n');\n\nconst prompt = `You are a media monitoring analyst for Dr. Sina Bari, MD \u2014 a physician executive, healthcare AI leader, and plastic surgeon based in California.\n\nAnalyze these search results and extract structured media items. For each genuinely relevant result, produce a JSON object. Skip results that are not actually about or relevant to Dr. Sina Bari or his professional domains.\n\nTAVILY SUMMARY: ${tavily_answer || 'None'}\n\nSEARCH RESULTS:\n${resultsText}\n\nFor each relevant result, output:\n- type: \"news\" | \"publication\" | \"mention\" | \"negative\" | \"award\"\n- title: clean article/mention title\n- url: the source URL\n- source: publication or website name\n- date: YYYY-MM-DD\n- summary: 1-2 sentence factual summary\n- relevance: \"high\" | \"medium\" | \"low\" (negative content = always \"high\")\n- sentiment: \"positive\" | \"neutral\" | \"negative\"\n- target_site_id: \"sinabarimd\" | \"sinabari_net\" | \"sinabariplasticsurgery\" | \"all\"\n- suggested_angle: one sentence on how to reference in content\n\nOutput a JSON array only. No markdown, no commentary. If nothing is relevant, output [].`;\n\nreturn [{ json: { openclaw_key: _openclaw_key, {\n  ...($json),\n  openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }),\n  openclawAgentId: 'media-ingestion',\n} }];"
       }
     },
     {
@@ -178,7 +178,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -511,9 +511,9 @@
   "staticData": {},
   "meta": null,
   "pinData": null,
-  "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
-  "activeVersionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
-  "versionCounter": 19,
+  "versionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
+  "activeVersionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
+  "versionCounter": 34,
   "triggerCount": 5,
   "shared": [
     {
@@ -536,9 +536,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-04T18:33:28.235Z",
-    "createdAt": "2026-05-04T18:33:28.235Z",
-    "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+    "updatedAt": "2026-05-09T21:07:21.069Z",
+    "createdAt": "2026-05-09T21:07:21.069Z",
+    "versionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
     "workflowId": "4DpoFWCUglQuM4lz",
     "nodes": [
       {
@@ -588,7 +588,7 @@
           400
         ],
         "parameters": {
-          "jsCode": "// Time gate: only proceed on Wednesday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Wed' || h !== 9)) {\n  return [];\n}\n\n// === Original code below ===\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: 'YOUR_TAVILY_API_KEY',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
+          "jsCode": "// Time gate: only proceed on Wednesday 9:00-9:29 AM PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\n\n// Skip gate for webhook/manual triggers\nconst isScheduled = !$json.body && !$json.site_id;\nif (isScheduled && (day !== 'Wed' || h !== 9)) {\n  return [];\n}\n\n\n// Read secrets from staticData\nconst _sd = $getWorkflowStaticData('global');\n// === Original code below ===\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.media_items) staticData.media_items = [];\nif (!staticData.processed_urls) staticData.processed_urls = [];\n\nreturn [{ json: {\n  tavily_body: JSON.stringify({\n    api_key: _sd.tavily_key || '',\n    query: '\"Sina Bari\" OR \"Dr. Sina Bari\" OR \"sinabarimd\" healthcare AI plastic surgery physician executive',\n    search_depth: 'advanced',\n    max_results: 15,\n    include_answer: true,\n    include_raw_content: false,\n    days: 14,\n  }),\n  processed_urls: staticData.processed_urls,\n} }];"
         }
       },
       {
@@ -614,7 +614,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ api_key: \"YOUR_TAVILY_API_KEY\", query: \"\\\"Sina Bari\\\" OR \\\"Dr. Sina Bari\\\" OR \\\"sinabarimd\\\" healthcare AI physician executive\", search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false, days: 14 }) }}",
+          "jsonBody": "={{ JSON.stringify({ api_key: \"\" + $json.tavily_key + \"\", query: \"\\\"Sina Bari\\\" OR \\\"Dr. Sina Bari\\\" OR \\\"sinabarimd\\\" healthcare AI physician executive\", search_depth: \"advanced\", max_results: 15, include_answer: true, include_raw_content: false, days: 14 }) }}",
           "options": {
             "response": {
               "response": {
@@ -692,7 +692,7 @@
           300
         ],
         "parameters": {
-          "jsCode": "const { filtered_results, tavily_answer } = $json;\n\nconst resultsText = filtered_results.map((r, i) =>\n  `[${i+1}] TITLE: ${r.title}\\n    URL: ${r.url}\\n    DATE: ${r.published_date || 'unknown'}\\n    CONTENT: ${r.content}`\n).join('\\n\\n');\n\nconst prompt = `You are a media monitoring analyst for Dr. Sina Bari, MD \u2014 a physician executive, healthcare AI leader, and plastic surgeon based in California.\n\nAnalyze these search results and extract structured media items. For each genuinely relevant result, produce a JSON object. Skip results that are not actually about or relevant to Dr. Sina Bari or his professional domains.\n\nTAVILY SUMMARY: ${tavily_answer || 'None'}\n\nSEARCH RESULTS:\n${resultsText}\n\nFor each relevant result, output:\n- type: \"news\" | \"publication\" | \"mention\" | \"negative\" | \"award\"\n- title: clean article/mention title\n- url: the source URL\n- source: publication or website name\n- date: YYYY-MM-DD\n- summary: 1-2 sentence factual summary\n- relevance: \"high\" | \"medium\" | \"low\" (negative content = always \"high\")\n- sentiment: \"positive\" | \"neutral\" | \"negative\"\n- target_site_id: \"sinabarimd\" | \"sinabari_net\" | \"sinabariplasticsurgery\" | \"all\"\n- suggested_angle: one sentence on how to reference in content\n\nOutput a JSON array only. No markdown, no commentary. If nothing is relevant, output [].`;\n\nreturn [{ json: {\n  ...($json),\n  openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }),\n  openclawAgentId: 'media-ingestion',\n} }];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst { filtered_results, tavily_answer } = $json;\n\nconst resultsText = filtered_results.map((r, i) =>\n  `[${i+1}] TITLE: ${r.title}\\n    URL: ${r.url}\\n    DATE: ${r.published_date || 'unknown'}\\n    CONTENT: ${r.content}`\n).join('\\n\\n');\n\nconst prompt = `You are a media monitoring analyst for Dr. Sina Bari, MD \u2014 a physician executive, healthcare AI leader, and plastic surgeon based in California.\n\nAnalyze these search results and extract structured media items. For each genuinely relevant result, produce a JSON object. Skip results that are not actually about or relevant to Dr. Sina Bari or his professional domains.\n\nTAVILY SUMMARY: ${tavily_answer || 'None'}\n\nSEARCH RESULTS:\n${resultsText}\n\nFor each relevant result, output:\n- type: \"news\" | \"publication\" | \"mention\" | \"negative\" | \"award\"\n- title: clean article/mention title\n- url: the source URL\n- source: publication or website name\n- date: YYYY-MM-DD\n- summary: 1-2 sentence factual summary\n- relevance: \"high\" | \"medium\" | \"low\" (negative content = always \"high\")\n- sentiment: \"positive\" | \"neutral\" | \"negative\"\n- target_site_id: \"sinabarimd\" | \"sinabari_net\" | \"sinabariplasticsurgery\" | \"all\"\n- suggested_angle: one sentence on how to reference in content\n\nOutput a JSON array only. No markdown, no commentary. If nothing is relevant, output [].`;\n\nreturn [{ json: { openclaw_key: _openclaw_key, {\n  ...($json),\n  openclaw_request_body: JSON.stringify({ model: 'openclaw', input: prompt }),\n  openclawAgentId: 'media-ingestion',\n} }];"
         }
       },
       {
@@ -712,7 +712,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -1042,26 +1042,34 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-04T18:33:29.161Z",
-        "id": 141,
+        "createdAt": "2026-05-09T21:07:21.125Z",
+        "id": 258,
         "workflowId": "4DpoFWCUglQuM4lz",
-        "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+        "versionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-04T18:36:01.972Z",
-        "id": 149,
+        "createdAt": "2026-05-09T21:07:22.209Z",
+        "id": 260,
         "workflowId": "4DpoFWCUglQuM4lz",
-        "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+        "versionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-04T18:35:59.990Z",
-        "id": 148,
+        "createdAt": "2026-05-09T21:07:21.103Z",
+        "id": 257,
         "workflowId": "4DpoFWCUglQuM4lz",
-        "versionId": "2f6fe2e2-9b3c-434a-8e2d-3336124a829e",
+        "versionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
+        "event": "deactivated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-05-09T21:07:22.141Z",
+        "id": 259,
+        "workflowId": "4DpoFWCUglQuM4lz",
+        "versionId": "5ddf6b0b-3a63-4d15-932c-48f87bc75953",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }

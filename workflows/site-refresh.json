@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-04-27T18:54:19.969Z",
+  "updatedAt": "2026-05-09T21:05:48.152Z",
   "createdAt": "2026-04-27T18:54:19.969Z",
   "id": "eYS8hc6xHbSEDpMu",
   "name": "Reputation Engine \u2014 Site Refresh",
@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const html = $json.rendered_html || '';\nconst release_id = `rel_${Date.now()}`;\n\nreturn [\n  {\n    json: {\n      site_id: $json.site_id,\n      domain: $json.domain,\n      deployPath: $json.deployPath,\n      verifyUrl: $json.verifyUrl,\n      release_id,\n      files: [\n        {\n          path: 'index.html',\n          content: html,\n        },\n        {\n          path: 'styles.css',\n          content: $json.styles_css || '',\n        },\n      ],\n    },\n  },\n];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _deploy_key = _sd.deploy_service_key || '';\n\nconst html = $json.rendered_html || '';\nconst release_id = `rel_${Date.now()}`;\n\nreturn [\n  {\n    json: {\n      site_id: $json.site_id,\n      domain: $json.domain,\n      deployPath: $json.deployPath,\n      verifyUrl: $json.verifyUrl,\n      release_id,\n      files: [\n        {\n          path: 'index.html',\n          content: html,\n        },\n        {\n          path: 'styles.css',\n          content: $json.styles_css || '',\n        },\n      ],\n    },\n  },\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -40,7 +40,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_DEPLOY_SERVICE_KEY"
+              "value": "={{ 'Bearer ' + $json.deploy_service_key }}"
             }
           ]
         },
@@ -120,7 +120,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -240,7 +240,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: $json.prompt\n    })\n  }\n}];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nreturn [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: $json.prompt\n    })\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -328,7 +328,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const profile = $json.profile || {};\nconst raw = $json.profile_yaml || '';\nconst site_id = $json.site_id;\n\nif (!site_id) {\n  throw new Error('Missing site_id');\n}\n\nconst SITE_MAP = {\n  sinabarimd: {\n    slug: 'sinabarimd',\n    domain: 'sinabarimd.com',\n    canonical_url: 'https://sinabarimd.com/',\n    deployPath: '/srv/sites/sinabarimd',\n    verifyUrl: 'https://sinabarimd.com',\n    openclawAgentId: 'publisher-sinabarimd',\n    technicalSeoAgentId: 'technical-seo-sinabarimd',\n    display_name: 'Sina Bari, MD',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'identity_hub',\n    required_topic_tokens: ['sina bari', 'medical ai', 'current work'],\n    forbidden_phrase_bundles: ['book a consultation', 'best plastic surgeon near me', 'schedule an appointment']\n  },\n  sinabari_net: {\n    slug: 'sinabari-net',\n    domain: 'sinabari.net',\n    canonical_url: 'https://sinabari.net/',\n    deployPath: '/srv/sites/sinabari-net',\n    verifyUrl: 'https://sinabari.net',\n    openclawAgentId: 'publisher-sinabari-net',\n    technicalSeoAgentId: 'technical-seo-sinabari-net',\n    display_name: 'Sina Bari',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'ai_authority',\n    required_topic_tokens: ['healthcare ai', 'medical ai', 'clinical workflow', 'governance'],\n    forbidden_phrase_bundles: [\n      'aesthetics philosophy',\n      'plastic surgery',\n      'facial rejuvenation',\n      'cosmetic surgery',\n      'selected media and speaking',\n      'connect surgery aesthetics and healthcare technology'\n    ]\n  },\n  drsinabari: {\n    slug: 'drsinabari',\n    domain: 'drsinabari.com',\n    canonical_url: 'https://drsinabari.com/',\n    deployPath: '/srv/sites/drsinabari',\n    verifyUrl: 'https://drsinabari.com',\n    openclawAgentId: 'publisher-drsinabari',\n    technicalSeoAgentId: 'technical-seo-drsinabari',\n    display_name: 'Dr. Sina Bari',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Dr. Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'editorial',\n    required_topic_tokens: ['essay', 'commentary', 'writing'],\n    forbidden_phrase_bundles: ['book a consultation', 'healthcare ai thought leadership']\n  },\n  sinabariplasticsurgery: {\n    slug: 'sinabariplasticsurgery',\n    domain: 'sinabariplasticsurgery.com',\n    canonical_url: 'https://sinabariplasticsurgery.com/',\n    deployPath: '/srv/sites/sinabariplasticsurgery',\n    verifyUrl: 'https://sinabariplasticsurgery.com',\n    openclawAgentId: 'publisher-sinabariplasticsurgery',\n    technicalSeoAgentId: 'technical-seo-sinabariplasticsurgery',\n    display_name: 'Sina Bari, MD',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'legacy_specialty',\n    required_topic_tokens: ['aesthetics', 'aging', 'rejuvenation'],\n    forbidden_phrase_bundles: ['healthcare ai', 'enterprise ai', 'clinical workflow']\n  }\n};\n\nconst site = SITE_MAP[site_id];\n\nif (!site) {\n  throw new Error(`Unknown site_id: ${site_id}`);\n}\n\nreturn [\n  {\n    json: {\n      site_id,\n      ...site,\n      profile_yaml: raw,\n      profile,\n      role: profile.role || '',\n      objective: profile.objective || '',\n      positioning: profile.positioning || '',\n      allowed_topics: profile.allowed_topics || [],\n      forbidden_topics: profile.forbidden_topics || [],\n      primary_keywords: profile.primary_keywords || [],\n      content_types: profile.content_types || [],\n      core_pages: profile.core_pages || [],\n      schema_type: (profile.schema || [])[0] || 'Person',\n      tone: ['credible', 'restrained', 'expert', 'clear'],\n      content_focus: profile.allowed_topics || [],\n      content_rules: profile.forbidden_topics || [],\n    }\n  }\n];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\n\nconst profile = $json.profile || {};\nconst raw = $json.profile_yaml || '';\nconst site_id = $json.site_id;\n\nif (!site_id) {\n  throw new Error('Missing site_id');\n}\n\nconst SITE_MAP = {\n  sinabarimd: {\n    slug: 'sinabarimd',\n    domain: 'sinabarimd.com',\n    canonical_url: 'https://sinabarimd.com/',\n    deployPath: '/srv/sites/sinabarimd',\n    verifyUrl: 'https://sinabarimd.com',\n    openclawAgentId: 'publisher-sinabarimd',\n    technicalSeoAgentId: 'technical-seo-sinabarimd',\n    display_name: 'Sina Bari, MD',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'identity_hub',\n    required_topic_tokens: ['sina bari', 'medical ai', 'current work'],\n    forbidden_phrase_bundles: ['book a consultation', 'best plastic surgeon near me', 'schedule an appointment']\n  },\n  sinabari_net: {\n    slug: 'sinabari-net',\n    domain: 'sinabari.net',\n    canonical_url: 'https://sinabari.net/',\n    deployPath: '/srv/sites/sinabari-net',\n    verifyUrl: 'https://sinabari.net',\n    openclawAgentId: 'publisher-sinabari-net',\n    technicalSeoAgentId: 'technical-seo-sinabari-net',\n    display_name: 'Sina Bari',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'ai_authority',\n    required_topic_tokens: ['healthcare ai', 'medical ai', 'clinical workflow', 'governance'],\n    forbidden_phrase_bundles: [\n      'aesthetics philosophy',\n      'plastic surgery',\n      'facial rejuvenation',\n      'cosmetic surgery',\n      'selected media and speaking',\n      'connect surgery aesthetics and healthcare technology'\n    ]\n  },\n  drsinabari: {\n    slug: 'drsinabari',\n    domain: 'drsinabari.com',\n    canonical_url: 'https://drsinabari.com/',\n    deployPath: '/srv/sites/drsinabari',\n    verifyUrl: 'https://drsinabari.com',\n    openclawAgentId: 'publisher-drsinabari',\n    technicalSeoAgentId: 'technical-seo-drsinabari',\n    display_name: 'Dr. Sina Bari',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Dr. Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'editorial',\n    required_topic_tokens: ['essay', 'commentary', 'writing'],\n    forbidden_phrase_bundles: ['book a consultation', 'healthcare ai thought leadership']\n  },\n  sinabariplasticsurgery: {\n    slug: 'sinabariplasticsurgery',\n    domain: 'sinabariplasticsurgery.com',\n    canonical_url: 'https://sinabariplasticsurgery.com/',\n    deployPath: '/srv/sites/sinabariplasticsurgery',\n    verifyUrl: 'https://sinabariplasticsurgery.com',\n    openclawAgentId: 'publisher-sinabariplasticsurgery',\n    technicalSeoAgentId: 'technical-seo-sinabariplasticsurgery',\n    display_name: 'Sina Bari, MD',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'legacy_specialty',\n    required_topic_tokens: ['aesthetics', 'aging', 'rejuvenation'],\n    forbidden_phrase_bundles: ['healthcare ai', 'enterprise ai', 'clinical workflow']\n  }\n};\n\nconst site = SITE_MAP[site_id];\n\nif (!site) {\n  throw new Error(`Unknown site_id: ${site_id}`);\n}\n\nreturn [\n  {\n    json: {\n      site_id,\n      ...site,\n      profile_yaml: raw,\n      profile,\n      role: profile.role || '',\n      objective: profile.objective || '',\n      positioning: profile.positioning || '',\n      allowed_topics: profile.allowed_topics || [],\n      forbidden_topics: profile.forbidden_topics || [],\n      primary_keywords: profile.primary_keywords || [],\n      content_types: profile.content_types || [],\n      core_pages: profile.core_pages || [],\n      schema_type: (profile.schema || [])[0] || 'Person',\n      tone: ['credible', 'restrained', 'expert', 'clear'],\n      content_focus: profile.allowed_topics || [],\n      content_rules: profile.forbidden_topics || [],\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -416,7 +416,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const list = (arr) => (arr && arr.length ? arr.map(x => `- ${x}`).join('\\n') : '- none');\n\nconst prompt = `\nYou are the Technical SEO Agent for ${$json.domain}.\nReturn only valid YAML in the exact same schema already provided.\nDo not output commentary.\nDo not output markdown.\nDo not add or remove sections.\nMake only minimal corrections needed for:\n- role purity\n- metadata quality\n- canonical consistency\n- internal/outbound link hygiene\n- avoiding site overlap\n- removing forbidden-topic drift\n\nSite role: ${$json.site_role}\nAllowed topics:\n${list($json.allowed_topics)}\nForbidden topics:\n${list($json.forbidden_topics)}\n\nCanonical URL (must preserve exactly):\n${$json.canonical_url}\n\nDisplay name (must preserve exactly):\n${$json.display_name}\n\nInput YAML to review and minimally correct:\n${$json.generated_yaml}\n`;\n\nreturn [{\n  json: {\n    ...$json,\n    technical_seo_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: prompt\n    })\n  }\n}];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst list = (arr) => (arr && arr.length ? arr.map(x => `- ${x}`).join('\\n') : '- none');\n\nconst prompt = `\nYou are the Technical SEO Agent for ${$json.domain}.\nReturn only valid YAML in the exact same schema already provided.\nDo not output commentary.\nDo not output markdown.\nDo not add or remove sections.\nMake only minimal corrections needed for:\n- role purity\n- metadata quality\n- canonical consistency\n- internal/outbound link hygiene\n- avoiding site overlap\n- removing forbidden-topic drift\n\nSite role: ${$json.site_role}\nAllowed topics:\n${list($json.allowed_topics)}\nForbidden topics:\n${list($json.forbidden_topics)}\n\nCanonical URL (must preserve exactly):\n${$json.canonical_url}\n\nDisplay name (must preserve exactly):\n${$json.display_name}\n\nInput YAML to review and minimally correct:\n${$json.generated_yaml}\n`;\n\nreturn [{\n  json: {\n    ...$json,\n    technical_seo_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: prompt\n    })\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -451,7 +451,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -1004,9 +1004,9 @@
   "staticData": {},
   "meta": null,
   "pinData": null,
-  "versionId": "b37e4a18-7c2c-46b8-acad-802e54fa4c5b",
-  "activeVersionId": "b37e4a18-7c2c-46b8-acad-802e54fa4c5b",
-  "versionCounter": 6,
+  "versionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
+  "activeVersionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
+  "versionCounter": 16,
   "triggerCount": 1,
   "shared": [
     {
@@ -1029,9 +1029,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-27T18:54:19.981Z",
-    "createdAt": "2026-04-27T18:54:19.981Z",
-    "versionId": "b37e4a18-7c2c-46b8-acad-802e54fa4c5b",
+    "updatedAt": "2026-05-09T21:05:48.154Z",
+    "createdAt": "2026-05-09T21:05:48.154Z",
+    "versionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
     "workflowId": "eYS8hc6xHbSEDpMu",
     "nodes": [
       {
@@ -1047,7 +1047,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const html = $json.rendered_html || '';\nconst release_id = `rel_${Date.now()}`;\n\nreturn [\n  {\n    json: {\n      site_id: $json.site_id,\n      domain: $json.domain,\n      deployPath: $json.deployPath,\n      verifyUrl: $json.verifyUrl,\n      release_id,\n      files: [\n        {\n          path: 'index.html',\n          content: html,\n        },\n        {\n          path: 'styles.css',\n          content: $json.styles_css || '',\n        },\n      ],\n    },\n  },\n];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _deploy_key = _sd.deploy_service_key || '';\n\nconst html = $json.rendered_html || '';\nconst release_id = `rel_${Date.now()}`;\n\nreturn [\n  {\n    json: {\n      site_id: $json.site_id,\n      domain: $json.domain,\n      deployPath: $json.deployPath,\n      verifyUrl: $json.verifyUrl,\n      release_id,\n      files: [\n        {\n          path: 'index.html',\n          content: html,\n        },\n        {\n          path: 'styles.css',\n          content: $json.styles_css || '',\n        },\n      ],\n    },\n  },\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1067,7 +1067,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_DEPLOY_SERVICE_KEY"
+                "value": "={{ 'Bearer ' + $json.deploy_service_key }}"
               }
             ]
           },
@@ -1147,7 +1147,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -1267,7 +1267,7 @@
       },
       {
         "parameters": {
-          "jsCode": "return [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: $json.prompt\n    })\n  }\n}];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nreturn [{\n  json: {\n    ...$json,\n    openclaw_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: $json.prompt\n    })\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1355,7 +1355,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const profile = $json.profile || {};\nconst raw = $json.profile_yaml || '';\nconst site_id = $json.site_id;\n\nif (!site_id) {\n  throw new Error('Missing site_id');\n}\n\nconst SITE_MAP = {\n  sinabarimd: {\n    slug: 'sinabarimd',\n    domain: 'sinabarimd.com',\n    canonical_url: 'https://sinabarimd.com/',\n    deployPath: '/srv/sites/sinabarimd',\n    verifyUrl: 'https://sinabarimd.com',\n    openclawAgentId: 'publisher-sinabarimd',\n    technicalSeoAgentId: 'technical-seo-sinabarimd',\n    display_name: 'Sina Bari, MD',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'identity_hub',\n    required_topic_tokens: ['sina bari', 'medical ai', 'current work'],\n    forbidden_phrase_bundles: ['book a consultation', 'best plastic surgeon near me', 'schedule an appointment']\n  },\n  sinabari_net: {\n    slug: 'sinabari-net',\n    domain: 'sinabari.net',\n    canonical_url: 'https://sinabari.net/',\n    deployPath: '/srv/sites/sinabari-net',\n    verifyUrl: 'https://sinabari.net',\n    openclawAgentId: 'publisher-sinabari-net',\n    technicalSeoAgentId: 'technical-seo-sinabari-net',\n    display_name: 'Sina Bari',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'ai_authority',\n    required_topic_tokens: ['healthcare ai', 'medical ai', 'clinical workflow', 'governance'],\n    forbidden_phrase_bundles: [\n      'aesthetics philosophy',\n      'plastic surgery',\n      'facial rejuvenation',\n      'cosmetic surgery',\n      'selected media and speaking',\n      'connect surgery aesthetics and healthcare technology'\n    ]\n  },\n  drsinabari: {\n    slug: 'drsinabari',\n    domain: 'drsinabari.com',\n    canonical_url: 'https://drsinabari.com/',\n    deployPath: '/srv/sites/drsinabari',\n    verifyUrl: 'https://drsinabari.com',\n    openclawAgentId: 'publisher-drsinabari',\n    technicalSeoAgentId: 'technical-seo-drsinabari',\n    display_name: 'Dr. Sina Bari',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Dr. Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'editorial',\n    required_topic_tokens: ['essay', 'commentary', 'writing'],\n    forbidden_phrase_bundles: ['book a consultation', 'healthcare ai thought leadership']\n  },\n  sinabariplasticsurgery: {\n    slug: 'sinabariplasticsurgery',\n    domain: 'sinabariplasticsurgery.com',\n    canonical_url: 'https://sinabariplasticsurgery.com/',\n    deployPath: '/srv/sites/sinabariplasticsurgery',\n    verifyUrl: 'https://sinabariplasticsurgery.com',\n    openclawAgentId: 'publisher-sinabariplasticsurgery',\n    technicalSeoAgentId: 'technical-seo-sinabariplasticsurgery',\n    display_name: 'Sina Bari, MD',\n    contact_email: 'YOUR_EMAIL',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'legacy_specialty',\n    required_topic_tokens: ['aesthetics', 'aging', 'rejuvenation'],\n    forbidden_phrase_bundles: ['healthcare ai', 'enterprise ai', 'clinical workflow']\n  }\n};\n\nconst site = SITE_MAP[site_id];\n\nif (!site) {\n  throw new Error(`Unknown site_id: ${site_id}`);\n}\n\nreturn [\n  {\n    json: {\n      site_id,\n      ...site,\n      profile_yaml: raw,\n      profile,\n      role: profile.role || '',\n      objective: profile.objective || '',\n      positioning: profile.positioning || '',\n      allowed_topics: profile.allowed_topics || [],\n      forbidden_topics: profile.forbidden_topics || [],\n      primary_keywords: profile.primary_keywords || [],\n      content_types: profile.content_types || [],\n      core_pages: profile.core_pages || [],\n      schema_type: (profile.schema || [])[0] || 'Person',\n      tone: ['credible', 'restrained', 'expert', 'clear'],\n      content_focus: profile.allowed_topics || [],\n      content_rules: profile.forbidden_topics || [],\n    }\n  }\n];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\n\nconst profile = $json.profile || {};\nconst raw = $json.profile_yaml || '';\nconst site_id = $json.site_id;\n\nif (!site_id) {\n  throw new Error('Missing site_id');\n}\n\nconst SITE_MAP = {\n  sinabarimd: {\n    slug: 'sinabarimd',\n    domain: 'sinabarimd.com',\n    canonical_url: 'https://sinabarimd.com/',\n    deployPath: '/srv/sites/sinabarimd',\n    verifyUrl: 'https://sinabarimd.com',\n    openclawAgentId: 'publisher-sinabarimd',\n    technicalSeoAgentId: 'technical-seo-sinabarimd',\n    display_name: 'Sina Bari, MD',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'identity_hub',\n    required_topic_tokens: ['sina bari', 'medical ai', 'current work'],\n    forbidden_phrase_bundles: ['book a consultation', 'best plastic surgeon near me', 'schedule an appointment']\n  },\n  sinabari_net: {\n    slug: 'sinabari-net',\n    domain: 'sinabari.net',\n    canonical_url: 'https://sinabari.net/',\n    deployPath: '/srv/sites/sinabari-net',\n    verifyUrl: 'https://sinabari.net',\n    openclawAgentId: 'publisher-sinabari-net',\n    technicalSeoAgentId: 'technical-seo-sinabari-net',\n    display_name: 'Sina Bari',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'ai_authority',\n    required_topic_tokens: ['healthcare ai', 'medical ai', 'clinical workflow', 'governance'],\n    forbidden_phrase_bundles: [\n      'aesthetics philosophy',\n      'plastic surgery',\n      'facial rejuvenation',\n      'cosmetic surgery',\n      'selected media and speaking',\n      'connect surgery aesthetics and healthcare technology'\n    ]\n  },\n  drsinabari: {\n    slug: 'drsinabari',\n    domain: 'drsinabari.com',\n    canonical_url: 'https://drsinabari.com/',\n    deployPath: '/srv/sites/drsinabari',\n    verifyUrl: 'https://drsinabari.com',\n    openclawAgentId: 'publisher-drsinabari',\n    technicalSeoAgentId: 'technical-seo-drsinabari',\n    display_name: 'Dr. Sina Bari',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Dr. Sina Bari',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'editorial',\n    required_topic_tokens: ['essay', 'commentary', 'writing'],\n    forbidden_phrase_bundles: ['book a consultation', 'healthcare ai thought leadership']\n  },\n  sinabariplasticsurgery: {\n    slug: 'sinabariplasticsurgery',\n    domain: 'sinabariplasticsurgery.com',\n    canonical_url: 'https://sinabariplasticsurgery.com/',\n    deployPath: '/srv/sites/sinabariplasticsurgery',\n    verifyUrl: 'https://sinabariplasticsurgery.com',\n    openclawAgentId: 'publisher-sinabariplasticsurgery',\n    technicalSeoAgentId: 'technical-seo-sinabariplasticsurgery',\n    display_name: 'Sina Bari, MD',\n    contact_email: _sd.contact_email || 'contact@sinabarimd.com',\n    headshot_src: '/assets/headshot.png',\n    headshot_alt: 'Sina Bari, MD',\n    headshot_path: '/assets/headshot.png',\n    template_id: 'homepage-v1',\n    site_role: 'legacy_specialty',\n    required_topic_tokens: ['aesthetics', 'aging', 'rejuvenation'],\n    forbidden_phrase_bundles: ['healthcare ai', 'enterprise ai', 'clinical workflow']\n  }\n};\n\nconst site = SITE_MAP[site_id];\n\nif (!site) {\n  throw new Error(`Unknown site_id: ${site_id}`);\n}\n\nreturn [\n  {\n    json: {\n      site_id,\n      ...site,\n      profile_yaml: raw,\n      profile,\n      role: profile.role || '',\n      objective: profile.objective || '',\n      positioning: profile.positioning || '',\n      allowed_topics: profile.allowed_topics || [],\n      forbidden_topics: profile.forbidden_topics || [],\n      primary_keywords: profile.primary_keywords || [],\n      content_types: profile.content_types || [],\n      core_pages: profile.core_pages || [],\n      schema_type: (profile.schema || [])[0] || 'Person',\n      tone: ['credible', 'restrained', 'expert', 'clear'],\n      content_focus: profile.allowed_topics || [],\n      content_rules: profile.forbidden_topics || [],\n    }\n  }\n];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1443,7 +1443,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const list = (arr) => (arr && arr.length ? arr.map(x => `- ${x}`).join('\\n') : '- none');\n\nconst prompt = `\nYou are the Technical SEO Agent for ${$json.domain}.\nReturn only valid YAML in the exact same schema already provided.\nDo not output commentary.\nDo not output markdown.\nDo not add or remove sections.\nMake only minimal corrections needed for:\n- role purity\n- metadata quality\n- canonical consistency\n- internal/outbound link hygiene\n- avoiding site overlap\n- removing forbidden-topic drift\n\nSite role: ${$json.site_role}\nAllowed topics:\n${list($json.allowed_topics)}\nForbidden topics:\n${list($json.forbidden_topics)}\n\nCanonical URL (must preserve exactly):\n${$json.canonical_url}\n\nDisplay name (must preserve exactly):\n${$json.display_name}\n\nInput YAML to review and minimally correct:\n${$json.generated_yaml}\n`;\n\nreturn [{\n  json: {\n    ...$json,\n    technical_seo_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: prompt\n    })\n  }\n}];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst list = (arr) => (arr && arr.length ? arr.map(x => `- ${x}`).join('\\n') : '- none');\n\nconst prompt = `\nYou are the Technical SEO Agent for ${$json.domain}.\nReturn only valid YAML in the exact same schema already provided.\nDo not output commentary.\nDo not output markdown.\nDo not add or remove sections.\nMake only minimal corrections needed for:\n- role purity\n- metadata quality\n- canonical consistency\n- internal/outbound link hygiene\n- avoiding site overlap\n- removing forbidden-topic drift\n\nSite role: ${$json.site_role}\nAllowed topics:\n${list($json.allowed_topics)}\nForbidden topics:\n${list($json.forbidden_topics)}\n\nCanonical URL (must preserve exactly):\n${$json.canonical_url}\n\nDisplay name (must preserve exactly):\n${$json.display_name}\n\nInput YAML to review and minimally correct:\n${$json.generated_yaml}\n`;\n\nreturn [{\n  json: {\n    ...$json,\n    technical_seo_request_body: JSON.stringify({\n      model: \"openclaw\",\n      input: prompt\n    })\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1478,7 +1478,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -2029,11 +2029,35 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-27T18:55:22.729Z",
-        "id": 5,
+        "createdAt": "2026-05-09T21:05:48.277Z",
+        "id": 242,
         "workflowId": "eYS8hc6xHbSEDpMu",
-        "versionId": "b37e4a18-7c2c-46b8-acad-802e54fa4c5b",
+        "versionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
         "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-05-09T21:05:49.409Z",
+        "id": 244,
+        "workflowId": "eYS8hc6xHbSEDpMu",
+        "versionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
+        "event": "activated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-05-09T21:05:48.232Z",
+        "id": 241,
+        "workflowId": "eYS8hc6xHbSEDpMu",
+        "versionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
+        "event": "deactivated",
+        "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
+      },
+      {
+        "createdAt": "2026-05-09T21:05:49.390Z",
+        "id": 243,
+        "workflowId": "eYS8hc6xHbSEDpMu",
+        "versionId": "04b67a12-cab8-4df1-a221-0252c89ed113",
+        "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }
     ]

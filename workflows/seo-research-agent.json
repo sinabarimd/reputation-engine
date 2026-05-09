@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-04T20:12:08.416Z",
+  "updatedAt": "2026-05-09T21:01:54.208Z",
   "createdAt": "2026-04-27T18:53:47.796Z",
   "id": "PHM1QYKaaGf3X480",
   "name": "Reputation Engine \u2014 SEO Research Agent",
@@ -108,7 +108,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\nconst total_sources = tavily.total_sources || 0;\n\n// Build structured source blocks per query category\nconst sourceBlocks = (tavily.search_results || []).map(cat => {\n  const summary = cat.answer ? `Summary: ${cat.answer}` : '';\n  const results = (cat.results || []).map(r => {\n    const date = r.published_date ? ` (${r.published_date})` : '';\n    return `  - \"${r.title}\"${date}\\n    URL: ${r.url}\\n    ${(r.content || '').slice(0, 300)}`;\n  }).join('\\n');\n  return `### ${cat.label.toUpperCase()}\\n${summary}\\n${results}`;\n}).join('\\n\\n');\n\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\nTotal sources analyzed: ${total_sources}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nRESEARCH FINDINGS BY CATEGORY:\n${sourceBlocks}\n\nSYNTHESIS RULES:\n- Every claim MUST cite the specific source URL and publication date that supports it\n- If no source supports a claim, do not include it\n- Distinguish between confirmed algorithm changes (official Google announcements) vs. community speculation\n- Be specific: name the update, date, and measurable impact \u2014 not \"Google is favoring E-E-A-T\"\n- For recommendations, cite what source led to that recommendation\n- Flag any findings that directly conflict with each other\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"total_sources\": ${total_sources},\n  \"algorithm_updates\": [{ \"update\": \"description with specifics\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\", \"source_url\": \"url\", \"source_date\": \"date\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies to our network\", \"priority\": \"high/medium/low\", \"source_url\": \"url\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"specific advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery/drsinabari\", \"urgency\": \"immediate/next_cycle/backlog\", \"rationale\": \"why, citing source\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\", \"source_url\": \"url\" }],\n  \"competitive_intel\": \"brief summary of relevant competitive landscape\",\n  \"aeo_opportunities\": [\"specific opportunities with source backing\"],\n  \"source_quality\": { \"total\": ${total_sources}, \"recent_7d\": 0, \"recent_14d\": 0, \"authoritative\": 0 },\n  \"summary\": \"3-4 sentence executive summary with specific findings, not generic advice\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\nconst total_sources = tavily.total_sources || 0;\n\n// Build structured source blocks per query category\nconst sourceBlocks = (tavily.search_results || []).map(cat => {\n  const summary = cat.answer ? `Summary: ${cat.answer}` : '';\n  const results = (cat.results || []).map(r => {\n    const date = r.published_date ? ` (${r.published_date})` : '';\n    return `  - \"${r.title}\"${date}\\n    URL: ${r.url}\\n    ${(r.content || '').slice(0, 300)}`;\n  }).join('\\n');\n  return `### ${cat.label.toUpperCase()}\\n${summary}\\n${results}`;\n}).join('\\n\\n');\n\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\nTotal sources analyzed: ${total_sources}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nRESEARCH FINDINGS BY CATEGORY:\n${sourceBlocks}\n\nSYNTHESIS RULES:\n- Every claim MUST cite the specific source URL and publication date that supports it\n- If no source supports a claim, do not include it\n- Distinguish between confirmed algorithm changes (official Google announcements) vs. community speculation\n- Be specific: name the update, date, and measurable impact \u2014 not \"Google is favoring E-E-A-T\"\n- For recommendations, cite what source led to that recommendation\n- Flag any findings that directly conflict with each other\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"total_sources\": ${total_sources},\n  \"algorithm_updates\": [{ \"update\": \"description with specifics\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\", \"source_url\": \"url\", \"source_date\": \"date\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies to our network\", \"priority\": \"high/medium/low\", \"source_url\": \"url\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"specific advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery/drsinabari\", \"urgency\": \"immediate/next_cycle/backlog\", \"rationale\": \"why, citing source\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\", \"source_url\": \"url\" }],\n  \"competitive_intel\": \"brief summary of relevant competitive landscape\",\n  \"aeo_opportunities\": [\"specific opportunities with source backing\"],\n  \"source_quality\": { \"total\": ${total_sources}, \"recent_7d\": 0, \"recent_14d\": 0, \"authoritative\": 0 },\n  \"summary\": \"3-4 sentence executive summary with specific findings, not generic advice\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: { openclaw_key: _openclaw_key, {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
       }
     },
     {
@@ -128,7 +128,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -441,9 +441,9 @@
   "staticData": {},
   "meta": null,
   "pinData": null,
-  "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
-  "activeVersionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
-  "versionCounter": 124,
+  "versionId": "87586690-fd70-41b9-8368-2cc340a00197",
+  "activeVersionId": "87586690-fd70-41b9-8368-2cc340a00197",
+  "versionCounter": 134,
   "triggerCount": 3,
   "shared": [
     {
@@ -466,9 +466,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-04T20:12:08.417Z",
-    "createdAt": "2026-05-04T20:12:08.417Z",
-    "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+    "updatedAt": "2026-05-09T21:01:54.209Z",
+    "createdAt": "2026-05-09T21:01:54.209Z",
+    "versionId": "87586690-fd70-41b9-8368-2cc340a00197",
     "workflowId": "PHM1QYKaaGf3X480",
     "nodes": [
       {
@@ -572,7 +572,7 @@
           300
         ],
         "parameters": {
-          "jsCode": "const upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\nconst total_sources = tavily.total_sources || 0;\n\n// Build structured source blocks per query category\nconst sourceBlocks = (tavily.search_results || []).map(cat => {\n  const summary = cat.answer ? `Summary: ${cat.answer}` : '';\n  const results = (cat.results || []).map(r => {\n    const date = r.published_date ? ` (${r.published_date})` : '';\n    return `  - \"${r.title}\"${date}\\n    URL: ${r.url}\\n    ${(r.content || '').slice(0, 300)}`;\n  }).join('\\n');\n  return `### ${cat.label.toUpperCase()}\\n${summary}\\n${results}`;\n}).join('\\n\\n');\n\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\nTotal sources analyzed: ${total_sources}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nRESEARCH FINDINGS BY CATEGORY:\n${sourceBlocks}\n\nSYNTHESIS RULES:\n- Every claim MUST cite the specific source URL and publication date that supports it\n- If no source supports a claim, do not include it\n- Distinguish between confirmed algorithm changes (official Google announcements) vs. community speculation\n- Be specific: name the update, date, and measurable impact \u2014 not \"Google is favoring E-E-A-T\"\n- For recommendations, cite what source led to that recommendation\n- Flag any findings that directly conflict with each other\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"total_sources\": ${total_sources},\n  \"algorithm_updates\": [{ \"update\": \"description with specifics\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\", \"source_url\": \"url\", \"source_date\": \"date\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies to our network\", \"priority\": \"high/medium/low\", \"source_url\": \"url\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"specific advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery/drsinabari\", \"urgency\": \"immediate/next_cycle/backlog\", \"rationale\": \"why, citing source\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\", \"source_url\": \"url\" }],\n  \"competitive_intel\": \"brief summary of relevant competitive landscape\",\n  \"aeo_opportunities\": [\"specific opportunities with source backing\"],\n  \"source_quality\": { \"total\": ${total_sources}, \"recent_7d\": 0, \"recent_14d\": 0, \"authoritative\": 0 },\n  \"summary\": \"3-4 sentence executive summary with specific findings, not generic advice\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst _openclaw_key = _sd.openclaw_key || '';\n\nconst upstream = $('Build Search Queries').first().json;\nconst tavily = $json;\nconst research_date = upstream.research_date;\nconst is_monthly = upstream.is_monthly;\nconst total_sources = tavily.total_sources || 0;\n\n// Build structured source blocks per query category\nconst sourceBlocks = (tavily.search_results || []).map(cat => {\n  const summary = cat.answer ? `Summary: ${cat.answer}` : '';\n  const results = (cat.results || []).map(r => {\n    const date = r.published_date ? ` (${r.published_date})` : '';\n    return `  - \"${r.title}\"${date}\\n    URL: ${r.url}\\n    ${(r.content || '').slice(0, 300)}`;\n  }).join('\\n');\n  return `### ${cat.label.toUpperCase()}\\n${summary}\\n${results}`;\n}).join('\\n\\n');\n\nconst briefType = is_monthly ? 'MONTHLY PLAYBOOK + WEEKLY BRIEF' : 'WEEKLY BRIEF';\n\nconst prompt = `You are the SEO Research Agent for the Reputation Engine.\nDate: ${research_date}\nBrief type: ${briefType}\nTotal sources analyzed: ${total_sources}\n\nSYSTEM CONTEXT:\n- 4 owned domains for Dr. Sina Bari, MD (sinabarimd.com, sinabari.net, sinabariplasticsurgery.com, drsinabari.com)\n- Strategy: entity consolidation + SERP displacement for branded query \"Sina Bari MD\"\n- Content types: medical authority articles, healthcare AI analysis, plastic surgery education\n- Schema: Person+ProfilePage on canonical (sinabarimd.com), WebSite on satellites, Article/MedicalWebPage on articles\n- All articles have FAQPage schema, author bylines, og:article meta, canonical URLs\n- Publishing cadence: ~4 articles/week across 3 active sites\n\nRESEARCH FINDINGS BY CATEGORY:\n${sourceBlocks}\n\nSYNTHESIS RULES:\n- Every claim MUST cite the specific source URL and publication date that supports it\n- If no source supports a claim, do not include it\n- Distinguish between confirmed algorithm changes (official Google announcements) vs. community speculation\n- Be specific: name the update, date, and measurable impact \u2014 not \"Google is favoring E-E-A-T\"\n- For recommendations, cite what source led to that recommendation\n- Flag any findings that directly conflict with each other\n\nOutput valid JSON with these fields:\n{\n  \"brief_type\": \"weekly\",\n  \"research_date\": \"${research_date}\",\n  \"total_sources\": ${total_sources},\n  \"algorithm_updates\": [{ \"update\": \"description with specifics\", \"impact\": \"high/medium/low\", \"action_required\": \"what to do\", \"source_url\": \"url\", \"source_date\": \"date\" }],\n  \"ranking_signals\": [{ \"signal\": \"description\", \"relevance\": \"how this applies to our network\", \"priority\": \"high/medium/low\", \"source_url\": \"url\" }],\n  \"content_recommendations\": [{ \"recommendation\": \"specific advice\", \"applies_to\": \"all/sinabarimd/sinabari_net/sinabariplasticsurgery/drsinabari\", \"urgency\": \"immediate/next_cycle/backlog\", \"rationale\": \"why, citing source\" }],\n  \"schema_updates\": [{ \"change\": \"what changed\", \"action\": \"what we should do\", \"source_url\": \"url\" }],\n  \"competitive_intel\": \"brief summary of relevant competitive landscape\",\n  \"aeo_opportunities\": [\"specific opportunities with source backing\"],\n  \"source_quality\": { \"total\": ${total_sources}, \"recent_7d\": 0, \"recent_14d\": 0, \"authoritative\": 0 },\n  \"summary\": \"3-4 sentence executive summary with specific findings, not generic advice\"\n}\n\nOutput valid JSON only. No markdown, no commentary.`;\n\nconst openclaw_request_body = JSON.stringify({\n  model: 'openclaw',\n  input: prompt,\n});\n\nreturn [{ json: { openclaw_key: _openclaw_key, {\n  research_date,\n  is_monthly,\n  total_sources,\n  openclaw_request_body,\n  openclawAgentId: 'seo-research-agent',\n} }];"
         }
       },
       {
@@ -592,7 +592,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -902,34 +902,34 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-04T20:12:08.472Z",
-        "id": 179,
+        "createdAt": "2026-05-09T21:01:54.255Z",
+        "id": 228,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+        "versionId": "87586690-fd70-41b9-8368-2cc340a00197",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-04T20:12:09.389Z",
-        "id": 181,
+        "createdAt": "2026-05-09T21:01:55.220Z",
+        "id": 230,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+        "versionId": "87586690-fd70-41b9-8368-2cc340a00197",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-04T20:12:08.452Z",
-        "id": 178,
+        "createdAt": "2026-05-09T21:01:54.240Z",
+        "id": 227,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+        "versionId": "87586690-fd70-41b9-8368-2cc340a00197",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-04T20:12:09.370Z",
-        "id": 180,
+        "createdAt": "2026-05-09T21:01:55.199Z",
+        "id": 229,
         "workflowId": "PHM1QYKaaGf3X480",
-        "versionId": "ad24fe41-4534-4731-851d-4ed6ee5bdc55",
+        "versionId": "87586690-fd70-41b9-8368-2cc340a00197",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }

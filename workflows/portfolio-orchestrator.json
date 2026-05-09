@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-09T17:25:25.079Z",
+  "updatedAt": "2026-05-09T21:05:56.041Z",
   "createdAt": "2026-04-27T18:53:25.893Z",
   "id": "ACGP2CgEOZFS4ysL",
   "name": "Portfolio Orchestrator",
@@ -65,7 +65,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Time gate: only proceed during scheduled publish windows\n// Mon 9am, Tue 10am, Wed 11am, Thu 2pm, Fri 10am PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\nconst m = parseInt(mStr, 10);\n\n// Scheduled windows (day -> hour)\nconst WINDOWS = { Mon: 9, Tue: 10, Wed: 11, Thu: 14, Fri: 10 };\n\n// Skip gate for webhook/manual triggers (they pass body or site_ids)\nconst body = $json.body || $json || {};\nconst isManual = !!body.site_ids || !!body.site_id || !!body.force;\n\nif (!isManual) {\n  const targetHour = WINDOWS[day];\n  if (targetHour === undefined || h !== targetHour || m >= 30) {\n    return [];\n  }\n}\n\n// === Original code below ===\n// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (reuses body from line 16)\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
+        "jsCode": "// Time gate: only proceed during scheduled publish windows\n// Mon 9am, Tue 10am, Wed 11am, Thu 2pm, Fri 10am PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\nconst m = parseInt(mStr, 10);\n\n// Scheduled windows (day -> hour)\nconst WINDOWS = { Mon: 9, Tue: 10, Wed: 11, Thu: 14, Fri: 10 };\n\n// Skip gate for webhook/manual triggers (they pass body or site_ids)\nconst body = $json.body || $json || {};\nconst isManual = !!body.site_ids || !!body.site_id || !!body.force;\n\nif (!isManual) {\n  const targetHour = WINDOWS[day];\n  if (targetHour === undefined || h !== targetHour || m >= 30) {\n    return [];\n  }\n}\n\n// === Original code below ===\n// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (reuses body from line 16)\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n    openclaw_key: staticData.openclaw_key || '',\n    deploy_service_key: staticData.deploy_service_key || '',\n  }\n}];"
       }
     },
     {
@@ -321,7 +321,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_DEPLOY_SERVICE_KEY"
+              "value": "={{ 'Bearer ' + $json.deploy_service_key }}"
             },
             {
               "name": "Content-Type",
@@ -626,7 +626,7 @@
         1360
       ],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { title, excerpt, slug, article_html, publish_date } = body;\n\nif (!title || !slug) {\n  return [{ json: { success: false, error: 'Required: title, slug' } }];\n}\n\n// Archive current spotlight to history before replacing\nif (!staticData.spotlight_history) staticData.spotlight_history = [];\nif (staticData.spotlight && staticData.spotlight.slug) {\n  const prev = staticData.spotlight;\n  // Only add if not already in history\n  if (!staticData.spotlight_history.some(h => h.slug === prev.slug)) {\n    staticData.spotlight_history.push({\n      slug: prev.slug,\n      title: prev.title,\n      excerpt: prev.excerpt || '',\n      publish_date: prev.publish_date || '',\n      article_html: prev.article_html || null,\n      archived_at: new Date().toISOString(),\n    });\n  }\n}\n\nstaticData.spotlight = {\n  title,\n  excerpt: excerpt || '',\n  slug,\n  article_path: 'articles/' + slug + '.html',\n  article_html: article_html || null,\n  publish_date: publish_date || new Date().toISOString().split('T')[0],\n  set_at: new Date().toISOString(),\n};\n\nreturn [{ json: {\n  success: true,\n  spotlight: { ...staticData.spotlight, article_html: '(stored, ' + (article_html||'').length + ' chars)' },\n  history_count: staticData.spotlight_history.length,\n} }];\n"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { title, excerpt, slug, article_html, publish_date } = body;\n\nif (!title || !slug) {\n  return [{ json: {\n  openclaw_key: staticData.openclaw_key || '', success: false, error: 'Required: title, slug' } }];\n}\n\n// Archive current spotlight to history before replacing\nif (!staticData.spotlight_history) staticData.spotlight_history = [];\nif (staticData.spotlight && staticData.spotlight.slug) {\n  const prev = staticData.spotlight;\n  // Only add if not already in history\n  if (!staticData.spotlight_history.some(h => h.slug === prev.slug)) {\n    staticData.spotlight_history.push({\n      slug: prev.slug,\n      title: prev.title,\n      excerpt: prev.excerpt || '',\n      publish_date: prev.publish_date || '',\n      article_html: prev.article_html || null,\n      archived_at: new Date().toISOString(),\n    });\n  }\n}\n\nstaticData.spotlight = {\n  title,\n  excerpt: excerpt || '',\n  slug,\n  article_path: 'articles/' + slug + '.html',\n  article_html: article_html || null,\n  publish_date: publish_date || new Date().toISOString().split('T')[0],\n  set_at: new Date().toISOString(),\n};\n\nreturn [{ json: {\n  openclaw_key: staticData.openclaw_key || '',\n  success: true,\n  spotlight: { ...staticData.spotlight, article_html: '(stored, ' + (article_html||'').length + ' chars)' },\n  history_count: staticData.spotlight_history.length,\n} }];\n"
       }
     },
     {
@@ -836,7 +836,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_OPENCLAW_KEY"
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
             },
             {
               "name": "Content-Type",
@@ -942,6 +942,19 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}"
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nreturn [{ json: { ...body, deploy_service_key: _sd.deploy_service_key || '' } }];"
+      },
+      "id": "inject_deploy_key",
+      "name": "Inject Deploy Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -370,
+        1520
+      ]
     }
   ],
   "connections": {
@@ -1106,7 +1119,7 @@
       "main": [
         [
           {
-            "node": "Forward to Deploy Service",
+            "node": "Inject Deploy Key",
             "type": "main",
             "index": 0
           }
@@ -1422,6 +1435,17 @@
           }
         ]
       ]
+    },
+    "Inject Deploy Key": {
+      "main": [
+        [
+          {
+            "node": "Forward to Deploy Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1433,9 +1457,9 @@
   "staticData": {},
   "meta": null,
   "pinData": null,
-  "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
-  "activeVersionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
-  "versionCounter": 51,
+  "versionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
+  "activeVersionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
+  "versionCounter": 61,
   "triggerCount": 14,
   "shared": [
     {
@@ -1458,9 +1482,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-09T17:25:25.081Z",
-    "createdAt": "2026-05-09T17:25:25.081Z",
-    "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+    "updatedAt": "2026-05-09T21:05:56.044Z",
+    "createdAt": "2026-05-09T21:05:56.044Z",
+    "versionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
     "workflowId": "ACGP2CgEOZFS4ysL",
     "nodes": [
       {
@@ -1521,7 +1545,7 @@
           300
         ],
         "parameters": {
-          "jsCode": "// Time gate: only proceed during scheduled publish windows\n// Mon 9am, Tue 10am, Wed 11am, Thu 2pm, Fri 10am PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\nconst m = parseInt(mStr, 10);\n\n// Scheduled windows (day -> hour)\nconst WINDOWS = { Mon: 9, Tue: 10, Wed: 11, Thu: 14, Fri: 10 };\n\n// Skip gate for webhook/manual triggers (they pass body or site_ids)\nconst body = $json.body || $json || {};\nconst isManual = !!body.site_ids || !!body.site_id || !!body.force;\n\nif (!isManual) {\n  const targetHour = WINDOWS[day];\n  if (targetHour === undefined || h !== targetHour || m >= 30) {\n    return [];\n  }\n}\n\n// === Original code below ===\n// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (reuses body from line 16)\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n  }\n}];"
+          "jsCode": "// Time gate: only proceed during scheduled publish windows\n// Mon 9am, Tue 10am, Wed 11am, Thu 2pm, Fri 10am PT\nconst now = new Date();\nconst ptOpts = {timeZone: 'America/Los_Angeles', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit'};\nconst ptStr = now.toLocaleString('en-US', ptOpts);\nconst [dayPart, timePart] = ptStr.split(', ');\nconst day = dayPart.trim();\nconst [hStr, mStr] = (timePart || '').split(':');\nconst h = parseInt(hStr, 10);\nconst m = parseInt(mStr, 10);\n\n// Scheduled windows (day -> hour)\nconst WINDOWS = { Mon: 9, Tue: 10, Wed: 11, Thu: 14, Fri: 10 };\n\n// Skip gate for webhook/manual triggers (they pass body or site_ids)\nconst body = $json.body || $json || {};\nconst isManual = !!body.site_ids || !!body.site_id || !!body.force;\n\nif (!isManual) {\n  const targetHour = WINDOWS[day];\n  if (targetHour === undefined || h !== targetHour || m >= 30) {\n    return [];\n  }\n}\n\n// === Original code below ===\n// Initialize State \u2014 reads publish log + ramp-up state from static workflow data\nconst staticData = $getWorkflowStaticData('global');\n\n// Seed initial values on first run\nif (!staticData.launch_date) {\n  staticData.launch_date = new Date().toISOString().split('T')[0];\n}\nif (!staticData.publish_log) {\n  staticData.publish_log = {};\n}\n\n// Ramp-up phase: weeks 1-8 gate which sites can publish\nconst launchDate = new Date(staticData.launch_date);\nconst daysSinceLaunch = Math.floor((Date.now() - launchDate.getTime()) / (1000 * 60 * 60 * 24));\nconst weeksSinceLaunch = Math.max(1, Math.ceil(daysSinceLaunch / 7));\nconst ramp_up_active = weeksSinceLaunch <= 8;\n\n// Preserve override from incoming request body (reuses body from line 16)\nconst requested_sites = body.site_ids || null;\nconst force = body.force === true;\n\nreturn [{\n  json: {\n    launch_date: staticData.launch_date,\n    days_since_launch: daysSinceLaunch,\n    weeks_since_launch: weeksSinceLaunch,\n    ramp_up_active,\n    publish_log: staticData.publish_log,\n    requested_sites,\n    force,\n    seo_intel: staticData.seo_intel || {},\n    media_queue: staticData.media_queue || [],\n    research_queue: staticData.research_queue || [],\n    content_exec_count: staticData.content_exec_count || 0,\n    openclaw_key: staticData.openclaw_key || '',\n    deploy_service_key: staticData.deploy_service_key || '',\n  }\n}];"
         }
       },
       {
@@ -1777,7 +1801,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_DEPLOY_SERVICE_KEY"
+                "value": "={{ 'Bearer ' + $json.deploy_service_key }}"
               },
               {
                 "name": "Content-Type",
@@ -2082,7 +2106,7 @@
           1360
         ],
         "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { title, excerpt, slug, article_html, publish_date } = body;\n\nif (!title || !slug) {\n  return [{ json: { success: false, error: 'Required: title, slug' } }];\n}\n\n// Archive current spotlight to history before replacing\nif (!staticData.spotlight_history) staticData.spotlight_history = [];\nif (staticData.spotlight && staticData.spotlight.slug) {\n  const prev = staticData.spotlight;\n  // Only add if not already in history\n  if (!staticData.spotlight_history.some(h => h.slug === prev.slug)) {\n    staticData.spotlight_history.push({\n      slug: prev.slug,\n      title: prev.title,\n      excerpt: prev.excerpt || '',\n      publish_date: prev.publish_date || '',\n      article_html: prev.article_html || null,\n      archived_at: new Date().toISOString(),\n    });\n  }\n}\n\nstaticData.spotlight = {\n  title,\n  excerpt: excerpt || '',\n  slug,\n  article_path: 'articles/' + slug + '.html',\n  article_html: article_html || null,\n  publish_date: publish_date || new Date().toISOString().split('T')[0],\n  set_at: new Date().toISOString(),\n};\n\nreturn [{ json: {\n  success: true,\n  spotlight: { ...staticData.spotlight, article_html: '(stored, ' + (article_html||'').length + ' chars)' },\n  history_count: staticData.spotlight_history.length,\n} }];\n"
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { title, excerpt, slug, article_html, publish_date } = body;\n\nif (!title || !slug) {\n  return [{ json: {\n  openclaw_key: staticData.openclaw_key || '', success: false, error: 'Required: title, slug' } }];\n}\n\n// Archive current spotlight to history before replacing\nif (!staticData.spotlight_history) staticData.spotlight_history = [];\nif (staticData.spotlight && staticData.spotlight.slug) {\n  const prev = staticData.spotlight;\n  // Only add if not already in history\n  if (!staticData.spotlight_history.some(h => h.slug === prev.slug)) {\n    staticData.spotlight_history.push({\n      slug: prev.slug,\n      title: prev.title,\n      excerpt: prev.excerpt || '',\n      publish_date: prev.publish_date || '',\n      article_html: prev.article_html || null,\n      archived_at: new Date().toISOString(),\n    });\n  }\n}\n\nstaticData.spotlight = {\n  title,\n  excerpt: excerpt || '',\n  slug,\n  article_path: 'articles/' + slug + '.html',\n  article_html: article_html || null,\n  publish_date: publish_date || new Date().toISOString().split('T')[0],\n  set_at: new Date().toISOString(),\n};\n\nreturn [{ json: {\n  openclaw_key: staticData.openclaw_key || '',\n  success: true,\n  spotlight: { ...staticData.spotlight, article_html: '(stored, ' + (article_html||'').length + ' chars)' },\n  history_count: staticData.spotlight_history.length,\n} }];\n"
         }
       },
       {
@@ -2292,7 +2316,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer YOUR_OPENCLAW_KEY"
+                "value": "={{ 'Bearer ' + $json.openclaw_key }}"
               },
               {
                 "name": "Content-Type",
@@ -2398,6 +2422,19 @@
           "respondWith": "json",
           "responseBody": "={{ $json }}"
         }
+      },
+      {
+        "parameters": {
+          "jsCode": "const _sd = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nreturn [{ json: { ...body, deploy_service_key: _sd.deploy_service_key || '' } }];"
+        },
+        "id": "inject_deploy_key",
+        "name": "Inject Deploy Key",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -370,
+          1520
+        ]
       }
     ],
     "connections": {
@@ -2562,7 +2599,7 @@
         "main": [
           [
             {
-              "node": "Forward to Deploy Service",
+              "node": "Inject Deploy Key",
               "type": "main",
               "index": 0
             }
@@ -2878,6 +2915,17 @@
             }
           ]
         ]
+      },
+      "Inject Deploy Key": {
+        "main": [
+          [
+            {
+              "node": "Forward to Deploy Service",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Sina Bari",
@@ -2886,34 +2934,34 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-09T17:25:25.173Z",
-        "id": 187,
+        "createdAt": "2026-05-09T21:05:56.173Z",
+        "id": 250,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+        "versionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-09T17:25:26.480Z",
-        "id": 189,
+        "createdAt": "2026-05-09T21:05:57.402Z",
+        "id": 252,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+        "versionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
         "event": "activated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-09T17:25:25.132Z",
-        "id": 186,
+        "createdAt": "2026-05-09T21:05:56.120Z",
+        "id": 249,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+        "versionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       },
       {
-        "createdAt": "2026-05-09T17:25:26.413Z",
-        "id": 188,
+        "createdAt": "2026-05-09T21:05:57.342Z",
+        "id": 251,
         "workflowId": "ACGP2CgEOZFS4ysL",
-        "versionId": "2e955aeb-f9cf-4cae-91f5-7731d5b9f443",
+        "versionId": "b8041924-4e0c-42a5-acfb-1022f248ca68",
         "event": "deactivated",
         "userId": "d84a1587-61fd-429c-9ea6-1d21d8267ea9"
       }
