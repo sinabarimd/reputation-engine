@@ -5,8 +5,16 @@
 
 set -e
 
+# Source .env if vars not already set
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -z "$N8N_BASE_URL" ] || [ -z "$N8N_API_KEY" ]; then
-  echo "Error: N8N_BASE_URL and N8N_API_KEY must be set"
+  if [ -f "$SCRIPT_DIR/.env" ]; then
+    export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
+  fi
+fi
+
+if [ -z "$N8N_BASE_URL" ] || [ -z "$N8N_API_KEY" ]; then
+  echo "Error: N8N_BASE_URL and N8N_API_KEY must be set (or add them to .env)"
   exit 1
 fi
 
@@ -18,41 +26,37 @@ mkdir -p "$BACKUP_DIR/sites/drsinabari/articles"
 mkdir -p "$BACKUP_DIR/state"
 
 echo "=== Backing up workflows ==="
-for WF_ID in 1m5QjQ2KsF9Q6s6U 8sibaEgEYW106llR HL9utsXpnzmqxvkL K4uSeWNA29Bu84MO PaZGnhoW9T9JXiG1 S2Bmeg8gXM8NQPo2 SbGN3pzCdy0asKxY orzgeCjPL81pIqar sVqzAcBYugDPkReZ GrUFalRTkkQjqEgT sLLZMHxZCxYRGL81; do
+# 10 RE workflows + RT Drug Test Check (11 total)
+for WF_ID in ACGP2CgEOZFS4ysL luiFMIAgKKxrNreT R6Tw9GAj1NX8EzUN 1l2mzI2FBoMUBCFX eYS8hc6xHbSEDpMu 3RYvkOtuOInfaiuZ PHM1QYKaaGf3X480 knBiNIsXRIOLM8iR 4DpoFWCUglQuM4lz hUwWSMqdcLdFmBBi SZz6xgeJEROPvzgd; do
   curl -s "$N8N_BASE_URL/api/v1/workflows/$WF_ID" \
     -H "X-N8N-API-KEY: $N8N_API_KEY" > "$BACKUP_DIR/workflow_$WF_ID.json"
-  echo "  $WF_ID"
+  # Verify it got a real workflow (not an error)
+  if python3 -c "import json; d=json.load(open('$BACKUP_DIR/workflow_$WF_ID.json')); assert 'nodes' in d" 2>/dev/null; then
+    NAME=$(python3 -c "import json; print(json.load(open('$BACKUP_DIR/workflow_$WF_ID.json')).get('name','?'))")
+    echo "  $WF_ID ($NAME)"
+  else
+    echo "  $WF_ID (FAILED - no nodes in response)"
+  fi
 done
 
-echo "=== Backing up live sites ==="
-for URL in \
-  "sinabarimd/index.html:https://sinabarimd.com/" \
-  "sinabarimd/styles.css:https://sinabarimd.com/styles.css" \
-  "sinabarimd/dashboard.html:https://sinabarimd.com/dashboard.html" \
-  "sinabarimd/about.html:https://sinabarimd.com/about.html" \
-  "sinabarimd/articles/index.html:https://sinabarimd.com/articles/index.html" \
-  "sinabarimd/press.html:https://sinabarimd.com/press.html" \
-  "sinabarimd/sitemap.xml:https://sinabarimd.com/sitemap.xml" \
-  "sinabarimd/robots.txt:https://sinabarimd.com/robots.txt" \
-  "sinabari_net/index.html:https://sinabari.net/" \
-  "sinabari_net/styles.css:https://sinabari.net/styles.css" \
-  "sinabari_net/articles/index.html:https://sinabari.net/articles/index.html" \
-  "sinabariplasticsurgery/index.html:https://sinabariplasticsurgery.com/" \
-  "sinabariplasticsurgery/styles.css:https://sinabariplasticsurgery.com/styles.css" \
-  "sinabariplasticsurgery/articles/index.html:https://sinabariplasticsurgery.com/articles/index.html" \
-  "drsinabari/index.html:https://drsinabari.com/" \
-  "drsinabari/styles.css:https://drsinabari.com/styles.css" \
-  "drsinabari/articles/index.html:https://drsinabari.com/articles/index.html" \
-  "drsinabari/sitemap.xml:https://drsinabari.com/sitemap.xml" \
-  "drsinabari/robots.txt:https://drsinabari.com/robots.txt"; do
-  FILE="${URL%%:*}"
-  SRC="${URL#*:}"
-  curl -s -f "$SRC" -o "$BACKUP_DIR/sites/$FILE" 2>/dev/null && echo "  $FILE" || echo "  $FILE (failed)"
+echo "=== Backing up live sites (via SSH) ==="
+# Map: local_dir:server_path
+for SITE in \
+  "sinabarimd:/srv/sites/sinabarimd" \
+  "sinabari_net:/srv/sites/sinabari-net" \
+  "sinabariplasticsurgery:/srv/sites/sinabariplasticsurgery" \
+  "drsinabari:/srv/sites/drsinabari"; do
+  LOCAL="${SITE%%:*}"
+  REMOTE="${SITE#*:}"
+  # Copy all files (including articles/) via rsync over SSH
+  rsync -az --delete -e ssh "claw:$REMOTE/" "$BACKUP_DIR/sites/$LOCAL/" 2>/dev/null
+  COUNT=$(find "$BACKUP_DIR/sites/$LOCAL" -type f | wc -l | tr -d ' ')
+  echo "  $LOCAL ($COUNT files)"
 done
 
 echo "=== Backing up state ==="
-for EP in list-drafts list-research-candidates qa-results seo-actions seo-intel publish-log serp-results media-items; do
-  curl -s "https://n8n.sinabarimd.com/webhook/$EP" > "$BACKUP_DIR/state/$EP.json" 2>/dev/null
+for EP in list-drafts list-research-candidates qa-results seo-intel publish-log serp-results media-items spotlight spotlight-campaign daily-todos; do
+  curl -s "$N8N_BASE_URL/webhook/$EP" > "$BACKUP_DIR/state/$EP.json" 2>/dev/null
   echo "  $EP"
 done
 

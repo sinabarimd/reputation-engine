@@ -5,6 +5,28 @@
 ## Week of 2026-05-09
 
 ### Fixed
+- **Cron time gate locale parsing broken on all 5 workflows** (May 11) -- n8n Docker container's Node.js outputs `"Mon 09:37"` (no comma) from `toLocaleString`, but code split on `', '`. All cron-scheduled runs silently failed, returning `[]` every tick. Root cause of the multi-week cron-miss pattern. Fixed with regex `match(/^([A-Za-z]{3})[, ]+(\d{2}):(\d{2})$/)` that handles both formats.
+- **Content Generator `openclaw_key` not passed** (May 11) -- `Build OpenClaw Request` node spread `$json` but never included `openclaw_key`, causing OpenClaw auth failures on every draft generation since the last workflow edit.
+- **Syntax errors in 3 workflows** (May 11) -- `Build OpenClaw Request` nodes in SEO Research Agent and Media Ingestion Agent had `{ openclaw_key: _openclaw_key, {` (extra brace). `Build Rewrite Prompt` in Content Generator had same pattern on 2 error-return lines.
+- **Dashboard password gate broken** (May 11) -- `dashboard-config.js` was deployed empty (1 byte), making `PW_HASH` undefined; no password could match. Restored config with correct SHA-256 hash.
+- **Backup script using wrong workflow IDs** (May 11) -- All 11 workflow IDs were stale (from a previous n8n instance); every workflow backup was `{"message":"..."}`. Updated to current IDs, added validation, switched site backups from HTTP to SSH/rsync.
+- **SEO Actions tab brief hidden** (May 11) -- "View Latest Brief" toggle only appeared if `seo-implementations.json` had entries; empty file caused early return. Fixed to always show the brief toggle.
+
+### Added
+- **Auto-publish on approve when overdue** (May 11) -- When a draft is approved and the site is past its minimum publish interval, the Content Generator now immediately triggers `POST /webhook/publish-draft` instead of waiting for next cron. Flow: Set Draft Approved -> Check Overdue -> IF true -> HTTP Auto-Publish -> Respond.
+- **Empty pipeline daily todo alert** (May 11) -- Daily Todos endpoint now surfaces sites with no pending or approved drafts regardless of publish deadline distance (previously only alerted within 72h of cron).
+- **Dismiss research candidate endpoint** (May 11) -- `POST /webhook/dismiss-candidate` with `{ site_id, candidate_index }`. Marks candidate as dismissed (filtered from list), moves topic to `topic_seeds` for informing future suggestions.
+- **Dashboard candidate edit/dismiss buttons** (May 11) -- Research tab candidate cards now have Edit (inline title/rationale editing) and Dismiss buttons alongside Research.
+- **sinabarimd personal site directive** (May 11) -- Content Generator prompt now includes a conditional block for sinabarimd that explicitly directs personal essay voice over professional identity framing. Site role changed from `identity_hub` to `personal_site`.
+- **Expanded sinabarimd topic scope** (May 11) -- Content Research Agent scout queries, Content Generator allowed topics, and suggest-topic prompt updated: interfaith/interracial family, gentle parenting, clinical/corporate balance, Oakland, cars, NBA, home automation, local AI, food, reading.
+- **Hub-spoke schema architecture** (May 11) -- Added `WebSite` node to sinabarimd.com with `hasPart` linking all 3 satellites. Added `isPartOf: sinabarimd.com/#website` on all satellite WebSite schemas. Added `homeLocation`, expanded `knowsAbout` to 16 items, fixed geo coordinates (LA -> Oakland), added `CollectionPage` schema to all article index pages, added `dateModified` to satellite homepage schemas.
+
+### Changed
+- **Backup script overhaul** (May 11) -- Sites backed up via SSH/rsync instead of HTTP (catches dashboard-config.js, seo-implementations.json, all article files). Added spotlight, spotlight-campaign, daily-todos to state endpoints. Workflow backups now verified for `nodes` key presence.
+
+
+
+### Fixed
 - **Orchestrator cron crash -- duplicate `const body`** (May 9) -- Time gate added in May 4 session introduced a duplicate `const body` declaration in Initialize State; every cron trigger threw `SyntaxError` and silently failed. System was 10 days dark. Removed duplicate declaration.
 - **sinabari_net PUBLISH_DAYS missing Friday** (May 9) -- `PUBLISH_DAYS` mapped sinabari_net to Tuesday only; changed to array-based `[2, 5]` with `.includes()` checks to match the Tue/Fri cron schedule.
 - **Auto Publish Draft HTTP body format** (May 9) -- Switched Auto Publish Draft and Execute Content Agent nodes from `specifyBody: "json"` to `contentType: "raw"` + `rawContentType: "application/json"` per n8n webhook requirements.

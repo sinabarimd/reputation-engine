@@ -6,12 +6,12 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 📖 **[Read the full article: How I Built a Personal Reputation Engine with AI Agents](https://sinabarimd.com/articles/how-i-built-a-personal-reputation-engine.html)**
 
-### Latest Changes (May 9, 2026)
+### Latest Changes (May 11, 2026)
 
-- **Fixed Orchestrator cron crash** -- duplicate `const body` from time gate patch silently killed all cron triggers for ~3 days; system was 10 days dark
-- **sinabari.net first publish** -- PIPELINE markers added, Publisher template rewritten to match site's editorial CSS
-- **SEO QA broadened** -- domain-level broken link check now crawls all internal paths, not just `/articles/`
-- **sinabari_net Friday schedule restored** -- PUBLISH_DAYS was missing day 5, now fires Tue + Fri
+- **Fixed cron time gate locale bug** (May 11) -- all 5 cron workflows were silently failing due to `toLocaleString` format mismatch in Docker; root cause of multi-week publish failures
+- **Auto-publish on approve** (May 11) -- overdue sites now publish immediately when a draft is approved, no more waiting for next cron
+- **Hub-spoke schema architecture** (May 11) -- sinabarimd.com now declares WebSite node with `hasPart` linking satellites; all satellites declare `isPartOf`
+- **sinabarimd personal content expansion** (May 11) -- topic scope broadened from professional-only to personal essays (family, home automation, Oakland, hobbies); Content Generator prompt updated for personal voice
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 
