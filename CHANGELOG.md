@@ -5,7 +5,14 @@
 ## Week of 2026-05-19
 
 ### Added
-- **YouTube walkthrough video** (May 21) -- embedded in spotlight article (`articles/how-i-built-a-personal-reputation-engine.html`) with iframe embed after the lede paragraph. Added `VideoObject` schema to the page's JSON-LD `@graph` (duration PT8M6S, linked to existing Article and Person entities). Added "Watch the walkthrough" link to README.
+- **AI content exposure check (Layer 1)** (May 21) -- deterministic article-level check in SEO QA Agent scanning for banned AI phrases, em-dashes, missing first-person voice, weak specificity signals, insufficient outbound links, and structural tells. Scores GREEN/AMBER/RED per article. Runs automatically after every publish and on demand.
+- **Model-based editorial grade (Layer 2)** (May 21) -- 3-pass LLM-evaluated content quality check using OpenClaw. Grades articles 1-5 on five dimensions: first_hand_expertise, information_gain, specificity_evidence, depth_substance, voice_authenticity. Aggregates with confidence scoring. Advisory only, never gates deploy. Dedicated webhook: POST /webhook/qa-model-grade.
+- **QA dashboard dual-grade display** (May 21) -- Article Health cards now show both Rules-Based Grade and Model-Based Grade (with ADVISORY label). Expandable per-dimension scores with bar chart, confidence flag, and merged fix list. "Model Grade" button for on-demand runs.
+- **Content quality rewrite playbook** (May 21) -- systematic rewriting of 12 articles across 4 sites using RLAiF loop (rewrite, regrade, measure, refine tactics). Results: 0 RED remaining (was 5), 6 GREEN (was 0), 7 AMBER. Average improvement +20pts. Playbook documented in `model-grade-playbook.md` with ranked tactics for integration into Content Generator prompt.
+- **YouTube walkthrough video** (May 21) -- embedded in spotlight article with `VideoObject` schema (duration PT8M6S). Added "Watch the walkthrough" link to README.
+
+### Changed
+- **12 articles rewritten for content quality** (May 21) -- added anonymized clinical anecdotes, named citations with quantitative findings, quoted patient dialogue, first-person procedural detail, and clinical vulnerability moments across all 4 sites. Removed banned AI phrases and em-dashes. All articles now score A+ 100% on SEO checks and GREEN on deterministic AI exposure.
 
 ## Week of 2026-05-09
 

@@ -10,10 +10,10 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 ### Latest Changes (May 21, 2026)
 
-- **YouTube walkthrough video** (May 21) -- embedded in spotlight article with VideoObject schema markup
-- **Fixed cron time gate locale bug** (May 11) -- all 5 cron workflows were silently failing due to `toLocaleString` format mismatch in Docker
-- **Auto-publish on approve** (May 11) -- overdue sites now publish immediately when a draft is approved
-- **Hub-spoke schema architecture** (May 11) -- sinabarimd.com declares WebSite node with `hasPart` linking satellites
+- **RLAiF content quality system** (May 21) -- two-layer QA (deterministic + 3-pass LLM grading) with rewrite-regrade feedback loop. Eliminated all RED-rated articles, moved 6 to GREEN. Playbook for future content generation documented.
+- **AI content exposure check** (May 21) -- deterministic Layer 1 check scanning for AI tells (banned phrases, em-dashes, missing clinical voice, weak citations)
+- **Model-based editorial grade** (May 21) -- Layer 2 advisory LLM grade on 5 dimensions with confidence scoring, integrated into QA dashboard
+- **YouTube walkthrough video** (May 21) -- embedded in spotlight article with VideoObject schema
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 
@@ -109,6 +109,20 @@ n8n runs inside Docker and can't execute host commands directly. The solution: l
 This entire system was designed in [Claude Cowork](https://claude.ai) and built with [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview). Cowork handles the thinking - architecture, specs, strategy, brainstorming. Claude Code handles the doing - live n8n API calls, writing code, deploying changes, debugging production issues. They share the same project folder, so a spec file drafted in Cowork is immediately available for Code to implement.
 
 A 500-line `CLAUDE.md` file in the project root acts as institutional memory - complete API reference, workflow IDs, webhook endpoints, architectural rules, and deployment procedures. Every Claude Code session reads it automatically, starting with full system context.
+
+### RLAiF Content Quality Loop
+
+The system uses a form of **Reinforcement Learning from AI Feedback (RLAiF)** to improve published content quality over time. It works in two layers:
+
+**Layer 1 (Deterministic)** runs a rules-based check on every published article, scanning for known AI content tells: banned generic phrases, em-dashes, missing first-person clinical voice, weak specificity signals, insufficient outbound authority links, and structural tells like hedge openers. This runs as a Code node in the SEO QA Agent, costs nothing, and executes in milliseconds.
+
+**Layer 2 (Model-Based)** sends each article through a 5-dimension editorial rubric via three independent LLM passes, then aggregates scores with confidence tracking. The dimensions - first_hand_expertise, information_gain, specificity_evidence, depth_substance, voice_authenticity - evaluate the holistic signals that deterministic checks can't measure. This is advisory only and never gates a deploy.
+
+The feedback loop: articles are published, automatically graded by both layers, and the results surface in the operator dashboard with per-dimension scores and suggested fixes. The operator rewrites weak articles using the grading feedback, redeploys, and regrades. Each cycle produces measurable score deltas that identify which editorial tactics have the highest impact per dimension.
+
+After two rewrite cycles across 12 articles, the system produced a ranked playbook of editorial interventions. The highest-impact tactics: named citations with quantitative findings (+1.3-2.4 on specificity), opening clinical anecdotes with patient-specific detail (+2.0 on expertise), and quoted patient dialogue (+1.0-1.4 on expertise/voice). These findings feed back into the Content Generator's prompt engineering, closing the loop between evaluation and generation.
+
+The approach treats content quality as an empirical optimization problem rather than a subjective editorial judgment. Every rewrite is an experiment with a measurable outcome.
 
 **Example: Scrolling News Ticker.** The sinabarimd.com homepage has a scrolling news ticker showing recent media mentions. It went from idea → design spec (Cowork) → working component deployed to production (Claude Code) in a single session. That's the kind of iteration speed this workflow enables for a non-engineer.
 

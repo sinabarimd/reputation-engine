@@ -3297,14 +3297,75 @@ async function loadQA() {
       el.style.display = 'block';
       let html = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Article Health</div>';
       for (const [sid, siteData] of Object.entries(sites)) {
-        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:0.75rem 0 0.5rem;"><span style="font-size:0.7rem;color:var(--muted);">${labels[sid]||sid}</span><span style="font-size:0.7rem;color:${gc(siteData.avg_score)};font-weight:600;">Avg: ${siteData.avg_score}%</span></div>`;
+        const flagPct = siteData.ai_flagged_pct != null ? siteData.ai_flagged_pct : null;
+        const flagLabel = flagPct != null ? `<span style="font-size:0.65rem;color:${flagPct > 0 ? 'var(--amber)' : 'var(--green)'};margin-left:0.5rem;">${flagPct}% AI-flagged</span>` : '';
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:0.75rem 0 0.5rem;"><span style="font-size:0.7rem;color:var(--muted);">${labels[sid]||sid}${flagLabel}</span><span style="font-size:0.7rem;color:${gc(siteData.avg_score)};font-weight:600;">Avg: ${siteData.avg_score}%</span></div>`;
         for (const a of siteData.articles) {
           const ts = new Date(a.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
           const slug = (a.url||'').split('/articles/')[1] || a.url;
-          html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.8rem;">${slug}</div><div class="card-meta">${ts}</div></div>${gradeHtml(a.grade,a.score)}</div>
-            ${checksList(a.failed_checks,'article',a.url)}${checksList(a.warnings,'article',a.url)}
-            ${!hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
-            <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runQACheck('${a.site_id}','${a.url}')">Re-check</button>${hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('article',a.url,a.failed_checks,a.warnings)})">Fix in Claude Code</button>` : ''}</div></div>`;
+          const ai = a.ai_exposure || null;
+          const mg = a.model_grade || null;
+
+          // AI exposure badge
+          const aiColor = ai ? (ai.rating === 'GREEN' ? 'var(--green)' : ai.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)') : 'var(--muted)';
+          const aiId = 'ai-' + (a.url||'').replace(/[^a-zA-Z0-9]/g,'_');
+
+          // Model grade badge
+          const mgColor = mg && mg.status === 'complete' ? (mg.rating === 'GREEN' ? 'var(--green)' : mg.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)') : 'var(--muted)';
+          const mgId = 'mg-' + (a.url||'').replace(/[^a-zA-Z0-9]/g,'_');
+
+          // Two-grade header
+          const rulesGrade = `<div style="text-align:right;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Rules</div>${gradeHtml(a.grade,a.score)}</div>`;
+          let modelGrade = '';
+          if (mg && mg.status === 'complete') {
+            modelGrade = `<div style="text-align:right;margin-left:0.75rem;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Model <span style="font-size:0.45rem;color:${mgColor};border:1px solid ${mgColor};padding:0.05rem 0.2rem;border-radius:2px;vertical-align:middle;">ADVISORY</span></div><span style="font-size:1.3rem;font-weight:700;color:${mgColor};">${mg.grade}</span><span style="font-size:0.7rem;color:var(--muted);margin-left:0.35rem;">${mg.pct}%</span></div>`;
+          }
+
+          // AI exposure expandable
+          let aiSection = '';
+          if (ai && ai.findings && ai.findings.length) {
+            aiSection = `<div style="margin-top:0.4rem;">
+              <button onclick="const el=document.getElementById('${aiId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show AI exposure details':'Hide AI exposure details'" style="background:none;border:none;font-size:0.65rem;color:${aiColor};cursor:pointer;padding:0;text-decoration:underline;">Show AI exposure details</button>
+              <div id="${aiId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${aiColor}08;border-left:2px solid ${aiColor};border-radius:2px;">
+                <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.35rem;">AI Content Exposure (score: ${ai.score})</div>
+                ${ai.findings.map(f => {
+                  const fc = f.severity === 'error' ? 'var(--red)' : 'var(--amber)';
+                  const fi = f.severity === 'error' ? '\u2717' : '\u26a0';
+                  const suppKey = 'article:' + a.url + ':' + f.id;
+                  const isSup = suppressedChecks[suppKey] || suppressedChecks['all:all:' + f.id];
+                  if (isSup) return '';
+                  return '<div style="font-size:0.75rem;color:' + fc + ';margin-top:0.2rem;display:flex;justify-content:space-between;align-items:center;"><span>' + fi + ' ' + f.label + ': ' + f.detail + '</span><button style="background:none;border:none;color:var(--muted);font-size:0.6rem;cursor:pointer;padding:0.15rem 0.35rem;white-space:nowrap;" onclick="suppressCheck(\'article\',\'' + a.url + '\',\'' + f.id + '\')">ignore</button></div>';
+                }).filter(Boolean).join('')}
+              </div>
+            </div>`;
+          }
+
+          // Model grade expandable
+          let mgSection = '';
+          if (mg && mg.status === 'complete') {
+            const confColor = mg.confidence === 'HIGH' ? 'var(--green)' : mg.confidence === 'LOW' ? 'var(--red)' : 'var(--amber)';
+            const dimLabels = {first_hand_expertise:'First-Hand Expertise',information_gain:'Information Gain',specificity_evidence:'Specificity & Evidence',depth_substance:'Depth & Substance',voice_authenticity:'Voice Authenticity'};
+            const dimRows = Object.entries(mg.dimensions||{}).map(([k,v]) => {
+              const dc = v.avg_score >= 4 ? 'var(--green)' : v.avg_score >= 3 ? 'var(--amber)' : 'var(--red)';
+              const bar = Math.round((v.avg_score / 5) * 100);
+              return '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;"><span style="font-size:0.7rem;min-width:120px;">' + (dimLabels[k]||k) + '</span><div style="flex:1;height:6px;background:var(--border);border-radius:3px;"><div style="width:' + bar + '%;height:100%;background:' + dc + ';border-radius:3px;"></div></div><span style="font-size:0.7rem;font-weight:600;color:' + dc + ';min-width:2rem;text-align:right;">' + v.avg_score + '</span></div>';
+            }).join('');
+            const fixList = (mg.top_fixes||[]).map(f => '<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:0.2rem;">- ' + f.replace(/</g,'&lt;') + '</div>').join('');
+            mgSection = `<div style="margin-top:0.4rem;">
+              <button onclick="const el=document.getElementById('${mgId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show model grade details':'Hide model grade details'" style="background:none;border:none;font-size:0.65rem;color:${mgColor};cursor:pointer;padding:0;text-decoration:underline;">Show model grade details</button>
+              <div id="${mgId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${mgColor}08;border-left:2px solid ${mgColor};border-radius:2px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;"><span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Model-Based Grade (${mg.passes} passes)</span><span style="font-size:0.55rem;padding:0.1rem 0.3rem;border-radius:2px;background:${confColor}20;color:${confColor};font-weight:600;">${mg.confidence} CONFIDENCE</span></div>
+                ${dimRows}
+                ${fixList ? '<div style="margin-top:0.5rem;"><div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.25rem;">Suggested Fixes</div>' + fixList + '</div>' : ''}
+              </div>
+            </div>`;
+          }
+
+          const allIssues = [...(a.failed_checks||[]), ...(a.warnings||[]), ...(ai?.findings||[]), ...(mg?.top_fixes||[]).map(f => ({id:'mg_fix',label:'Model fix',detail:f}))];
+          html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.8rem;">${slug}</div><div class="card-meta">${ts}</div></div><div style="display:flex;align-items:flex-start;gap:0;">${rulesGrade}${modelGrade}</div></div>
+            ${checksList(a.failed_checks,'article',a.url)}${checksList(a.warnings,'article',a.url)}${aiSection}${mgSection}
+            ${!hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) && (!ai || !ai.findings || !ai.findings.length) && (!mg || mg.status !== 'complete') ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
+            <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runQACheck('${a.site_id}','${a.url}')">Re-check</button><button class="btn btn-outline btn-sm" onclick="runModelGrade('${a.site_id}','${a.url}')">Model Grade</button>${allIssues.length ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('article',a.url,a.failed_checks,[...(a.warnings||[]),...(ai?.findings||[]),...(mg?.top_fixes||[]).map(f=>({id:'mg_fix',label:'Model suggestion',detail:f}))])})">Fix in Claude Code</button>` : ''}</div></div>`;
         }
       }
       el.innerHTML = html;
@@ -3324,6 +3385,20 @@ async function runQACheck(site_id, article_url) {
     toast(`QA: ${result.grade} (${result.score}%) \u2014 ${result.failed_checks?.length||0} issues`, result.passed ? 'success' : 'error');
     loadQA();
   } catch(e) { toast('QA failed: ' + e.message, 'error'); }
+}
+
+async function runModelGrade(site_id, article_url) {
+  toast('Running model grade (3 passes, ~2 min)\u2026');
+  try {
+    const result = await api('/webhook/qa-model-grade', {method:'POST', body:JSON.stringify({site_id, article_url})});
+    const mg = result.model_grade || result;
+    if (mg.status === 'complete') {
+      toast(`Model: ${mg.grade} (${mg.pct}%) ${mg.confidence} confidence`, mg.rating === 'GREEN' ? 'success' : 'error');
+    } else {
+      toast('Model grade: ' + (mg.message || 'unavailable'), 'error');
+    }
+    loadQA();
+  } catch(e) { toast('Model grade failed: ' + e.message, 'error'); }
 }
 
 async function suppressCheck(qaType, identifier, checkId) {
