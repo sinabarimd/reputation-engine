@@ -384,7 +384,7 @@
         <button class="btn btn-outline btn-sm" onclick="loadPublish()">↻ Refresh</button>
       </div>
       <div id="publish-loading" class="loading-msg"><span class="spinner"></span>Loading approved drafts…</div>
-      <div id="publish-empty" class="empty-state" style="display:none;"><p>No approved drafts ready to publish. Approve a draft in the Drafts tab first.</p></div>
+      <div id="publish-empty" style="display:none;"></div>
       <div id="publish-list"></div>
     </div>
 
@@ -1406,6 +1406,24 @@ async function quickResearch(site_id, topic, content_type, btn) {
   }
 }
 
+async function dismissCandidate(site_id, candidate_index, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Dismissing\u2026';
+  const card = btn.closest('.candidate-card');
+  try {
+    await api('/webhook/dismiss-candidate', {
+      method: 'POST',
+      body: JSON.stringify({ site_id, candidate_index })
+    });
+    if (card) card.remove();
+    toast('Candidate dismissed.', 'success');
+  } catch(e) {
+    toast('Dismiss failed: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Dismiss';
+  }
+}
+
 async function triggerPhase2() {
   const site_id = document.getElementById('p2-site').value;
   const selected_topic = document.getElementById('p2-topic').value.trim();
@@ -1499,18 +1517,23 @@ async function loadResearch() {
         card.className = 'candidate-card';
         const conf = c.confidence || 'medium';
         const ctype = c.content_type || 'standard';
+        const isResearching = c.status === 'researching';
+        if (isResearching) card.style.opacity = '0.6';
         card.innerHTML = `
-          <div class="candidate-title">${c.recommended_topic || c.topic || '—'}</div>
+          <div class="candidate-title">${c.recommended_topic || c.topic || '\u2014'}</div>
           <div class="candidate-rationale">${c.rationale || ''}</div>
           <div class="candidate-meta">
-            <span class="badge badge-${conf}">${conf}</span>
+            ${isResearching
+              ? '<span class="badge" style="background:var(--navy);color:#fff;"><span class="spinner" style="width:10px;height:10px;border-width:2px;margin-right:4px;vertical-align:middle;"></span> Researching\u2026</span>'
+              : `<span class="badge badge-${conf}">${conf}</span>`}
             <span class="badge badge-site">${ctype}</span>
             ${c.timeliness ? `<span class="badge badge-site">${c.timeliness}</span>` : ''}
-            ${c.has_attachment ? `<span class="badge badge-site" title="Has reference document attached">📎 attached</span>` : ''}
+            ${c.has_attachment ? `<span class="badge badge-site" title="Has reference document attached">\ud83d\udcce attached</span>` : ''}
           </div>
-          <div class="candidate-actions">
-            <button class="btn btn-primary btn-sm" onclick="quickResearch('${site_id}', \`${(c.recommended_topic||c.topic||'').replace(/`/g,"'").replace(/"/g,'&quot;')}\`, '${ctype}', this)">Research →</button>
-          </div>
+          ${isResearching ? '' : `<div class="candidate-actions">
+            <button class="btn btn-primary btn-sm" onclick="quickResearch('${site_id}', \`${(c.recommended_topic||c.topic||'').replace(/`/g,"'").replace(/"/g,'&quot;')}\`, '${ctype}', this)">Research \u2192</button>
+            <button class="btn btn-outline btn-sm" onclick="dismissCandidate('${site_id}', ${candidates.indexOf(c)}, this)">Dismiss</button>
+          </div>`}
         `;
         col.appendChild(card);
       });
@@ -1904,37 +1927,6 @@ async function loadPublish() {
     const schedule = scheduleData.schedule || {};
     document.getElementById('publish-loading').style.display = 'none';
 
-    if (!approved.length) {
-      document.getElementById('publish-empty').style.display = 'block';
-      // Still show schedule overview (include ramp-blocked sites with their unlock dates)
-      const ALL_SCHED_SITES = ['sinabarimd','sinabari_net','drsinabari','sinabariplasticsurgery'];
-      const overviewHtml = ALL_SCHED_SITES.map(site_id => {
-          const labels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
-          const s = schedule[site_id] || {};
-          const lastPub = s.last_published || 'never';
-          let nextLabel;
-          if (s.next_cron) {
-            nextLabel = formatScheduleDate(s.next_cron);
-          } else {
-            // Ramp-blocked — show computed unlock date
-            const computed = getScheduledDate(site_id, 0, schedule);
-            nextLabel = formatScheduleDate(computed) + ' (ramp)';
-          }
-          return `<div class="status-row">
-            <div><span class="badge badge-site">${labels[site_id]||site_id}</span> <span style="font-size:0.75rem;color:var(--muted);margin-left:0.5rem;">last: ${lastPub}</span></div>
-            <div style="font-size:0.75rem;color:var(--muted);">next: ${nextLabel}</div>
-          </div>`;
-        }).join('');
-      if (overviewHtml) {
-        document.getElementById('publish-list').innerHTML = `
-          <div style="margin-top:1rem;">
-            <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Schedule Overview</div>
-            <div class="card">${overviewHtml}</div>
-          </div>`;
-      }
-      return;
-    }
-
     // Track queue position per site for staggered scheduling (uses shared SCHED_* constants)
     const siteQueueCount = {};
 
@@ -1950,10 +1942,17 @@ async function loadPublish() {
       return baseDate.toISOString();
     }
 
+    const pending = draftsData.pending_drafts || [];
+    const ALL_SCHED_SITES = ['sinabarimd','sinabari_net','drsinabari','sinabariplasticsurgery'];
+    const siteLabels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
+    const sitesWithApproved = new Set(approved.map(d => d.site_id));
+
+    // Build card list: approved draft cards + empty-pipeline cards for sites without approved drafts
+    const allCards = [];
+
+    // Approved draft cards (with article details)
     approved.forEach(d => {
-      const card = document.createElement('div');
-      card.className = 'card';
-      const siteName = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'}[d.site_id] || d.site_id;
+      const siteName = siteLabels[d.site_id] || d.site_id;
       const wc = d.word_count ? `${d.word_count} words` : '';
       const siteSchedule = schedule[d.site_id] || {};
       const queuePos = siteQueueCount[d.site_id] || 0;
@@ -1962,29 +1961,61 @@ async function loadPublish() {
       const nextCron = formatScheduleDate(scheduledIso);
       const lastPub = siteSchedule.last_published || 'never';
       const queueLabel = queuePos > 0 ? ` (#${queuePos + 1} in queue)` : '';
-      card.innerHTML = `
-        <div class="card-header">
-          <div>
-            <div class="card-title">${d.title || '—'}</div>
-            <div class="card-meta">
-              <span class="badge badge-site">${siteName}</span>
-              ${wc ? `<span style="margin-left:0.5rem;font-size:0.7rem;color:var(--muted);">${wc}</span>` : ''}
+      allCards.push({ site_id: d.site_id, nextDate: new Date(scheduledIso), html: `
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">${d.title || '\u2014'}</div>
+              <div class="card-meta">
+                <span class="badge badge-site">${siteName}</span>
+                ${wc ? `<span style="margin-left:0.5rem;font-size:0.7rem;color:var(--muted);">${wc}</span>` : ''}
+              </div>
             </div>
+            <span class="badge badge-approved">Approved</span>
           </div>
-          <span class="badge badge-approved">Approved</span>
-        </div>
-        ${d.excerpt ? `<div class="card-excerpt">${d.excerpt}</div>` : ''}
-        <div style="margin-top:0.75rem;padding:0.6rem 0.75rem;background:var(--bg2);border-radius:2px;font-size:0.75rem;color:var(--muted);display:flex;justify-content:space-between;">
-          <span>Scheduled: <strong style="color:var(--text);">${nextCron}</strong>${queueLabel}</span>
-          <span>Last published: ${lastPub}</span>
-        </div>
-        <div class="card-actions">
-          <button class="btn btn-outline btn-sm" onclick="previewDraft('${d.draft_id}')">Preview</button>
-          <button class="btn btn-primary btn-sm" id="pub-btn-${d.draft_id}" onclick="publishDraft('${d.draft_id}','${d.site_id}')">Publish Now →</button>
-        </div>
-      `;
-      document.getElementById('publish-list').appendChild(card);
+          ${d.excerpt ? `<div class="card-excerpt">${d.excerpt}</div>` : ''}
+          <div style="margin-top:0.75rem;padding:0.6rem 0.75rem;background:var(--bg2);border-radius:2px;font-size:0.75rem;color:var(--muted);display:flex;justify-content:space-between;">
+            <span>Scheduled: <strong style="color:var(--text);">${nextCron}</strong>${queueLabel}</span>
+            <span>Last published: ${lastPub}</span>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-outline btn-sm" onclick="previewDraft('${d.draft_id}')">Preview</button>
+            <button class="btn btn-primary btn-sm" id="pub-btn-${d.draft_id}" onclick="publishDraft('${d.draft_id}','${d.site_id}')">Publish Now \u2192</button>
+          </div>
+        </div>` });
     });
+
+    // Empty-pipeline cards for sites without approved drafts
+    for (const site_id of ALL_SCHED_SITES) {
+      if (sitesWithApproved.has(site_id)) continue;
+      const siteName = siteLabels[site_id] || site_id;
+      const siteSchedule = schedule[site_id] || {};
+      const scheduledIso = getScheduledDate(site_id, 0, schedule);
+      const nextCron = formatScheduleDate(scheduledIso);
+      const lastPub = siteSchedule.last_published || 'never';
+      const hasPending = pending.some(d => d.site_id === site_id);
+      const statusLabel = hasPending ? 'Needs Approval' : 'No Content';
+      const statusColor = hasPending ? 'var(--amber)' : 'var(--muted)';
+      allCards.push({ site_id, nextDate: new Date(scheduledIso), html: `
+        <div class="card" style="opacity:0.85;">
+          <div class="card-header">
+            <div>
+              <div class="card-meta">
+                <span class="badge badge-site">${siteName}</span>
+              </div>
+            </div>
+            <span style="font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:${statusColor};font-weight:600;">${statusLabel}</span>
+          </div>
+          <div style="margin-top:0.5rem;padding:0.6rem 0.75rem;background:var(--bg2);border-radius:2px;font-size:0.75rem;color:var(--muted);display:flex;justify-content:space-between;">
+            <span>Scheduled: <strong style="color:var(--text);">${nextCron}</strong></span>
+            <span>Last published: ${lastPub}</span>
+          </div>
+        </div>` });
+    }
+
+    // Sort all cards by next scheduled date
+    allCards.sort((a, b) => a.nextDate - b.nextDate);
+    document.getElementById('publish-list').innerHTML = allCards.map(c => c.html).join('');
   } catch(e) {
     document.getElementById('publish-loading').style.display = 'none';
     toast('Could not load drafts: ' + e.message, 'error');
@@ -2621,11 +2652,11 @@ async function loadMetrics() {
         <div style="display:flex;gap:1rem;font-size:0.65rem;">
           <span style="color:var(--green);">\u25cf ${serp.owned_count||0} owned</span>
           <span style="color:var(--navy);">\u25cf ${serp.known_profile_count||0} profiles</span>
-          ${serp.negative_count ? `<span style="color:var(--red);font-weight:600;">\u25cf ${serp.negative_count} negative</span>` : ''}
+          <!-- negative count hidden for video -->
           <span style="color:var(--muted);">\u25cf ${serp.competitor_count||0} other</span>
         </div>
       </div>`;
-      const allResults = serp.all_results || [];
+      const allResults = (serp.all_results || []).filter(r => r.type !== 'negative');
       serpHtml += '<div class="card">';
       const negTargets = data.negative_targets || [];
       const page1 = allResults.filter(r => r.position <= 10);

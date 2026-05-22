@@ -313,7 +313,7 @@
         810
       ],
       "parameters": {
-        "jsCode": "// Queue the research \u2014 the HTTP node after this fires the API\nconst upstream = $('Plan Deep Research Queries').first().json;\nconst { site_id, selected_topic, content_type } = upstream;\n\n// Look up attachment_text from the candidate in staticData\nconst staticData = $getWorkflowStaticData('global');\nlet attachment_text = '';\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || [];\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  const match = items.find(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (match && match.attachment_text) {\n    attachment_text = match.attachment_text;\n  }\n}\n\n// NOTE: Do NOT clear candidates here \u2014 cleared only after brief successfully stores\n\nconst apiBody = { query: selected_topic, site_id, content_type, selected_topic };\nif (attachment_text) apiBody.attachment_context = attachment_text;\n\nreturn [{ json: {\n  ...upstream,\n  attachment_text,\n  research_api_body: JSON.stringify(apiBody),\n} }];\n"
+        "jsCode": "// Queue the research \u2014 the HTTP node after this fires the API\nconst upstream = $('Plan Deep Research Queries').first().json;\nconst { site_id, selected_topic, content_type } = upstream;\n\n// Look up attachment_text from the candidate in staticData\nconst staticData = $getWorkflowStaticData('global');\nlet attachment_text = '';\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || [];\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  const match = items.find(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (match) {\n    if (match.attachment_text) {\n      attachment_text = match.attachment_text;\n    }\n    // Mark candidate as researching so dashboard shows progress\n    match.status = 'researching';\n    match.research_started_at = new Date().toISOString();\n  }\n}\n\nconst apiBody = { query: selected_topic, site_id, content_type, selected_topic };\nif (attachment_text) apiBody.attachment_context = attachment_text;\n\nreturn [{ json: {\n  ...upstream,\n  attachment_text,\n  research_api_body: JSON.stringify(apiBody),\n} }];\n"
       }
     },
     {
@@ -857,6 +857,50 @@
         "mode": "runOnceForAllItems",
         "jsCode": "// Collect Tavily results back into a single item per site\n// HTTP Request replaces $json, so get context from upstream Expand node\nconst expandItems = $('Expand Scout Queries').all();\nconst tavilyItems = $input.all();\n\nconst site_id = expandItems[0].json.site_id;\nconst profile = expandItems[0].json.profile;\n\nconst search_results = tavilyItems.map((item, i) => {\n  const query = expandItems[i]?.json?.query || '';\n  const results = (item.json.results || []).map(r => ({\n    title: r.title,\n    url: r.url,\n    content: (r.content || '').slice(0, 800),\n    published_date: r.published_date || null,\n  }));\n  return {\n    query,\n    answer: item.json.answer || null,\n    results,\n  };\n});\n\nreturn [{ json: { site_id, profile, queries: [], search_results } }];"
       }
+    },
+    {
+      "id": "dismiss-candidate-wh",
+      "name": "Dismiss Candidate Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1500
+      ],
+      "webhookId": "dismiss-candidate",
+      "parameters": {
+        "path": "dismiss-candidate",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "dismiss-candidate-code",
+      "name": "Dismiss Candidate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1500
+      ],
+      "parameters": {
+        "jsCode": "// Remove a candidate from the list by site_id + candidate_index or topic match\nconst staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { site_id, candidate_index, topic } = body;\n\nif (!site_id) {\n  return [{ json: { success: false, error: 'site_id required' } }];\n}\n\nif (!staticData.candidates || !staticData.candidates[site_id]) {\n  return [{ json: { success: false, error: 'No candidates for site ' + site_id } }];\n}\n\nconst items = staticData.candidates[site_id].items || [];\n\nif (candidate_index !== undefined && candidate_index >= 0 && candidate_index < items.length) {\n  const removed = items.splice(candidate_index, 1)[0];\n  return [{ json: { success: true, site_id, dismissed: removed.recommended_topic || removed.topic } }];\n}\n\nif (topic) {\n  const searchStr = topic.toLowerCase().slice(0, 40);\n  const idx = items.findIndex(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (idx >= 0) {\n    const removed = items.splice(idx, 1)[0];\n    return [{ json: { success: true, site_id, dismissed: removed.recommended_topic || removed.topic } }];\n  }\n  return [{ json: { success: false, error: 'No matching candidate found' } }];\n}\n\nreturn [{ json: { success: false, error: 'Provide candidate_index or topic' } }];\n"
+      }
+    },
+    {
+      "id": "dismiss-candidate-respond",
+      "name": "Respond Dismiss Candidate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        1500
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
     }
   ],
   "connections": {
@@ -1281,6 +1325,28 @@
           }
         ]
       ]
+    },
+    "Dismiss Candidate Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dismiss Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dismiss Candidate": {
+      "main": [
+        [
+          {
+            "node": "Respond Dismiss Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1628,7 +1694,7 @@
           810
         ],
         "parameters": {
-          "jsCode": "// Queue the research \u2014 the HTTP node after this fires the API\nconst upstream = $('Plan Deep Research Queries').first().json;\nconst { site_id, selected_topic, content_type } = upstream;\n\n// Look up attachment_text from the candidate in staticData\nconst staticData = $getWorkflowStaticData('global');\nlet attachment_text = '';\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || [];\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  const match = items.find(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (match && match.attachment_text) {\n    attachment_text = match.attachment_text;\n  }\n}\n\n// NOTE: Do NOT clear candidates here \u2014 cleared only after brief successfully stores\n\nconst apiBody = { query: selected_topic, site_id, content_type, selected_topic };\nif (attachment_text) apiBody.attachment_context = attachment_text;\n\nreturn [{ json: {\n  ...upstream,\n  attachment_text,\n  research_api_body: JSON.stringify(apiBody),\n} }];\n"
+          "jsCode": "// Queue the research \u2014 the HTTP node after this fires the API\nconst upstream = $('Plan Deep Research Queries').first().json;\nconst { site_id, selected_topic, content_type } = upstream;\n\n// Look up attachment_text from the candidate in staticData\nconst staticData = $getWorkflowStaticData('global');\nlet attachment_text = '';\nif (staticData.candidates && staticData.candidates[site_id]) {\n  const items = staticData.candidates[site_id].items || [];\n  const searchStr = selected_topic.toLowerCase().slice(0, 30);\n  const match = items.find(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (match) {\n    if (match.attachment_text) {\n      attachment_text = match.attachment_text;\n    }\n    // Mark candidate as researching so dashboard shows progress\n    match.status = 'researching';\n    match.research_started_at = new Date().toISOString();\n  }\n}\n\nconst apiBody = { query: selected_topic, site_id, content_type, selected_topic };\nif (attachment_text) apiBody.attachment_context = attachment_text;\n\nreturn [{ json: {\n  ...upstream,\n  attachment_text,\n  research_api_body: JSON.stringify(apiBody),\n} }];\n"
         }
       },
       {
@@ -2172,6 +2238,50 @@
           "mode": "runOnceForAllItems",
           "jsCode": "// Collect Tavily results back into a single item per site\n// HTTP Request replaces $json, so get context from upstream Expand node\nconst expandItems = $('Expand Scout Queries').all();\nconst tavilyItems = $input.all();\n\nconst site_id = expandItems[0].json.site_id;\nconst profile = expandItems[0].json.profile;\n\nconst search_results = tavilyItems.map((item, i) => {\n  const query = expandItems[i]?.json?.query || '';\n  const results = (item.json.results || []).map(r => ({\n    title: r.title,\n    url: r.url,\n    content: (r.content || '').slice(0, 800),\n    published_date: r.published_date || null,\n  }));\n  return {\n    query,\n    answer: item.json.answer || null,\n    results,\n  };\n});\n\nreturn [{ json: { site_id, profile, queries: [], search_results } }];"
         }
+      },
+      {
+        "id": "dismiss-candidate-wh",
+        "name": "Dismiss Candidate Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          1500
+        ],
+        "webhookId": "dismiss-candidate",
+        "parameters": {
+          "path": "dismiss-candidate",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "dismiss-candidate-code",
+        "name": "Dismiss Candidate",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          1500
+        ],
+        "parameters": {
+          "jsCode": "// Remove a candidate from the list by site_id + candidate_index or topic match\nconst staticData = $getWorkflowStaticData('global');\nconst body = $json.body || $json;\nconst { site_id, candidate_index, topic } = body;\n\nif (!site_id) {\n  return [{ json: { success: false, error: 'site_id required' } }];\n}\n\nif (!staticData.candidates || !staticData.candidates[site_id]) {\n  return [{ json: { success: false, error: 'No candidates for site ' + site_id } }];\n}\n\nconst items = staticData.candidates[site_id].items || [];\n\nif (candidate_index !== undefined && candidate_index >= 0 && candidate_index < items.length) {\n  const removed = items.splice(candidate_index, 1)[0];\n  return [{ json: { success: true, site_id, dismissed: removed.recommended_topic || removed.topic } }];\n}\n\nif (topic) {\n  const searchStr = topic.toLowerCase().slice(0, 40);\n  const idx = items.findIndex(i =>\n    (i.recommended_topic || i.topic || '').toLowerCase().includes(searchStr)\n  );\n  if (idx >= 0) {\n    const removed = items.splice(idx, 1)[0];\n    return [{ json: { success: true, site_id, dismissed: removed.recommended_topic || removed.topic } }];\n  }\n  return [{ json: { success: false, error: 'No matching candidate found' } }];\n}\n\nreturn [{ json: { success: false, error: 'Provide candidate_index or topic' } }];\n"
+        }
+      },
+      {
+        "id": "dismiss-candidate-respond",
+        "name": "Respond Dismiss Candidate",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          720,
+          1500
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}"
+        }
       }
     ],
     "connections": {
@@ -2591,6 +2701,28 @@
           [
             {
               "node": "Build Phase1 OpenClaw Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dismiss Candidate Webhook": {
+        "main": [
+          [
+            {
+              "node": "Dismiss Candidate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dismiss Candidate": {
+        "main": [
+          [
+            {
+              "node": "Respond Dismiss Candidate",
               "type": "main",
               "index": 0
             }

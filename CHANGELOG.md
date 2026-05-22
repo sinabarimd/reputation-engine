@@ -2,6 +2,11 @@
 
 <!-- Claude Code appends here during sessions, grouped by week. -->
 
+## Week of 2026-05-19
+
+### Added
+- **YouTube walkthrough video** (May 21) -- embedded in spotlight article (`articles/how-i-built-a-personal-reputation-engine.html`) with iframe embed after the lede paragraph. Added `VideoObject` schema to the page's JSON-LD `@graph` (duration PT8M6S, linked to existing Article and Person entities). Added "Watch the walkthrough" link to README.
+
 ## Week of 2026-05-09
 
 ### Fixed
