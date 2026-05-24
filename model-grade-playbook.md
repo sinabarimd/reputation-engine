@@ -139,22 +139,57 @@
 | 9 | Rhythm-breaking (fragments, parentheticals) | 0-0.3 | voice_authenticity (marginal) |
 | 10 | Cross-domain insight | 0-0.3 | information_gain (marginal) |
 
-### Open question: is information_gain a generation-time problem?
-The model scores information_gain based on whether the article adds something not already on page 1 of Google for its topic. Our theory is that this is fundamentally about the THESIS, not the execution: you can improve voice, evidence, and expertise through targeted edits, but information_gain may require the article to say something genuinely new from the start. Possible generation-time variables to test:
-- **Topic selection**: are some topics inherently higher-information-gain than others? (niche intersections vs. well-covered subjects)
-- **Angle specification in the research brief**: does the Content Research Agent's brief constrain or enable novelty?
-- **Prompt-level thesis requirement**: would requiring the Content Generator to articulate a "what's new here" thesis before drafting improve the score?
-- **Contrarian framing**: does a "here's what everyone gets wrong about X" structure score higher than "here's my take on X"?
+### information_gain: PARTIALLY ANSWERED (May 23, 2026)
 
-This remains an open question for future experimentation, not a confirmed finding.
+**Confirmed findings from the May 23 rewrite campaign (8 articles, 2 passes):**
+
+1. **Contrarian framing works.** Articles with an explicit "here's what everyone gets wrong" or "here's the uncomfortable truth" structure scored ig=4.0 consistently. Articles that presented "here's my take on X" without challenging conventional wisdom stayed at ig=3.0. Confirmed across 6 articles.
+
+2. **Self-correction narrative ("I used to think X, then Y happened") contributes to ig.** The value-based-care article's "I used to think this was a billing abstraction" arc helped it reach ig=3.3 on first pass and ig=4.0 after site-aware rubric.
+
+3. **Niche intersections score higher.** The acids article (clinical dermatology + Fitzpatrick skin type equity gap) and the board-certified article (transparent "I'm not board certified" framing) both hit ig=4.0. These were angles not found on page 1 of Google.
+
+4. **Topic selection IS the primary constraint** — confirmed. No amount of rewriting pushed a well-covered topic past ig=3.0 without a genuinely novel angle. The smart-home and longevity articles plateaued because their angles, while well-executed, weren't structurally novel enough.
+
+5. **Site-aware rubric unlocked editorial content.** drsinabari essays were judged against "originality of synthesis and argument" instead of "page 1 of Google" and information_gain jumped from 2.7 to 4.0 with no content changes.
+
+**Implemented in pipeline (May 24, 2026):**
+- Content Research Agent Phase 1: topics now require `information_gain_prediction` field, candidates with "low" prediction are rejected
+- Content Research Agent Phase 2: briefs now include `self_correction_opportunity` and `clinical_vignette_seeds`
+- Content Generator: PLAYBOOK REQUIREMENTS section added with mandatory scene opening, callback closing, self-correction arc, quoted dialogue, "what I would NOT do" judgment, and named citations
+- QA rubric: site-aware with per-site information_gain benchmarks (editorial = originality, clinical = page-1-of-Google)
 
 ---
 
-### Integration into Content Generator prompt:
-These rules should be codified in the Content Generator's OpenClaw prompt as mandatory requirements for draft generation. Specifically:
-- Require 3+ named citations per article (with author, source, year, quantitative finding)
-- Require an opening patient vignette or clinical scene
-- Require at least 2 first-person clinical observations
-- Require at least 1 "what I would NOT do" judgment
-- Ban em-dashes and structural tells at generation time (already partially done)
-- Add responsive scoring: if draft lacks citations/vignettes, auto-flag for operator review
+### Site-Aware Rubric (implemented May 24, 2026)
+
+The model grade rubric was updated to 6 dimensions (added `site_mandate_fit`) with per-site context injection. Impact on portfolio scores:
+
+| Metric | Old Rubric | Site-Aware Rubric |
+|--------|-----------|-------------------|
+| Articles at GREEN | 7/18 (39%) | 16/18 (89%) |
+| A-grade articles | 0 | 3 |
+| Average portfolio score | 72% | 83% |
+| al-bundy (editorial) | C 61% | B 81% (+20) |
+| acids (clinical) | B 85% | A 94% (+9) |
+
+The site-aware rubric fixed the miscalibration that penalized editorial essays for not being clinical enough and clinical articles for not being essayistic enough. The `site_mandate_fit` soft gate caps off-mandate articles at C regardless of other scores.
+
+---
+
+### Pipeline Integration (implemented May 24, 2026):
+
+All playbook rules are now embedded in the Content Research Agent and Content Generator prompts:
+
+**Content Research Agent (topic discovery):**
+- Topics require `information_gain_prediction` — "low" predictions rejected
+- `novel_angle` field must be contrarian or cross-domain, not a restatement
+- `opening_hook` field: specific scene/moment, not a thesis
+- `clinical_vignette_seeds`: plausible anecdotes the author could expand
+- `self_correction_opportunity`: "I used to think X" arc seed
+
+**Content Generator (draft writing):**
+- PLAYBOOK REQUIREMENTS section with 4 structural rules: scene opening, callback close, self-correction arc, named citations
+- Voice rules: first person, quoted dialogue, "what I would NOT do" judgment, clinical vulnerability, sentence variety
+- Evidence rules: 3-5 named citations with author/journal/year/number
+- information_gain rules: novel angle as organizing principle, contrarian framing preferred

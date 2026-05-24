@@ -8,12 +8,12 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 ▶️ **[Watch the walkthrough on YouTube](https://youtu.be/3WV84_8cgA8)**
 
-### Latest Changes (May 21, 2026)
+### Latest Changes (May 23, 2026)
 
-- **RLAiF content quality system** (May 21) -- two-layer QA (deterministic + 3-pass LLM grading) with rewrite-regrade feedback loop. Eliminated all RED-rated articles, moved 6 to GREEN. Playbook for future content generation documented.
-- **AI content exposure check** (May 21) -- deterministic Layer 1 check scanning for AI tells (banned phrases, em-dashes, missing clinical voice, weak citations)
-- **Model-based editorial grade** (May 21) -- Layer 2 advisory LLM grade on 5 dimensions with confidence scoring, integrated into QA dashboard
-- **YouTube walkthrough video** (May 21) -- embedded in spotlight article with VideoObject schema
+- **Site-aware model grade rubric** (May 23) -- 6-dimension scoring with per-site context injection. Editorial essays judged by originality of argument, clinical articles by page-1-of-Google competitiveness. Portfolio: 16/18 GREEN, 3 A-grades, avg 83%.
+- **Article archive system** (May 23) -- Publisher now preserves all published articles forever (was capped at 3). Recovered 5 wiped articles from backups. Site Refresh no longer destroys articles directory.
+- **Playbook-integrated content pipeline** (May 23) -- Topic discovery, research briefs, and draft generation prompts now embed proven quality tactics: scene openings, named citations, self-correction arcs, contrarian framing for information_gain.
+- **18 articles rewritten** (May 23) -- systematic campaign using research + playbook tactics. 8 D/F-grade articles moved to B/A (avg +35 pts). Cron time gate locale bug fixed across 3 workflows.
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 

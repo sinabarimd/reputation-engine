@@ -3274,17 +3274,55 @@ async function loadQA() {
 
     // Domains
     const domains = data.domain_results || {};
-    if (Object.keys(domains).length) {
+    const eeatGrades = data.eeat_grades || {};
+    if (Object.keys(domains).length || Object.keys(eeatGrades).length) {
       hasAny = true;
       const el = document.getElementById('qa-domain-section');
       el.style.display = 'block';
       let html = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Domain Health</div>';
-      for (const [sid, d] of Object.entries(domains)) {
-        const ts = d.checked_at ? new Date(d.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-        html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.85rem;">${labels[sid]||sid}</div><div class="card-meta">${ts}</div></div>${gradeHtml(d.grade,d.score)}</div>
-          ${checksList(d.failed_checks,'domain',sid)}${checksList(d.warnings,'domain',sid)}
-          ${!hasVisibleIssues(d.failed_checks,d.warnings,'domain',sid) ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
-          <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runDomainQASingle('${sid}')">Re-check</button>${hasVisibleIssues(d.failed_checks,d.warnings,'domain',sid) ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('domain',sid,d.failed_checks,d.warnings)})">Fix in Claude Code</button>` : ''}</div></div>`;
+      const allSids = [...new Set([...Object.keys(domains), ...Object.keys(eeatGrades)])];
+      for (const sid of allSids) {
+        const d = domains[sid];
+        const ee = eeatGrades[sid];
+        const ts = d?.checked_at ? new Date(d.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+
+        // Two-grade header: Rules + EEAT
+        const rulesGrade = d ? `<div style="text-align:right;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Rules</div>${gradeHtml(d.grade,d.score)}</div>` : '';
+        let eeatGrade = '';
+        if (ee && ee.status === 'complete') {
+          const eeColor = ee.rating === 'GREEN' ? 'var(--green)' : ee.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)';
+          eeatGrade = `<div style="text-align:right;margin-left:0.75rem;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">EEAT <span style="font-size:0.45rem;color:${eeColor};border:1px solid ${eeColor};padding:0.05rem 0.2rem;border-radius:2px;vertical-align:middle;">ADVISORY</span></div><span style="font-size:1.3rem;font-weight:700;color:${eeColor};">${ee.grade}</span><span style="font-size:0.7rem;color:var(--muted);margin-left:0.35rem;">${ee.pct}%</span></div>`;
+        }
+
+        // EEAT expandable section
+        const eeId = 'eeat-' + sid;
+        let eeatSection = '';
+        if (ee && ee.status === 'complete') {
+          const eeColor = ee.rating === 'GREEN' ? 'var(--green)' : ee.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)';
+          const dimLabels = {experience:'Experience',expertise:'Expertise',authoritativeness:'Authoritativeness',trustworthiness:'Trustworthiness',voice_cohesion:'Voice Cohesion',topical_authority:'Topical Authority'};
+          const dimRows = Object.entries(ee.dimensions||{}).map(([k,v]) => {
+            const dc = v.score >= 4 ? 'var(--green)' : v.score >= 3 ? 'var(--amber)' : 'var(--red)';
+            const bar = Math.round((v.score / 5) * 100);
+            return '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;"><span style="font-size:0.7rem;min-width:120px;">' + (dimLabels[k]||k) + '</span><div style="flex:1;height:6px;background:var(--border);border-radius:3px;"><div style="width:' + bar + '%;height:100%;background:' + dc + ';border-radius:3px;"></div></div><span style="font-size:0.7rem;font-weight:600;color:' + dc + ';min-width:2rem;text-align:right;">' + v.score + '</span></div>';
+          }).join('');
+          const eeTs = ee.checked_at ? new Date(ee.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+          const impList = (ee.top_improvements||[]).map(f => '<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:0.2rem;">- ' + f.replace(/</g,'&lt;') + '</div>').join('');
+          eeatSection = `<div style="margin-top:0.4rem;">
+            <button onclick="const el=document.getElementById('${eeId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show EEAT details':'Hide EEAT details'" style="background:none;border:none;font-size:0.65rem;color:${eeColor};cursor:pointer;padding:0;text-decoration:underline;">Show EEAT details</button>
+            <div id="${eeId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${eeColor}08;border-left:2px solid ${eeColor};border-radius:2px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;"><span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">EEAT Domain Review (${ee.page_count} pages)</span><span style="font-size:0.55rem;color:var(--muted);">${eeTs}</span></div>
+              ${dimRows}
+              ${ee.overall_note ? '<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:0.5rem;font-style:italic;">' + ee.overall_note.replace(/</g,'&lt;') + '</div>' : ''}
+              ${impList ? '<div style="margin-top:0.5rem;"><div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.25rem;">Top Improvements</div>' + impList + '</div>' : ''}
+            </div>
+          </div>`;
+        }
+
+        html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.85rem;">${labels[sid]||sid}</div><div class="card-meta">${ts}</div></div><div style="display:flex;align-items:flex-start;gap:0;">${rulesGrade}${eeatGrade}</div></div>
+          ${d ? checksList(d.failed_checks,'domain',sid) + checksList(d.warnings,'domain',sid) : ''}
+          ${d && !hasVisibleIssues(d.failed_checks,d.warnings,'domain',sid) ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
+          ${eeatSection}
+          <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runDomainQASingle('${sid}')">Re-check</button><button class="btn btn-outline btn-sm" onclick="runEEAT('${sid}')">EEAT Review</button>${d && hasVisibleIssues(d.failed_checks,d.warnings,'domain',sid) ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('domain',sid,d.failed_checks,d.warnings)})">Fix in Claude Code</button>` : ''}</div></div>`;
       }
       el.innerHTML = html;
     }
@@ -3399,6 +3437,23 @@ async function runModelGrade(site_id, article_url) {
     }
     loadQA();
   } catch(e) { toast('Model grade failed: ' + e.message, 'error'); }
+}
+
+async function runEEAT(site_id) {
+  toast('Running EEAT domain review (full corpus, ~2 min)\u2026');
+  try {
+    const result = await api('/webhook/qa-domain-eeat', {method:'POST', body:JSON.stringify({site_id})});
+    const grades = result.results || [result];
+    for (const r of grades) {
+      const ee = r.eeat_grade || r;
+      if (ee.status === 'complete') {
+        toast(`EEAT ${ee.domain}: ${ee.grade} (${ee.pct}%) ${ee.rating}`, ee.rating === 'GREEN' ? 'success' : 'error');
+      } else {
+        toast('EEAT: ' + (ee.message || 'unavailable'), 'error');
+      }
+    }
+    loadQA();
+  } catch(e) { toast('EEAT failed: ' + e.message, 'error'); }
 }
 
 async function suppressCheck(qaType, identifier, checkId) {

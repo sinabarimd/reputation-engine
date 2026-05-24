@@ -125,7 +125,7 @@
         600
       ],
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst qa_results = staticData.qa_results || {};\nconst qa_history = staticData.qa_history || [];\nconst domain_results = staticData.domain_results || {};\nconst portfolio_result = staticData.portfolio_result || null;\nconst suppressed = staticData.suppressed_checks || {};\n\nconst sites = {};\nfor (const [url, result] of Object.entries(qa_results)) {\n  if (!sites[result.site_id]) sites[result.site_id] = { articles: [], avg_score: 0 };\n  sites[result.site_id].articles.push({ url, ...result });\n}\nfor (const site of Object.values(sites)) {\n  site.avg_score = Math.round(site.articles.reduce((s, a) => s + a.score, 0) / site.articles.length);\n  const withAi = site.articles.filter(a => a.ai_exposure);\n  site.ai_flagged_pct = withAi.length ? Math.round(withAi.filter(a => a.ai_exposure.rating !== 'GREEN').length / withAi.length * 100) : 0;\n}\n\nconst model_grades = staticData.model_grades || {};\n\n// Attach model grades to article results\nfor (const site of Object.values(sites)) {\n  for (const a of site.articles) {\n    a.model_grade = model_grades[a.url] || null;\n  }\n}\n\nreturn [{ json: {\n  article_results_by_site: sites,\n  domain_results,\n  portfolio_result,\n  suppressed_checks: suppressed,\n  total_articles_checked: Object.keys(qa_results).length,\n  recent_history: qa_history.slice(-20),\n  model_grades,\n} }];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst qa_results = staticData.qa_results || {};\nconst qa_history = staticData.qa_history || [];\nconst domain_results = staticData.domain_results || {};\nconst portfolio_result = staticData.portfolio_result || null;\nconst suppressed = staticData.suppressed_checks || {};\n\nconst sites = {};\nfor (const [url, result] of Object.entries(qa_results)) {\n  if (!sites[result.site_id]) sites[result.site_id] = { articles: [], avg_score: 0 };\n  sites[result.site_id].articles.push({ url, ...result });\n}\nfor (const site of Object.values(sites)) {\n  site.avg_score = Math.round(site.articles.reduce((s, a) => s + a.score, 0) / site.articles.length);\n  const withAi = site.articles.filter(a => a.ai_exposure);\n  site.ai_flagged_pct = withAi.length ? Math.round(withAi.filter(a => a.ai_exposure.rating !== 'GREEN').length / withAi.length * 100) : 0;\n}\n\nconst model_grades = staticData.model_grades || {};\nconst eeat_grades = staticData.eeat_grades || {};\n\n// Attach model grades to article results\nfor (const site of Object.values(sites)) {\n  for (const a of site.articles) {\n    a.model_grade = model_grades[a.url] || null;\n  }\n}\n\nreturn [{ json: {\n  article_results_by_site: sites,\n  domain_results,\n  portfolio_result,\n  suppressed_checks: suppressed,\n  total_articles_checked: Object.keys(qa_results).length,\n  recent_history: qa_history.slice(-20),\n  model_grades,\n  eeat_grades,\n} }];"
       }
     },
     {
@@ -716,6 +716,175 @@
         }
       },
       "continueOnFail": true
+    },
+    {
+      "id": "eeat-webhook",
+      "name": "EEAT Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        2100
+      ],
+      "webhookId": "qa-domain-eeat",
+      "parameters": {
+        "path": "qa-domain-eeat",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "eeat-resolve",
+      "name": "EEAT Resolve URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        2100
+      ],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst site_id = body.site_id || '';\nconst sd = $getWorkflowStaticData('global');\nif (!sd.openclaw_key) sd.openclaw_key = 'YOUR_OPENCLAW_KEY';\n\nconst SITE_MAP = {\"sinabarimd\": {\"domain\": \"sinabarimd.com\", \"url\": \"https://sinabarimd.com\", \"role\": \"Canonical identity hub - bio, work, media, selected writing\"}, \"sinabari_net\": {\"domain\": \"sinabari.net\", \"url\": \"https://sinabari.net\", \"role\": \"Healthcare AI authority - 75% healthcare AI + 25% broader health tech\"}, \"drsinabari\": {\"domain\": \"drsinabari.com\", \"url\": \"https://drsinabari.com\", \"role\": \"Editorial node - medicine & technology essays, clinical ethics, healthcare policy\"}, \"sinabariplasticsurgery\": {\"domain\": \"sinabariplasticsurgery.com\", \"url\": \"https://sinabariplasticsurgery.com\", \"role\": \"Legacy specialty node - aesthetics, aging, rejuvenation, surgery\"}};\n\n// Determine which sites to evaluate\nconst sites_to_eval = site_id ? [site_id] : Object.keys(SITE_MAP);\nconst registry = sd.url_registry || {};\n\nconst items = [];\nfor (const sid of sites_to_eval) {\n  const site = SITE_MAP[sid];\n  if (!site) continue;\n  \n  // Collect all URLs for this domain: homepage + all articles\n  const urls = [site.url];\n  const reg_urls = (registry[sid] || []).map(u => u.url).filter(u => u.includes('/articles/') && !u.endsWith('/'));\n  urls.push(...reg_urls);\n  \n  items.push({\n    json: {\n      site_id: sid,\n      domain: site.domain,\n      role: site.role,\n      base_url: site.url,\n      urls_to_fetch: urls,\n      checked_at: new Date().toISOString(),\n    }\n  });\n}\n\nif (!items.length) {\n  return [{ json: { error: true, message: 'No valid site_id' } }];\n}\n\n// Return one item per domain (we'll process sequentially)\nreturn items;"
+      }
+    },
+    {
+      "id": "eeat-fetch-prep",
+      "name": "EEAT Build Fetch List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        2100
+      ],
+      "parameters": {
+        "jsCode": "// Output one item per URL so the HTTP node can fetch each\nconst ctx = $json;\nconst urls = ctx.urls_to_fetch || [];\nconst items = urls.map(url => ({\n  json: { ...ctx, fetch_url: url }\n}));\nreturn items;"
+      }
+    },
+    {
+      "id": "eeat-fetch",
+      "name": "EEAT Fetch Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        2100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.fetch_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "eeat-aggregate",
+      "name": "EEAT Aggregate & Prep",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        2100
+      ],
+      "parameters": {
+        "jsCode": "const sd = $getWorkflowStaticData('global');\nconst fetchedItems = $input.all();\nconst contextItems = $('EEAT Build Fetch List').all();\n\n// Group by site_id using context from pre-fetch node\nconst sites = {};\nfor (let i = 0; i < fetchedItems.length; i++) {\n  const ctx = contextItems[i]?.json || {};\n  const sid = ctx.site_id;\n  if (!sid) continue;\n  \n  if (!sites[sid]) {\n    sites[sid] = {\n      site_id: sid,\n      domain: ctx.domain,\n      role: ctx.role,\n      base_url: ctx.base_url,\n      checked_at: ctx.checked_at,\n      pages: [],\n    };\n  }\n  const url = ctx.fetch_url || '';\n  const html = typeof fetchedItems[i].json.data === 'string' ? fetchedItems[i].json.data : '';\n  if (html.length > 100) {\n    const text = html\n      .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n      .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n      .replace(/<nav[\\s\\S]*?<\\/nav>/gi, '')\n      .replace(/<footer[\\s\\S]*?<\\/footer>/gi, '')\n      .replace(/<[^>]+>/g, ' ')\n      .replace(/\\s+/g, ' ')\n      .trim();\n    const label = url.includes('/articles/') ? 'ARTICLE: ' + url.split('/articles/')[1] : 'HOMEPAGE';\n    sites[sid].pages.push({ label, text: text.slice(0, 15000) });\n  }\n}\n\nconst rubric = sd.eeat_rubric || \"\\\"You are evaluating a website's quality signals aligned with Google's EEAT framework (Experience, Expertise, Authoritativeness, Trustworthiness). You have been given the COMPLETE content of one domain: every published article, the homepage, and relevant structural pages.\\\\n\\\\nScore each dimension 1-5. Consider the FULL CORPUS together, not individual articles in isolation. The goal is to evaluate the domain as a cohesive publishing entity.\\\\n\\\\nDIMENSIONS:\\\\n\\\\n1. experience - Does the content across this site demonstrate genuine first-hand, lived experience? Look for: clinical anecdotes, procedural details, patient interactions, personal narratives, and \\\\\\\"I was there\\\\\\\" signals that appear consistently across articles, not just in one piece. Score 1 if the site reads like aggregated research summaries\";\nconst results = [];\n\nfor (const [sid, site] of Object.entries(sites)) {\n  const pageTexts = site.pages.map(p => '--- ' + p.label + ' ---\\n' + p.text).join('\\n\\n');\n  \n  // Store context for retrieval after HTTP Request\n  sd._eeat_last_sid = sid;\n  if (!sd._eeat_pending) sd._eeat_pending = {};\n  sd._eeat_pending[sid] = { site_id: sid, domain: site.domain, role: site.role, checked_at: site.checked_at, page_count: site.pages.length };\n\n  const prompt = `You are evaluating a website's quality signals aligned with Google's EEAT framework. You have been given the COMPLETE content of one domain.\n\nScore each dimension 1-5. Consider the FULL CORPUS together.\n\nDIMENSIONS:\n1. experience - Does the content demonstrate genuine first-hand, lived experience consistently across articles? Score 1-5.\n2. expertise - Are credentials clearly displayed? Is schema correct? Does content depth match claimed expertise? Score 1-5.\n3. authoritativeness - Entity consolidation, outbound authority links, citation practices, topical depth? Score 1-5.\n4. trustworthiness - Trust signals (canonical URLs, bylines, disclaimers), consistent claims, cited sources? Score 1-5.\n5. voice_cohesion - Is the writing voice consistent across all articles? Does it feel like one author? Score 1-5.\n6. topical_authority - Does the site build deep, focused coverage of its declared topic area? Score 1-5.\n\nReturn ONLY valid JSON:\n{\"dimensions\":{\"experience\":{\"score\":N,\"note\":\"...\"},\"expertise\":{\"score\":N,\"note\":\"...\"},\"authoritativeness\":{\"score\":N,\"note\":\"...\"},\"trustworthiness\":{\"score\":N,\"note\":\"...\"},\"voice_cohesion\":{\"score\":N,\"note\":\"...\"},\"topical_authority\":{\"score\":N,\"note\":\"...\"}},\"overall_note\":\"...\",\"top_improvements\":[\"...\",\"...\",\"...\"]}\n\nDOMAIN: ${site.domain}\nROLE: ${site.role}\n\nFULL SITE CONTENT:\n` + pageTexts;\n\n  const payload = JSON.stringify({ model: 'openclaw', input: prompt });\n\n  results.push({\n    json: {\n      site_id: sid,\n      domain: site.domain,\n      role: site.role,\n      checked_at: site.checked_at,\n      page_count: site.pages.length,\n      openclaw_key: sd.openclaw_key,\n      payload_str: payload,\n    }\n  });\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": "eeat-call",
+      "name": "EEAT OpenClaw Grade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        2100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:18789/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.openclaw_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "JSON",
+        "body": "={{ $json.payload_str }}",
+        "options": {
+          "timeout": 180000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "eeat-store",
+      "name": "EEAT Store Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2150,
+        2100
+      ],
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst sd = $getWorkflowStaticData('global');\nif (!sd.eeat_grades) sd.eeat_grades = {};\n\nconst results = [];\n\nfor (const item of allItems) {\n  const sid = item.json.site_id || 'unknown';\n  const ctx = item.json;\n  const resp = ctx.openclaw_response || {};\n\n  // Parse OpenClaw response\n  let responseText = '';\n  try {\n    if (resp.output && Array.isArray(resp.output)) {\n      for (const block of resp.output) {\n        if (block.type === 'message' && Array.isArray(block.content)) {\n          for (const c of block.content) {\n            if (c.type === 'output_text') responseText += c.text || '';\n            else if (c.text) responseText += c.text;\n          }\n        }\n      }\n    }\n    if (!responseText && resp._readableState && resp._readableState.buffer) {\n      const bufs = resp._readableState.buffer;\n      const bufArr = Array.isArray(bufs) ? bufs : [];\n      if (bufs.head) { let node = bufs.head; while (node) { bufArr.push(node.data || node); node = node.next; } }\n      let bytes = [];\n      for (const b of bufArr) { if (b && b.data) bytes = bytes.concat(b.data); }\n      if (bytes.length) {\n        const str = String.fromCharCode(...bytes);\n        const parsed = JSON.parse(str);\n        if (parsed.output) {\n          for (const block of parsed.output) {\n            if (block.type === 'message' && Array.isArray(block.content)) {\n              for (const c of block.content) {\n                if (c.type === 'output_text') responseText += c.text || '';\n              }\n            }\n          }\n        }\n      }\n    }\n    if (!responseText && typeof resp.data === 'string') {\n      try {\n        const parsed = JSON.parse(resp.data);\n        if (parsed.output) {\n          for (const block of parsed.output) {\n            if (block.type === 'message' && Array.isArray(block.content)) {\n              for (const c of block.content) {\n                if (c.type === 'output_text') responseText += c.text || '';\n              }\n            }\n          }\n        }\n      } catch(e3) {}\n    }\n  } catch(e) {}\n\n  let parsed = null;\n  try {\n    const jsonMatch = (responseText || '').match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);\n  } catch(e) {}\n\n  if (!parsed || !parsed.dimensions) {\n    sd.eeat_grades[sid] = {\n      site_id: sid, domain: ctx.domain || sid,\n      checked_at: ctx.checked_at || new Date().toISOString(),\n      status: 'unavailable', message: 'Could not parse EEAT grade response',\n    };\n    results.push({ json: { site_id: sid, eeat_grade: sd.eeat_grades[sid] } });\n    continue;\n  }\n\n  const dims = ['experience', 'expertise', 'authoritativeness', 'trustworthiness', 'voice_cohesion', 'topical_authority'];\n  let total = 0;\n  const dimResults = {};\n  for (const dim of dims) {\n    const d = parsed.dimensions[dim] || { score: 0, note: '' };\n    dimResults[dim] = { score: d.score, note: d.note };\n    total += d.score;\n  }\n\n  const pct = Math.round((total / 30) * 100);\n  const grade = pct >= 90 ? 'A' : pct >= 75 ? 'B' : pct >= 60 ? 'C' : pct >= 40 ? 'D' : 'F';\n  const rating = pct >= 75 ? 'GREEN' : pct >= 50 ? 'AMBER' : 'RED';\n\n  const result = {\n    site_id: sid, domain: ctx.domain || sid, role: ctx.role || '',\n    checked_at: ctx.checked_at || new Date().toISOString(),\n    status: 'complete', page_count: ctx.page_count || 0,\n    overall_score: total, pct, grade, rating,\n    dimensions: dimResults,\n    top_improvements: parsed.top_improvements || [],\n    overall_note: parsed.overall_note || '',\n  };\n\n  sd.eeat_grades[sid] = result;\n  results.push({ json: { site_id: sid, eeat_grade: result } });\n}\n\n// Clean up temp storage\nconst sd2 = $getWorkflowStaticData('global');\nif (sd2._eeat_pending) {\n  for (const r of results) {\n    delete sd2._eeat_pending[r.json.site_id];\n  }\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": "eeat-respond",
+      "name": "EEAT Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2450,
+        2100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { results: $input.all().map(i => i.json) } }}"
+      }
+    },
+    {
+      "id": "eeat-bridge",
+      "name": "EEAT Re-attach Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        2100
+      ],
+      "parameters": {
+        "jsCode": "// Re-attach context by detecting domain from OpenClaw response\nconst sd = $getWorkflowStaticData('global');\nconst pending = sd._eeat_pending || {};\nconst response = $json;\n\n// Try staticData first\nlet sids = Object.keys(pending);\nlet sid = sids.length ? sids[0] : null;\nlet ctx = sid ? pending[sid] : null;\n\n// Fallback: detect domain from the response text\nif (!ctx || !ctx.site_id) {\n  let responseText = '';\n  try {\n    if (response.output && Array.isArray(response.output)) {\n      for (const block of response.output) {\n        if (block.type === 'message' && Array.isArray(block.content)) {\n          for (const c of block.content) {\n            if (c.type === 'output_text') responseText += c.text || '';\n          }\n        }\n      }\n    }\n  } catch(e) {}\n  \n  // Detect site from domain mentions or stored state\n  const DOMAIN_MAP = {\n    'sinabarimd.com': {site_id:'sinabarimd', domain:'sinabarimd.com', role:'Canonical identity hub'},\n    'sinabari.net': {site_id:'sinabari_net', domain:'sinabari.net', role:'Healthcare AI authority'},\n    'drsinabari.com': {site_id:'drsinabari', domain:'drsinabari.com', role:'Editorial node'},\n    'sinabariplasticsurgery.com': {site_id:'sinabariplasticsurgery', domain:'sinabariplasticsurgery.com', role:'Legacy specialty node'},\n  };\n  \n  // Check which domain was most recently queued\n  const eeatGrades = sd.eeat_grades || {};\n  const allSids = ['sinabarimd','sinabari_net','drsinabari','sinabariplasticsurgery'];\n  \n  // Use _eeat_last_sid if set by Aggregate\n  if (sd._eeat_last_sid) {\n    sid = sd._eeat_last_sid;\n    const domainKey = Object.keys(DOMAIN_MAP).find(d => DOMAIN_MAP[d].site_id === sid);\n    ctx = domainKey ? {...DOMAIN_MAP[domainKey], checked_at: new Date().toISOString(), page_count: 0} : null;\n  }\n  \n  if (!ctx) ctx = {site_id: 'unknown', domain: 'unknown', role: '', checked_at: new Date().toISOString(), page_count: 0};\n}\n\nreturn [{ json: { ...ctx, openclaw_response: response } }];"
+      }
     }
   ],
   "connections": {
@@ -1081,6 +1250,94 @@
         [
           {
             "node": "MG Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Webhook": {
+      "main": [
+        [
+          {
+            "node": "EEAT Resolve URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Resolve URLs": {
+      "main": [
+        [
+          {
+            "node": "EEAT Build Fetch List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Build Fetch List": {
+      "main": [
+        [
+          {
+            "node": "EEAT Fetch Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Fetch Page": {
+      "main": [
+        [
+          {
+            "node": "EEAT Aggregate & Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Aggregate & Prep": {
+      "main": [
+        [
+          {
+            "node": "EEAT OpenClaw Grade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT OpenClaw Grade": {
+      "main": [
+        [
+          {
+            "node": "EEAT Re-attach Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Store Results": {
+      "main": [
+        [
+          {
+            "node": "EEAT Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EEAT Re-attach Context": {
+      "main": [
+        [
+          {
+            "node": "EEAT Store Results",
             "type": "main",
             "index": 0
           }

@@ -2,6 +2,25 @@
 
 <!-- Claude Code appends here during sessions, grouped by week. -->
 
+## Week of 2026-05-23
+
+### Fixed
+- **Orchestrator cron time gate broken (locale format change)** (May 23) -- Node.js `toLocaleString` with `weekday:'short'` produces `"Fri 10:00"` (no comma) in current n8n container, but code split on `", "`. All cron publish windows silently failed for ~2 weeks (May 9-23), causing sinabari.net and sinabariplasticsurgery to miss multiple publish cycles. Fixed with index-based parsing in 3 workflows (Orchestrator, Content Research Agent, RT Drug Test Check). Live-tested with 1-minute cron fire.
+- **MG Auto Trigger content type** (May 23) -- Model grade auto-trigger after publish used `rawContentType: "JSON"` instead of `"application/json"`, causing n8n webhook to reject the body. Model grades never fired automatically after publish. Fixed.
+- **Article wipeout on deploy** (May 23) -- Deploy service does full file sync; Publisher's article_register capped at 3, so older articles were deleted on every publish. Added `article_archive` (uncapped) to Publisher staticData. Both Publisher and Site Refresh now preserve all existing articles during deploy. Recovered 5 wiped articles from backups and restored to production.
+- **Ghost QA entries** (May 23) -- Removed stale QA entries for articles that no longer exist (404), cleaning 6 phantom records from the dashboard.
+
+### Added
+- **Article archive system** (May 23) -- Publisher maintains `article_archive` per site (all articles ever published, no cap) alongside the 3-article `article_register` (homepage featured only). Articles index page renders from full archive. Deploy payloads include all archive articles. Site Refresh now fetches and preserves existing articles before deploying.
+- **Site-aware model grade rubric** (May 23) -- 6-dimension rubric with per-site context injection. New `site_mandate_fit` dimension scores whether an article serves its domain's purpose. Per-site `INFORMATION_GAIN BENCHMARK`: editorial sites judged by originality of synthesis (not page-1-of-Google competitiveness). Soft gate: `site_mandate_fit < 2` caps grade at C. Portfolio impact: 16/18 GREEN (was 7/18), 3 A-grades, average 83% (was 72%).
+- **QA dashboard sort dropdown** (May 23) -- Article Health section has sort-by dropdown: Newest first, Title A-Z, Model score (lowest first). Articles flattened across all sites with site badge on each card.
+- **Playbook integration into pipeline** (May 23) -- Content Research Agent now requires `information_gain_prediction`, `clinical_vignette_seeds`, `self_correction_opportunity`, and `opening_hook` fields. Content Generator prompt includes full PLAYBOOK REQUIREMENTS section: mandatory scene opening, callback closing, self-correction arc, quoted dialogue, "what I would NOT do" judgment, 3-5 named citations with quantitative data.
+
+### Changed
+- **18 articles rewritten across 4 sites** (May 23) -- Systematic rewrite campaign using playbook tactics + web research. 8 D/F-grade articles rewritten to B/A (avg +35 pts). 9 additional articles given Pass 2 rewrites to push past 75% GREEN threshold. New experimental tactics validated: temporal specificity, self-correction narrative, embedded disagreement, contrarian framing for information_gain.
+- **Model grade playbook updated** (May 23) -- information_gain section updated from "open question" to "partially answered" with confirmed findings. Site-aware rubric results documented. Pipeline integration section added.
+- **Model grade rubric file** (May 23) -- Full rubric saved to `model-grade-rubric.md` for reference.
+
 ## Week of 2026-05-19
 
 ### Added
