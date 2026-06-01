@@ -13,19 +13,23 @@
       },
       "publisher": {
         "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "isPartOf": {
+        "@id": "https://sinabarimd.com/#website"
       }
     },
     {
       "@type": "WebPage",
       "@id": "https://drsinabari.com/#webpage",
       "url": "https://drsinabari.com",
-      "name": "Dr. Sina Bari  - Editorial",
+      "name": "Dr. Sina Bari - Editorial",
       "isPartOf": {
         "@id": "https://drsinabari.com/#website"
       },
       "about": {
         "@id": "https://sinabarimd.com/#sinabari"
-      }
+      },
+      "dateModified": "2026-05-11"
     }
   ]
 }

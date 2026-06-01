@@ -5,14 +5,17 @@
       "@type": "WebSite",
       "@id": "https://sinabari.net/#website",
       "url": "https://sinabari.net",
-      "name": "Sina Bari  - Healthcare AI",
-      "description": "Healthcare AI analysis, clinical workflow design, and medical technology leadership by Dr. Sina Bari, MD  - physician-technologist and Stanford-trained surgeon. Independent analysis distinct from sinabarimd.com (identity hub) and sinabariplasticsurgery.com (surgical education).",
+      "name": "Sina Bari - Healthcare AI",
+      "description": "Healthcare AI analysis, clinical workflow design, and medical technology leadership by Dr. Sina Bari, MD. Part of the sinabarimd.com network.",
       "inLanguage": "en-US",
       "author": {
         "@id": "https://sinabarimd.com/#sinabari"
       },
       "publisher": {
         "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "isPartOf": {
+        "@id": "https://sinabarimd.com/#website"
       }
     },
     {
@@ -25,7 +28,8 @@
       },
       "about": {
         "@id": "https://sinabarimd.com/#sinabari"
-      }
+      },
+      "dateModified": "2026-05-11"
     }
   ]
 }

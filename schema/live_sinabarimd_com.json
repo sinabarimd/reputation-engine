@@ -18,7 +18,7 @@
       ],
       "url": "https://sinabarimd.com",
       "image": "https://sinabarimd.com/#headshot",
-      "description": "California-based plastic and reconstructive surgeon, Stanford-trained physician, and healthcare AI executive advancing clinical innovation and medical technology leadership.",
+      "description": "Oakland-based surgeon, Stanford-trained physician, and healthcare AI executive. Writes about medicine, technology, family life, and the things that shape a life outside the operating room.",
       "medicalSpecialty": "PlasticSurgery",
       "alumniOf": [
         {
@@ -55,7 +55,17 @@
       ],
       "workLocation": {
         "@type": "Place",
-        "name": "California, United States",
+        "name": "Oakland, California",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Oakland",
+          "addressRegion": "CA",
+          "addressCountry": "US"
+        }
+      },
+      "homeLocation": {
+        "@type": "Place",
+        "name": "Oakland, California",
         "address": {
           "@type": "PostalAddress",
           "addressLocality": "Oakland",
@@ -88,18 +98,59 @@
         "Medical Device Evaluation",
         "Healthcare Technology Governance",
         "Medical Leadership",
-        "Clinical Innovation"
+        "Clinical Innovation",
+        "Home Automation",
+        "Local AI Systems",
+        "Gentle Parenting",
+        "Interfaith Families",
+        "NBA Basketball",
+        "Automotive Engineering",
+        "Oakland Community"
       ],
       "mainEntityOfPage": {
         "@id": "https://sinabarimd.com/#profilepage"
       }
     },
     {
+      "@type": "WebSite",
+      "@id": "https://sinabarimd.com/#website",
+      "url": "https://sinabarimd.com",
+      "name": "Dr. Sina Bari, MD",
+      "description": "Personal site of Dr. Sina Bari, MD. Writing about medicine, healthcare AI, family, technology projects, and life in Oakland.",
+      "inLanguage": "en-US",
+      "publisher": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "hasPart": [
+        {
+          "@type": "WebSite",
+          "@id": "https://sinabari.net/#website",
+          "name": "Sina Bari - Healthcare AI",
+          "url": "https://sinabari.net"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://drsinabari.com/#website",
+          "name": "Dr. Sina Bari - Editorial",
+          "url": "https://drsinabari.com"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://sinabariplasticsurgery.com/#website",
+          "name": "Dr. Sina Bari - Plastic Surgery Education",
+          "url": "https://sinabariplasticsurgery.com"
+        }
+      ]
+    },
+    {
       "@type": "ProfilePage",
       "@id": "https://sinabarimd.com/#profilepage",
       "url": "https://sinabarimd.com",
-      "name": "Dr. Sina Bari, MD  - Official Profile",
-      "dateModified": "2026-03-30",
+      "name": "Dr. Sina Bari, MD - Official Profile",
+      "dateModified": "2026-05-11",
+      "isPartOf": {
+        "@id": "https://sinabarimd.com/#website"
+      },
       "mainEntity": {
         "@id": "https://sinabarimd.com/#sinabari"
       },
@@ -109,7 +160,10 @@
       "significantLink": [
         "https://sinabarimd.com/about",
         "https://sinabarimd.com/press.html",
-        "https://sinabarimd.com/articles/"
+        "https://sinabarimd.com/articles/",
+        "https://sinabari.net",
+        "https://drsinabari.com",
+        "https://sinabariplasticsurgery.com"
       ]
     }
   ]

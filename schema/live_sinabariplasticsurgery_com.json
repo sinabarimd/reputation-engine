@@ -13,6 +13,9 @@
       },
       "publisher": {
         "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "isPartOf": {
+        "@id": "https://sinabarimd.com/#website"
       }
     },
     {
@@ -30,7 +33,8 @@
         "@type": "MedicalAudience",
         "audienceType": "Patient"
       },
-      "specialty": "PlasticSurgery"
+      "specialty": "PlasticSurgery",
+      "dateModified": "2026-05-11"
     }
   ]
 }

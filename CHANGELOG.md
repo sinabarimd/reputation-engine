@@ -1,5 +1,23 @@
 # Changelog
 
+## v2026.06 - June 2026
+
+Auto-synced from live system on 2026-06-01.
+
+### Changes
+
+- Updated profiles/sinabarimd_com.yaml
+- Updated profiles/sinabari_net.yaml
+- Updated profiles/drsinabari_com.yaml
+- Updated profiles/sinabariplasticsurgery_com.yaml
+- Synced deploy/deploy_service.py from live
+- Synced services/extract_server.py from live
+
+### Stats
+- 4 modified file(s)
+
+---
+
 <!-- Claude Code appends here during sessions, grouped by week. -->
 
 ## Week of 2026-05-23
