@@ -20,6 +20,22 @@ Auto-synced from live system on 2026-06-01.
 
 <!-- Claude Code appends here during sessions, grouped by week. -->
 
+## Week of 2026-06-13
+
+### Added
+- **Narrative-led editorial voice for drsinabari.com** (Jun 13) -- Content Generator now writes long-form essays in the Malcolm Gladwell tradition for `site_id === 'drsinabari'`: open inside a specific scene, withhold the thesis until the reader is invested, build the spine on a counterintuitive reframe, coin one memorable named concept per essay (2-4 words) that recurs, and stack 2-4 cases that converge on the same principle. Rigor guardrails (named studies with quantitative figures, acknowledged counter-evidence, first-person clinical detail) override narrative momentum. Implemented as an `editorial_voice: true` flag in `Build Runtime Config`'s SITE_MAP; `Inject Content Prompt` reads `runtime.editorial_voice` to swap behavior. The AEO answer-block (`<div class="article-summary">`) is suppressed for this site so essays can withhold their thesis; extraction value moves to the coined concept and the end-of-essay FAQ. Other three sites unchanged. Verified end-to-end: first draft in the new voice opened "Last Tuesday, I was halfway through a routine follow-up...", coined "attention tax" (6 recurrences), cited JAMA Network Open with quantitative figure, FAQ at the end with branded Dr. Bari question; control sinabari_net draft still emits the AEO block.
+
+### Changed
+- **Pre-push secret scan hardened** (Jun 13) -- `.githooks/pre-push` now also matches OpenAI-style keys (`sk-...`), HuggingFace tokens (`hf_...`), AWS Access Key IDs (`AKIA...`), Google API keys (`AIza...`), generic JWTs (`eyJ...`), and explicit `X-Voice-Key` headers. Added a generalized high-entropy base64-ish blob scanner (36+ char `[A-Za-z0-9_]` runs) with a `# SAFE-B64` allowlist marker for known-safe content hashes / Stitch image IDs. URL/CDN/SRI/data-URI exclusions prevent false positives on legitimate image and font references.
+- **measure.py SSL hardening** (Jun 13) -- Removed `ctx.check_hostname = False` / `verify_mode = CERT_NONE` from the BrightData / GSC measurement script. Cert verification now enforced.
+- **sync_pending_actions label updates** (Jun 13) -- Reconciler now detects when a tracked Daily Todo's label text has drifted (e.g. "8 syndication tasks pending" → "5 syndication tasks pending" against the same `todo_id`) and updates the line in place rather than leaving stale wording. Surfaces a `label_updates` count in dry-run and live output.
+- **backup.sh metrics endpoint name** (Jun 13) -- State backup loop now hits `/webhook/metrics` (the live Measurement Agent endpoint) instead of the deprecated `/webhook/serp-results` path.
+- **model-grade-playbook antithetical-pivot guidance** (Jun 13) -- "Remove AI structural tells" section now explicitly names the `"That is not X. It is Y." / "This isn't X. It's Y."` antithetical pivot pattern as a major AI tell to strip during rewrites.
+
+> Note: a portfolio-wide publishing cadence slowdown (sinabari.net biweekly, sinabariplasticsurgery biweekly, drsinabari monthly, sinabarimd unchanged) was prototyped and reverted in the same session after reviewing internal SERP and SEO-brief data. The live cron / min-interval values are unchanged from the prior baseline: sinabarimd 7d (Mon), sinabari_net 3d (Tue+Fri), sinabariplasticsurgery 7d (Wed), drsinabari 14d (Thu).
+
+> Note: `workflows/portfolio-orchestrator.json` and `workflows/content-generator.json` in this tree are NOT auto-synced with the live n8n workflows (operator regenerates from sanitized backups per `PUBLISH_MANIFEST.md`). The live drsinabari editorial-voice changes in Content Generator are not reflected in the staged export yet; refresh on a separate operator-controlled push.
+
 ## Week of 2026-05-23
 
 ### Fixed

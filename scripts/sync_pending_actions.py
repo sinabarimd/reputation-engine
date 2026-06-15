@@ -32,6 +32,11 @@ AUTO_SECTION_COMMENT = (
 OPERATOR_SECTION = "## Operator Action Required"
 COMPLETED_SECTION = "## Completed"
 TODO_ID_RE = re.compile(r"<!--\s*todo_id:\s*(.+?)\s*-->")
+# Parse a tracked todo line: "- [ ] YYYY-MM-DD | <label> <!-- todo_id: <id> -->"
+# Group 1: prefix incl. checkbox + date. Group 2: current label text.
+TODO_LINE_RE = re.compile(
+    r"^(- \[ \] \d{4}-\d{2}-\d{2}) \| (.+?)\s*<!--\s*todo_id:\s*.+?\s*-->\s*$"
+)
 
 
 def fetch_todos():
@@ -100,6 +105,23 @@ def run(dry_run=False):
     to_add = api_ids - file_ids
     to_complete = file_ids - api_ids
     unchanged = file_ids & api_ids
+
+    # --- Update labels for unchanged ids whose API label has changed ---
+    # Same todo_id in both, but the human-readable label drifted (e.g.,
+    # "8 syndication tasks pending" -> "5 syndication tasks pending").
+    # Mutate `lines` in place; preserve original creation date.
+    label_updates = 0
+    for tid in unchanged:
+        idx = tracked[tid]
+        m = TODO_LINE_RE.match(lines[idx].rstrip("\n"))
+        if not m:
+            continue
+        prefix = m.group(1)
+        current_label = m.group(2).strip()
+        api_label = api_by_id[tid]["label"]
+        if current_label != api_label:
+            lines[idx] = f"{prefix} | {api_label} <!-- todo_id: {tid} -->\n"
+            label_updates += 1
 
     today = date.today().isoformat()
 
@@ -171,15 +193,23 @@ def run(dry_run=False):
 
     # --- Write ---
     if dry_run:
-        print(f"DRY RUN: {len(to_add)} to add, {len(to_complete)} to complete, {len(unchanged)} unchanged")
+        print(
+            f"DRY RUN: {len(to_add)} to add, {len(to_complete)} to complete, "
+            f"{label_updates} label updates, {len(unchanged) - label_updates} unchanged"
+        )
         if to_add:
             print("  ADD:", ", ".join(sorted(to_add)))
         if to_complete:
             print("  COMPLETE:", ", ".join(sorted(to_complete)))
+        if label_updates:
+            print(f"  LABEL UPDATES: {label_updates} (same todo_id, new label text)")
     else:
         with open(PENDING_ACTIONS, "w") as f:
             f.writelines(new_lines)
-        print(f"synced: {len(to_add)} added, {len(to_complete)} completed, {len(unchanged)} unchanged")
+        print(
+            f"synced: {len(to_add)} added, {len(to_complete)} completed, "
+            f"{label_updates} label updates, {len(unchanged) - label_updates} unchanged"
+        )
 
 
 if __name__ == "__main__":

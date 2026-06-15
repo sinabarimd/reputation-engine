@@ -24,7 +24,12 @@ check_pattern 'gho_[A-Za-z0-9]\{20,\}' "GitHub OAuth Token"
 check_pattern 'github_pat_[A-Za-z0-9]\{20,\}' "GitHub PAT"
 check_pattern 'tvly-dev-[A-Za-z0-9_-]\{10,\}' "Tavily API Key"
 check_pattern 'sk-or-v1-[a-f0-9]\{10,\}' "OpenRouter API Key"
-check_pattern 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.' "JWT Token (n8n API key)"
+check_pattern 'sk-[A-Za-z0-9]\{20,\}' "OpenAI-style secret key"
+check_pattern 'hf_[A-Za-z0-9]\{20,\}' "HuggingFace token"
+check_pattern 'AKIA[0-9A-Z]\{16\}' "AWS Access Key ID"
+check_pattern 'AIza[0-9A-Za-z_-]\{35\}' "Google API Key"
+check_pattern 'eyJ[A-Za-z0-9_-]\{20,\}\.' "JWT Token (generic — n8n / Voice Hub / etc.)"
+check_pattern 'X-Voice-Key:[[:space:]]*[A-Za-z0-9_-]\{20,\}' "X-Voice-Key with literal key value"
 check_pattern 'sinabari@gmail\.com' "Personal email address"
 
 # Check for long hex strings that look like API keys (40+ chars)
@@ -32,6 +37,34 @@ HEX_MATCHES=$(grep -rnoE '[a-f0-9]{40,}' --include='*.json' --include='*.js' --i
 if [ -n "$HEX_MATCHES" ]; then
   echo "WARNING: Found long hex strings (possible API keys):"
   echo "$HEX_MATCHES"
+  echo ""
+  FOUND=1
+fi
+
+# Check for url-safe base64-ish secret blobs (36+ chars, [A-Za-z0-9_]).
+# Char class excludes '-', '/', '+' so UUIDs (8-4-4-4-12), file paths, and
+# kebab-case names don't trigger — only long unbroken token-shaped runs.
+# 36-char threshold skips CamelCase schema.org class names (~32 chars max
+# in practice) while still catching real secrets (n8n JWTs >200, AWS / HF
+# / OpenAI keys 40+, the Voice Hub key 43).
+# Line-mode grep (no -o) so context-based filters (URL/CDN/SRI) can match
+# on surrounding text, not just the secret-shaped substring.
+# Allowlist via the in-line marker "# SAFE-B64" or via the URL/CDN filters.
+B64_MATCHES=$(grep -rnE '[A-Za-z0-9_]{36,}' --include='*.json' --include='*.js' --include='*.py' --include='*.html' --include='*.yaml' --include='*.yml' --include='*.sh' . 2>/dev/null \
+  | grep -v '.git/' \
+  | grep -v 'YOUR_' \
+  | grep -v 'integrity=' \
+  | grep -vE 'sha(256|384|512)-' \
+  | grep -v 'data:image' \
+  | grep -v 'data:font' \
+  | grep -v 'lh3.googleusercontent.com' \
+  | grep -v 'aida-public' \
+  | grep -v '# SAFE-B64' \
+  | cut -c1-240)
+if [ -n "$B64_MATCHES" ]; then
+  echo "WARNING: Found high-entropy base64-like strings (possible secrets):"
+  echo "$B64_MATCHES"
+  echo "Add '# SAFE-B64' to the same line if known-safe (e.g. content hashes)."
   echo ""
   FOUND=1
 fi

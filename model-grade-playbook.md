@@ -88,7 +88,7 @@
 
 **Tier 3 — Important but smaller impact:**
 
-7. **Remove AI structural tells** (voice_authenticity): Em-dashes, hedge openers, "In Conclusion" headers, "not only X but also Y." Cleaning these helps Layer 1 (deterministic) more than Layer 2, but the model notices them too.
+7. **Remove AI structural tells** (voice_authenticity): Em-dashes, hedge openers, "In Conclusion" headers, "not only X but also Y," **"That is not X. It is Y." / "This isn't X. It's Y." antithetical pivot pattern** (extremely common AI tell, appears in nearly every AI-drafted paragraph). Cleaning these helps Layer 1 (deterministic) more than Layer 2, but the model notices them too.
 
 8. **Subject matter limits exist**: Cultural/humanities essays (article 5) have a natural ceiling on clinical specificity. The physician-lens approach works but maxes out around C-B range because the rubric rewards clinical judgment heavily. For these articles, the strategy is to weave in clinical observations as metaphors rather than forcing procedural detail.
 

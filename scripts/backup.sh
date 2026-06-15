@@ -55,7 +55,7 @@ for SITE in \
 done
 
 echo "=== Backing up state ==="
-for EP in list-drafts list-research-candidates qa-results seo-intel publish-log serp-results media-items spotlight spotlight-campaign daily-todos; do
+for EP in list-drafts list-research-candidates qa-results seo-intel publish-log metrics media-items spotlight spotlight-campaign daily-todos; do
   curl -s "$N8N_BASE_URL/webhook/$EP" > "$BACKUP_DIR/state/$EP.json" 2>/dev/null
   echo "  $EP"
 done

@@ -14,8 +14,6 @@ SA_PATH = os.path.join(SCRIPT_DIR, 'gsc-service-account.json')
 N8N_WEBHOOK = 'https://YOUR_N8N_DOMAIN/webhook'
 
 ctx = ssl.create_default_context()
-ctx.check_hostname = False
-ctx.verify_mode = ssl.CERT_NONE
 install_opener(build_opener(HTTPSHandler(context=ctx)))
 
 def get_access_token():

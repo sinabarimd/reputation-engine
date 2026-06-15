@@ -8,12 +8,12 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 ▶️ **[Watch the walkthrough on YouTube](https://youtu.be/3WV84_8cgA8)**
 
-### Latest Changes (May 23, 2026)
+### Latest Changes (June 13, 2026)
 
-- **Site-aware model grade rubric** (May 23) -- 6-dimension scoring with per-site context injection. Editorial essays judged by originality of argument, clinical articles by page-1-of-Google competitiveness. Portfolio: 16/18 GREEN, 3 A-grades, avg 83%.
-- **Article archive system** (May 23) -- Publisher now preserves all published articles forever (was capped at 3). Recovered 5 wiped articles from backups. Site Refresh no longer destroys articles directory.
-- **Playbook-integrated content pipeline** (May 23) -- Topic discovery, research briefs, and draft generation prompts now embed proven quality tactics: scene openings, named citations, self-correction arcs, contrarian framing for information_gain.
-- **18 articles rewritten** (May 23) -- systematic campaign using research + playbook tactics. 8 D/F-grade articles moved to B/A (avg +35 pts). Cron time gate locale bug fixed across 3 workflows.
+- **Narrative-led editorial voice for drsinabari.com** (Jun 13) -- Long-form essays now write in the Malcolm Gladwell tradition: scene-first openings, withheld thesis, counterintuitive reframes, one coined named concept per essay (2-4 words) that recurs, and stacked cases that converge on a single principle. AEO answer-block suppressed on this site only; extraction value moves to the coined concept and the end-of-essay FAQ. Other three sites unchanged.
+- **Pre-push scan hardened** (Jun 13) -- Adds OpenAI/HuggingFace/AWS/Google API key patterns, generic JWT detection, an `X-Voice-Key` literal check, and a generalized high-entropy base64-ish blob scanner with a `# SAFE-B64` allowlist for known-safe content hashes.
+- **measure.py SSL hardening** (Jun 13) -- Removed insecure `CERT_NONE` SSL context; cert verification now enforced on the BrightData / GSC measurement script.
+- **sync_pending_actions label updates** (Jun 13) -- Daily Todo reconciler detects when a tracked todo's label text has drifted against the same `todo_id` and updates the line in place rather than leaving stale wording.
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 
