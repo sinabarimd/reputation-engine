@@ -156,12 +156,22 @@ class DeployHandler(BaseHTTPRequestHandler):
                 if not isinstance(rel, str) or not safe_relpath(rel):
                     raise ValueError(f"Invalid file path: {rel}")
 
-                if not isinstance(content, str):
+                content_b64 = entry.get('content_b64')
+
+                if content is None and content_b64 is None:
+                    raise ValueError(f"Missing content for: {rel}")
+                if content is not None and not isinstance(content, str):
                     raise ValueError(f"Invalid content for: {rel}")
+                if content_b64 is not None and not isinstance(content_b64, str):
+                    raise ValueError(f"Invalid content_b64 for: {rel}")
 
                 out_path = temp_dir / rel
                 out_path.parent.mkdir(parents=True, exist_ok=True)
-                out_path.write_text(content, encoding="utf-8")
+                if content_b64 is not None:
+                    import base64
+                    out_path.write_bytes(base64.b64decode(content_b64))
+                else:
+                    out_path.write_text(content, encoding="utf-8")
 
             normalize_permissions(temp_dir)
 

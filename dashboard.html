@@ -812,12 +812,17 @@ function switchTab(tab) {
 }
 
 // ── Scheduling constants (shared by Overview + Publish) ──
-const SCHED_MIN_INTERVALS = {sinabarimd: 7, sinabari_net: 3, sinabariplasticsurgery: 7, drsinabari: 14};
-const SCHED_CRON_DAYS = {sinabarimd: [1], sinabari_net: [2, 5], sinabariplasticsurgery: [3], drsinabari: [4]};
-const SCHED_CRON_HOURS = {sinabarimd: 16, sinabari_net: 17, sinabariplasticsurgery: 18, drsinabari: 21};
+// NOTE: sinabarimd is OFF auto-dispatch as of 2026-06-27 (entity hub, hand-authored only).
+// It is intentionally absent from SCHED_ALL_SITES so the dashboard does not predict cron
+// dates, surface schedule-driven warnings, or render empty-pipeline cards for it. Manual
+// approved drafts for sinabarimd still render under Publish (labeled "Manual only").
+const SCHED_MIN_INTERVALS = {sinabari_net: 3, sinabariplasticsurgery: 7, drsinabari: 14};
+const SCHED_CRON_DAYS = {sinabari_net: [2, 5], sinabariplasticsurgery: [3], drsinabari: [4]};
+const SCHED_CRON_HOURS = {sinabari_net: 17, sinabariplasticsurgery: 18, drsinabari: 21};
 const SCHED_LAUNCH_DATE = new Date('2026-03-25T00:00:00Z');
-const SCHED_RAMP_UNLOCK_WEEK = { sinabarimd: 1, sinabari_net: 3, drsinabari: 5, sinabariplasticsurgery: 6 };
-const SCHED_ALL_SITES = ['sinabarimd', 'sinabari_net', 'drsinabari', 'sinabariplasticsurgery'];
+const SCHED_RAMP_UNLOCK_WEEK = { sinabari_net: 3, drsinabari: 5, sinabariplasticsurgery: 6 };
+const SCHED_ALL_SITES = ['sinabari_net', 'drsinabari', 'sinabariplasticsurgery'];
+const SCHED_MANUAL_SITES = new Set(['sinabarimd']);
 
 function schedRampEarliestDate(site_id) {
   const unlockWeek = SCHED_RAMP_UNLOCK_WEEK[site_id] || 1;
@@ -926,6 +931,22 @@ async function loadHome() {
     const todos = [];
     const seoActionList = seoActions.actions || [];
 
+    // Generation failures (highest priority — content was requested but silently failed)
+    const genFailures = drafts.generation_failures || [];
+    for (const f of genFailures) {
+      const ago = Math.round((now - new Date(f.failed_at)) / (1000*60*60));
+      const agoLabel = ago < 24 ? ago + 'h ago' : Math.round(ago/24) + 'd ago';
+      const siteLabel = labels[f.site_id] || f.site_id;
+      const topicSafe = (f.topic||'unknown').replace(/'/g, "\\'").slice(0,120);
+      const todoIdx = todos.length;
+      todos.push({ type: 'Content', priority: 0, icon: '\u2718', color: 'var(--red)',
+        text: `${siteLabel}: draft generation failed ${agoLabel} — ${(f.topic||'').slice(0,50)}`,
+        actions: [
+          { label: 'Dismiss', onclick: `todoAction('/webhook/ack-gen-failure',{failed_at:'${f.failed_at}'},'Dismissed')` },
+        ]
+      });
+    }
+
     // Schedule-driven todos (publish deadlines + draft review when imminent)
     for (const sid of SCHED_ALL_SITES) {
       const nextDate = schedGetNextPublishDate(sid, sched[sid]);
@@ -971,6 +992,23 @@ async function loadHome() {
         todos.push({ type: 'SEO', priority: 2, icon: '\u2717', color: 'var(--red)',
           text: `Fix ${d.failed_checks.length} QA issue${d.failed_checks.length>1?'s':''} on ${labels[sid]||sid}`,
           actions: [{ label: 'View', onclick: `switchTab('qa')` }]
+        });
+      }
+    }
+
+    // New SEO weekly brief
+    const latestBrief = intel.latest_brief || {};
+    const briefGenAt = latestBrief.generated_at ? new Date(latestBrief.generated_at) : null;
+    if (briefGenAt) {
+      const briefAgeHrs = (now - briefGenAt) / (1000*60*60);
+      const lastImpl = seoImpls[0]?.brief_date;
+      const briefDate = (latestBrief.date || latestBrief.brief_date || briefGenAt.toISOString().split('T')[0]);
+      const alreadyActioned = lastImpl && lastImpl >= briefDate;
+      if (briefAgeHrs < 168 && !alreadyActioned) {
+        const briefAgo = briefAgeHrs < 24 ? Math.round(briefAgeHrs) + 'h ago' : Math.round(briefAgeHrs/24) + 'd ago';
+        todos.push({ type: 'SEO', priority: 2, icon: '\ud83d\udcdd', color: 'var(--amber)',
+          text: `New SEO weekly brief (${briefAgo}) — review and implement`,
+          actions: [{ label: 'View Brief', onclick: `switchTab('seo')` }]
         });
       }
     }
@@ -1943,7 +1981,9 @@ async function loadPublish() {
     }
 
     const pending = draftsData.pending_drafts || [];
-    const ALL_SCHED_SITES = ['sinabarimd','sinabari_net','drsinabari','sinabariplasticsurgery'];
+    // sinabarimd is OFF auto-dispatch (manual only) — excluded from the empty-pipeline rotation.
+    // Operator-routed approved drafts for sinabarimd still render below.
+    const ALL_SCHED_SITES = ['sinabari_net','drsinabari','sinabariplasticsurgery'];
     const siteLabels = {sinabarimd:'sinabarimd.com', sinabari_net:'sinabari.net', sinabariplasticsurgery:'sinabariplasticsurgery.com', drsinabari:'drsinabari.com'};
     const sitesWithApproved = new Set(approved.map(d => d.site_id));
 
@@ -1955,19 +1995,31 @@ async function loadPublish() {
       const siteName = siteLabels[d.site_id] || d.site_id;
       const wc = d.word_count ? `${d.word_count} words` : '';
       const siteSchedule = schedule[d.site_id] || {};
-      const queuePos = siteQueueCount[d.site_id] || 0;
-      siteQueueCount[d.site_id] = queuePos + 1;
-      const scheduledIso = getScheduledDate(d.site_id, queuePos, schedule);
-      const nextCron = formatScheduleDate(scheduledIso);
+      const isManual = SCHED_MANUAL_SITES.has(d.site_id);
+      let scheduledIso, nextCron, queueLabel, sortDate;
+      if (isManual) {
+        // Hub is off cron \u2014 no predicted date; sort to bottom of the list
+        scheduledIso = null;
+        nextCron = 'Manual publish only';
+        queueLabel = '';
+        sortDate = new Date(8.64e15); // sort to end
+      } else {
+        const queuePos = siteQueueCount[d.site_id] || 0;
+        siteQueueCount[d.site_id] = queuePos + 1;
+        scheduledIso = getScheduledDate(d.site_id, queuePos, schedule);
+        nextCron = formatScheduleDate(scheduledIso);
+        queueLabel = queuePos > 0 ? ` (#${queuePos + 1} in queue)` : '';
+        sortDate = new Date(scheduledIso);
+      }
       const lastPub = siteSchedule.last_published || 'never';
-      const queueLabel = queuePos > 0 ? ` (#${queuePos + 1} in queue)` : '';
-      allCards.push({ site_id: d.site_id, nextDate: new Date(scheduledIso), html: `
+      allCards.push({ site_id: d.site_id, nextDate: sortDate, html: `
         <div class="card">
           <div class="card-header">
             <div>
               <div class="card-title">${d.title || '\u2014'}</div>
               <div class="card-meta">
                 <span class="badge badge-site">${siteName}</span>
+                ${isManual ? '<span class="badge" style="background:var(--bg2);color:var(--muted);font-size:0.55rem;margin-left:0.4rem;">manual route</span>' : ''}
                 ${wc ? `<span style="margin-left:0.5rem;font-size:0.7rem;color:var(--muted);">${wc}</span>` : ''}
               </div>
             </div>
@@ -1975,7 +2027,7 @@ async function loadPublish() {
           </div>
           ${d.excerpt ? `<div class="card-excerpt">${d.excerpt}</div>` : ''}
           <div style="margin-top:0.75rem;padding:0.6rem 0.75rem;background:var(--bg2);border-radius:2px;font-size:0.75rem;color:var(--muted);display:flex;justify-content:space-between;">
-            <span>Scheduled: <strong style="color:var(--text);">${nextCron}</strong>${queueLabel}</span>
+            <span>${isManual ? '' : 'Scheduled: '}<strong style="color:var(--text);">${nextCron}</strong>${queueLabel}</span>
             <span>Last published: ${lastPub}</span>
           </div>
           <div class="card-actions">
@@ -2111,7 +2163,7 @@ async function loadSyndicationTasks() {
           </div>
           ${t.content ? `<div style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
-              <span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Post content</span>
+              <span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">${Array.isArray(t.carousel_slides) && t.carousel_slides.length ? 'Caption' : 'Post content'}</span>
               <button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.textContent.trim());toast('Copied!','success')">copy</button>
             </div>
             <div style="font-size:0.82rem;color:var(--text);background:var(--bg2);padding:0.5rem 0.75rem;border-radius:2px;white-space:pre-wrap;line-height:1.5;">${t.content}</div>
@@ -2119,6 +2171,34 @@ async function loadSyndicationTasks() {
               <a href="${t.link}" target="_blank" style="font-size:0.7rem;color:var(--navy);text-decoration:none;border-bottom:1px solid var(--border);">${t.link.slice(0,60)}</a>
               <button style="background:none;border:1px solid var(--border);font-size:0.55rem;padding:0.15rem 0.5rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText('${t.link}');toast('Link copied!','success')">copy link</button>
             </div>` : ''}
+          </div>` : ''}
+          ${Array.isArray(t.carousel_slides) && t.carousel_slides.length ? `<div style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+              <span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Carousel slides (${t.carousel_slides.length})</span>
+              <span style="font-size:0.6rem;color:var(--muted);font-style:italic;">Build each slide in Canva or Stitch using the brief and overlay text below</span>
+            </div>
+            <div style="display:grid;gap:0.5rem;">
+              ${t.carousel_slides.map(s => `<div style="border:1px solid var(--border);border-radius:3px;background:var(--bg2);padding:0.5rem 0.75rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;background:var(--green);color:#fff;border-radius:50%;font-size:0.65rem;font-weight:600;">${s.slide_number}</span>
+                  <span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Slide ${s.slide_number}</span>
+                </div>
+                <div style="margin-bottom:0.4rem;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.15rem;">
+                    <span style="font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">On-slide text</span>
+                    <button style="background:none;border:1px solid var(--border);font-size:0.5rem;padding:0.1rem 0.4rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.textContent.trim());toast('Slide text copied','success')">copy</button>
+                  </div>
+                  <div style="font-size:0.85rem;font-weight:600;color:var(--text);background:#fff;padding:0.4rem 0.6rem;border-radius:2px;border:1px solid var(--border);">${s.slide_text || ''}</div>
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.15rem;">
+                    <span style="font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Image brief</span>
+                    <button style="background:none;border:1px solid var(--border);font-size:0.5rem;padding:0.1rem 0.4rem;cursor:pointer;border-radius:2px;color:var(--navy);font-family:Inter,sans-serif;" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.textContent.trim());toast('Image brief copied','success')">copy</button>
+                  </div>
+                  <div style="font-size:0.72rem;color:var(--muted);line-height:1.5;background:#fff;padding:0.4rem 0.6rem;border-radius:2px;border:1px solid var(--border);font-style:italic;">${s.image_brief || ''}</div>
+                </div>
+              </div>`).join('')}
+            </div>
           </div>` : ''}
         </div>`;
       }
@@ -2656,7 +2736,7 @@ async function loadMetrics() {
           <span style="color:var(--muted);">\u25cf ${serp.competitor_count||0} other</span>
         </div>
       </div>`;
-      const allResults = (serp.all_results || []).filter(r => r.type !== 'negative');
+      const allResults = serp.all_results || [];
       serpHtml += '<div class="card">';
       const negTargets = data.negative_targets || [];
       const page1 = allResults.filter(r => r.position <= 10);
@@ -3241,6 +3321,103 @@ function hasVisibleIssues(failures, warnings, qaType, identifier) {
   return [...(failures||[]), ...(warnings||[])].some(c => !isSuppressed(qaType, identifier, c.id));
 }
 
+function renderArticleHealth() {
+      const articles = window._qaArticles || [];
+      const sortMode = window._qaArticleSort || 'date';
+      const labels = window._qaLabels || {};
+      const gc = window._qaGc || (() => 'var(--muted)');
+      const gradeHtml = window._qaGradeHtml || ((g,s) => `${g} ${s}%`);
+      const sorted = [...articles];
+      if (sortMode === 'date') {
+        sorted.sort((a, b) => new Date(b.first_checked_at || b.checked_at) - new Date(a.first_checked_at || a.checked_at));
+      } else if (sortMode === 'title') {
+        sorted.sort((a, b) => {
+          const sa = ((a.url||'').split('/articles/')[1] || '').toLowerCase();
+          const sb = ((b.url||'').split('/articles/')[1] || '').toLowerCase();
+          return sa.localeCompare(sb);
+        });
+      } else if (sortMode === 'model') {
+        sorted.sort((a, b) => {
+          const ma = a.model_grade && a.model_grade.status === 'complete' ? a.model_grade.pct : 999;
+          const mb = b.model_grade && b.model_grade.status === 'complete' ? b.model_grade.pct : 999;
+          return ma - mb;
+        });
+      }
+      const el = document.getElementById('qa-article-section');
+      let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);">Article Health</div>
+        <select onchange="window._qaArticleSort=this.value;renderArticleHealth();" style="font-size:0.7rem;padding:0.2rem 0.4rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;">
+          <option value="date"${sortMode==='date'?' selected':''}>Newest first</option>
+          <option value="title"${sortMode==='title'?' selected':''}>Title A-Z</option>
+          <option value="model"${sortMode==='model'?' selected':''}>Model score (lowest)</option>
+        </select>
+      </div>`;
+      for (const a of sorted) {
+        const pubDate = a.first_checked_at || a.checked_at;
+        const ts = new Date(pubDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        const slug = (a.url||'').split('/articles/')[1] || a.url;
+        const siteBadge = labels[a.site_id] || a.site_id;
+        const ai = a.ai_exposure || null;
+        const mg = a.model_grade || null;
+
+        const aiColor = ai ? (ai.rating === 'GREEN' ? 'var(--green)' : ai.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)') : 'var(--muted)';
+        const aiId = 'ai-' + (a.url||'').replace(/[^a-zA-Z0-9]/g,'_');
+        const mgColor = mg && mg.status === 'complete' ? (mg.rating === 'GREEN' ? 'var(--green)' : mg.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)') : 'var(--muted)';
+        const mgId = 'mg-' + (a.url||'').replace(/[^a-zA-Z0-9]/g,'_');
+
+        const rulesGrade = `<div style="text-align:right;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Rules</div>${gradeHtml(a.grade,a.score)}</div>`;
+        let modelGrade = '';
+        if (mg && mg.status === 'complete') {
+          modelGrade = `<div style="text-align:right;margin-left:0.75rem;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Model <span style="font-size:0.45rem;color:${mgColor};border:1px solid ${mgColor};padding:0.05rem 0.2rem;border-radius:2px;vertical-align:middle;">ADVISORY</span></div><span style="font-size:1.3rem;font-weight:700;color:${mgColor};">${mg.grade}</span><span style="font-size:0.7rem;color:var(--muted);margin-left:0.35rem;">${mg.pct}%</span></div>`;
+        }
+
+        let aiSection = '';
+        if (ai && ai.findings && ai.findings.length) {
+          aiSection = `<div style="margin-top:0.4rem;">
+            <button onclick="const el=document.getElementById('${aiId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show AI exposure details':'Hide AI exposure details'" style="background:none;border:none;font-size:0.65rem;color:${aiColor};cursor:pointer;padding:0;text-decoration:underline;">Show AI exposure details</button>
+            <div id="${aiId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${aiColor}08;border-left:2px solid ${aiColor};border-radius:2px;">
+              <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.35rem;">AI Content Exposure (score: ${ai.score})</div>
+              ${ai.findings.map(f => {
+                const fc = f.severity === 'error' ? 'var(--red)' : 'var(--amber)';
+                const fi = f.severity === 'error' ? '\u2717' : '\u26a0';
+                const suppKey = 'article:' + a.url + ':' + f.id;
+                const isSup = suppressedChecks[suppKey] || suppressedChecks['all:all:' + f.id];
+                if (isSup) return '';
+                return '<div style="font-size:0.75rem;color:' + fc + ';margin-top:0.2rem;display:flex;justify-content:space-between;align-items:center;"><span>' + fi + ' ' + f.label + ': ' + f.detail + '</span><button style="background:none;border:none;color:var(--muted);font-size:0.6rem;cursor:pointer;padding:0.15rem 0.35rem;white-space:nowrap;" onclick="suppressCheck(\'article\',\'' + a.url + '\',\'' + f.id + '\')">ignore</button></div>';
+              }).filter(Boolean).join('')}
+            </div>
+          </div>`;
+        }
+
+        let mgSection = '';
+        if (mg && mg.status === 'complete') {
+          const confColor = mg.confidence === 'HIGH' ? 'var(--green)' : mg.confidence === 'LOW' ? 'var(--red)' : 'var(--amber)';
+          const dimLabels = {first_hand_expertise:'First-Hand Expertise',information_gain:'Information Gain',specificity_evidence:'Specificity & Evidence',depth_substance:'Depth & Substance',voice_authenticity:'Voice Authenticity'};
+          const dimRows = Object.entries(mg.dimensions||{}).map(([k,v]) => {
+            const dc = v.avg_score >= 4 ? 'var(--green)' : v.avg_score >= 3 ? 'var(--amber)' : 'var(--red)';
+            const bar = Math.round((v.avg_score / 5) * 100);
+            return '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;"><span style="font-size:0.7rem;min-width:120px;">' + (dimLabels[k]||k) + '</span><div style="flex:1;height:6px;background:var(--border);border-radius:3px;"><div style="width:' + bar + '%;height:100%;background:' + dc + ';border-radius:3px;"></div></div><span style="font-size:0.7rem;font-weight:600;color:' + dc + ';min-width:2rem;text-align:right;">' + v.avg_score + '</span></div>';
+          }).join('');
+          const fixList = (mg.top_fixes||[]).map(f => '<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:0.2rem;">- ' + f.replace(/</g,'&lt;') + '</div>').join('');
+          mgSection = `<div style="margin-top:0.4rem;">
+            <button onclick="const el=document.getElementById('${mgId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show model grade details':'Hide model grade details'" style="background:none;border:none;font-size:0.65rem;color:${mgColor};cursor:pointer;padding:0;text-decoration:underline;">Show model grade details</button>
+            <div id="${mgId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${mgColor}08;border-left:2px solid ${mgColor};border-radius:2px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;"><span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Model-Based Grade (${mg.passes} passes)</span><span style="font-size:0.55rem;padding:0.1rem 0.3rem;border-radius:2px;background:${confColor}20;color:${confColor};font-weight:600;">${mg.confidence} CONFIDENCE</span></div>
+              ${dimRows}
+              ${fixList ? '<div style="margin-top:0.5rem;"><div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.25rem;">Suggested Fixes</div>' + fixList + '</div>' : ''}
+            </div>
+          </div>`;
+        }
+
+        const allIssues = [...(a.failed_checks||[]), ...(a.warnings||[]), ...(ai?.findings||[]), ...(mg?.top_fixes||[]).map(f => ({id:'mg_fix',label:'Model fix',detail:f}))];
+        html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.8rem;">${slug}</div><div class="card-meta"><span style="display:inline-block;font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;padding:0.1rem 0.35rem;border:1px solid var(--border);border-radius:2px;margin-right:0.4rem;color:var(--muted);">${siteBadge}</span>${ts}</div></div><div style="display:flex;align-items:flex-start;gap:0;">${rulesGrade}${modelGrade}</div></div>
+          ${checksList(a.failed_checks,'article',a.url)}${checksList(a.warnings,'article',a.url)}${aiSection}${mgSection}
+          ${!hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) && (!ai || !ai.findings || !ai.findings.length) && (!mg || mg.status !== 'complete') ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
+          <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runQACheck('${a.site_id}','${a.url}')">Re-check</button><button class="btn btn-outline btn-sm" onclick="runModelGrade('${a.site_id}','${a.url}')">Model Grade</button>${allIssues.length ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('article',a.url,a.failed_checks,[...(a.warnings||[]),...(ai?.findings||[]),...(mg?.top_fixes||[]).map(f=>({id:'mg_fix',label:'Model suggestion',detail:f}))])})">Fix in Claude Code</button>` : ''}</div></div>`;
+      }
+      el.innerHTML = html;
+    }
+
 async function loadQA() {
   document.getElementById('qa-loading').style.display = 'flex';
   document.getElementById('qa-portfolio-section').style.display = 'none';
@@ -3254,6 +3431,8 @@ async function loadQA() {
     const labels = {sinabarimd:'sinabarimd.com',sinabari_net:'sinabari.net',sinabariplasticsurgery:'sinabariplasticsurgery.com',drsinabari:'drsinabari.com'};
     const gc = s => s >= 95 ? 'var(--green)' : s >= 80 ? 'var(--amber)' : 'var(--red)';
     const gradeHtml = (grade, score) => `<span style="font-size:1.3rem;font-weight:700;color:${gc(score)};">${grade}</span><span style="font-size:0.7rem;color:var(--muted);margin-left:0.35rem;">${score}%</span>`;
+    // Expose to renderArticleHealth
+    window._qaLabels = labels; window._qaGc = gc; window._qaGradeHtml = gradeHtml;
 
     qaFixData = [];
     let hasAny = false;
@@ -3327,86 +3506,21 @@ async function loadQA() {
       el.innerHTML = html;
     }
 
-    // Articles
+    // Articles — flattened across sites, with sort dropdown
     const sites = data.article_results_by_site || {};
     if (Object.keys(sites).length) {
       hasAny = true;
       const el = document.getElementById('qa-article-section');
       el.style.display = 'block';
-      let html = '<div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem;">Article Health</div>';
+      // Flatten all articles
+      window._qaArticles = [];
       for (const [sid, siteData] of Object.entries(sites)) {
-        const flagPct = siteData.ai_flagged_pct != null ? siteData.ai_flagged_pct : null;
-        const flagLabel = flagPct != null ? `<span style="font-size:0.65rem;color:${flagPct > 0 ? 'var(--amber)' : 'var(--green)'};margin-left:0.5rem;">${flagPct}% AI-flagged</span>` : '';
-        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin:0.75rem 0 0.5rem;"><span style="font-size:0.7rem;color:var(--muted);">${labels[sid]||sid}${flagLabel}</span><span style="font-size:0.7rem;color:${gc(siteData.avg_score)};font-weight:600;">Avg: ${siteData.avg_score}%</span></div>`;
-        for (const a of siteData.articles) {
-          const ts = new Date(a.checked_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-          const slug = (a.url||'').split('/articles/')[1] || a.url;
-          const ai = a.ai_exposure || null;
-          const mg = a.model_grade || null;
-
-          // AI exposure badge
-          const aiColor = ai ? (ai.rating === 'GREEN' ? 'var(--green)' : ai.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)') : 'var(--muted)';
-          const aiId = 'ai-' + (a.url||'').replace(/[^a-zA-Z0-9]/g,'_');
-
-          // Model grade badge
-          const mgColor = mg && mg.status === 'complete' ? (mg.rating === 'GREEN' ? 'var(--green)' : mg.rating === 'AMBER' ? 'var(--amber)' : 'var(--red)') : 'var(--muted)';
-          const mgId = 'mg-' + (a.url||'').replace(/[^a-zA-Z0-9]/g,'_');
-
-          // Two-grade header
-          const rulesGrade = `<div style="text-align:right;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Rules</div>${gradeHtml(a.grade,a.score)}</div>`;
-          let modelGrade = '';
-          if (mg && mg.status === 'complete') {
-            modelGrade = `<div style="text-align:right;margin-left:0.75rem;"><div style="font-size:0.55rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">Model <span style="font-size:0.45rem;color:${mgColor};border:1px solid ${mgColor};padding:0.05rem 0.2rem;border-radius:2px;vertical-align:middle;">ADVISORY</span></div><span style="font-size:1.3rem;font-weight:700;color:${mgColor};">${mg.grade}</span><span style="font-size:0.7rem;color:var(--muted);margin-left:0.35rem;">${mg.pct}%</span></div>`;
-          }
-
-          // AI exposure expandable
-          let aiSection = '';
-          if (ai && ai.findings && ai.findings.length) {
-            aiSection = `<div style="margin-top:0.4rem;">
-              <button onclick="const el=document.getElementById('${aiId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show AI exposure details':'Hide AI exposure details'" style="background:none;border:none;font-size:0.65rem;color:${aiColor};cursor:pointer;padding:0;text-decoration:underline;">Show AI exposure details</button>
-              <div id="${aiId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${aiColor}08;border-left:2px solid ${aiColor};border-radius:2px;">
-                <div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.35rem;">AI Content Exposure (score: ${ai.score})</div>
-                ${ai.findings.map(f => {
-                  const fc = f.severity === 'error' ? 'var(--red)' : 'var(--amber)';
-                  const fi = f.severity === 'error' ? '\u2717' : '\u26a0';
-                  const suppKey = 'article:' + a.url + ':' + f.id;
-                  const isSup = suppressedChecks[suppKey] || suppressedChecks['all:all:' + f.id];
-                  if (isSup) return '';
-                  return '<div style="font-size:0.75rem;color:' + fc + ';margin-top:0.2rem;display:flex;justify-content:space-between;align-items:center;"><span>' + fi + ' ' + f.label + ': ' + f.detail + '</span><button style="background:none;border:none;color:var(--muted);font-size:0.6rem;cursor:pointer;padding:0.15rem 0.35rem;white-space:nowrap;" onclick="suppressCheck(\'article\',\'' + a.url + '\',\'' + f.id + '\')">ignore</button></div>';
-                }).filter(Boolean).join('')}
-              </div>
-            </div>`;
-          }
-
-          // Model grade expandable
-          let mgSection = '';
-          if (mg && mg.status === 'complete') {
-            const confColor = mg.confidence === 'HIGH' ? 'var(--green)' : mg.confidence === 'LOW' ? 'var(--red)' : 'var(--amber)';
-            const dimLabels = {first_hand_expertise:'First-Hand Expertise',information_gain:'Information Gain',specificity_evidence:'Specificity & Evidence',depth_substance:'Depth & Substance',voice_authenticity:'Voice Authenticity'};
-            const dimRows = Object.entries(mg.dimensions||{}).map(([k,v]) => {
-              const dc = v.avg_score >= 4 ? 'var(--green)' : v.avg_score >= 3 ? 'var(--amber)' : 'var(--red)';
-              const bar = Math.round((v.avg_score / 5) * 100);
-              return '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem;"><span style="font-size:0.7rem;min-width:120px;">' + (dimLabels[k]||k) + '</span><div style="flex:1;height:6px;background:var(--border);border-radius:3px;"><div style="width:' + bar + '%;height:100%;background:' + dc + ';border-radius:3px;"></div></div><span style="font-size:0.7rem;font-weight:600;color:' + dc + ';min-width:2rem;text-align:right;">' + v.avg_score + '</span></div>';
-            }).join('');
-            const fixList = (mg.top_fixes||[]).map(f => '<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:0.2rem;">- ' + f.replace(/</g,'&lt;') + '</div>').join('');
-            mgSection = `<div style="margin-top:0.4rem;">
-              <button onclick="const el=document.getElementById('${mgId}');el.style.display=el.style.display==='none'?'block':'none';this.textContent=el.style.display==='none'?'Show model grade details':'Hide model grade details'" style="background:none;border:none;font-size:0.65rem;color:${mgColor};cursor:pointer;padding:0;text-decoration:underline;">Show model grade details</button>
-              <div id="${mgId}" style="display:none;margin-top:0.35rem;padding:0.5rem 0.75rem;background:${mgColor}08;border-left:2px solid ${mgColor};border-radius:2px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;"><span style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">Model-Based Grade (${mg.passes} passes)</span><span style="font-size:0.55rem;padding:0.1rem 0.3rem;border-radius:2px;background:${confColor}20;color:${confColor};font-weight:600;">${mg.confidence} CONFIDENCE</span></div>
-                ${dimRows}
-                ${fixList ? '<div style="margin-top:0.5rem;"><div style="font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.25rem;">Suggested Fixes</div>' + fixList + '</div>' : ''}
-              </div>
-            </div>`;
-          }
-
-          const allIssues = [...(a.failed_checks||[]), ...(a.warnings||[]), ...(ai?.findings||[]), ...(mg?.top_fixes||[]).map(f => ({id:'mg_fix',label:'Model fix',detail:f}))];
-          html += `<div class="card"><div class="card-header"><div><div class="card-title" style="font-size:0.8rem;">${slug}</div><div class="card-meta">${ts}</div></div><div style="display:flex;align-items:flex-start;gap:0;">${rulesGrade}${modelGrade}</div></div>
-            ${checksList(a.failed_checks,'article',a.url)}${checksList(a.warnings,'article',a.url)}${aiSection}${mgSection}
-            ${!hasVisibleIssues(a.failed_checks,a.warnings,'article',a.url) && (!ai || !ai.findings || !ai.findings.length) && (!mg || mg.status !== 'complete') ? '<div style="font-size:0.75rem;color:var(--green);margin-top:0.5rem;">All checks passed.</div>' : ''}
-            <div class="card-actions"><button class="btn btn-outline btn-sm" onclick="runQACheck('${a.site_id}','${a.url}')">Re-check</button><button class="btn btn-outline btn-sm" onclick="runModelGrade('${a.site_id}','${a.url}')">Model Grade</button>${allIssues.length ? `<button class="btn btn-primary btn-sm" onclick="fixInClaudeCode(${registerQAFix('article',a.url,a.failed_checks,[...(a.warnings||[]),...(ai?.findings||[]),...(mg?.top_fixes||[]).map(f=>({id:'mg_fix',label:'Model suggestion',detail:f}))])})">Fix in Claude Code</button>` : ''}</div></div>`;
+        for (const a of (siteData.articles || [])) {
+          window._qaArticles.push(a);
         }
       }
-      el.innerHTML = html;
+      window._qaArticleSort = window._qaArticleSort || 'date';
+      renderArticleHealth();
     }
 
     if (!hasAny) document.getElementById('qa-empty').style.display = 'block';
