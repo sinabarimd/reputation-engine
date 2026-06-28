@@ -8,12 +8,12 @@ Reputation Engine is the system I built to take control of my professional onlin
 
 ▶️ **[Watch the walkthrough on YouTube](https://youtu.be/3WV84_8cgA8)**
 
-### Latest Changes (June 13, 2026)
+### Latest Changes (June 27, 2026)
 
-- **Narrative-led editorial voice for drsinabari.com** (Jun 13) -- Long-form essays now write in the Malcolm Gladwell tradition: scene-first openings, withheld thesis, counterintuitive reframes, one coined named concept per essay (2-4 words) that recurs, and stacked cases that converge on a single principle. AEO answer-block suppressed on this site only; extraction value moves to the coined concept and the end-of-essay FAQ. Other three sites unchanged.
-- **Pre-push scan hardened** (Jun 13) -- Adds OpenAI/HuggingFace/AWS/Google API key patterns, generic JWT detection, an `X-Voice-Key` literal check, and a generalized high-entropy base64-ish blob scanner with a `# SAFE-B64` allowlist for known-safe content hashes.
-- **measure.py SSL hardening** (Jun 13) -- Removed insecure `CERT_NONE` SSL context; cert verification now enforced on the BrightData / GSC measurement script.
-- **sync_pending_actions label updates** (Jun 13) -- Daily Todo reconciler detects when a tracked todo's label text has drifted against the same `todo_id` and updates the line in place rather than leaving stale wording.
+- **sinabarimd.com hub rewrite** (Jun 27) -- Retired the chronological blog feed and `PIPELINE:PUBLICATIONS` auto-section. Replaced with a static Selected Work router that funnels OUT to sinabari.net (Healthcare AI), drsinabari.com (Essays), and sinabariplasticsurgery.com (Surgical Practice); added a Now / Current Focus block and a fenced Personal strand. Title is now "Surgeon, Healthcare-AI Executive, Builder"; entity-anchored meta description; footer cross-links all 4 owned domains.
+- **Schema `@graph` tightening on the hub** (Jun 27) -- Person+Physician `jobTitle` now includes "VP, Healthcare AI" with `worksFor: iMerit`; dropped the invalid `#headshot` fragment URI; pruned `knowsAbout` to entity-relevant topics only; ProfilePage and WebSite `description` re-pointed at the canonical-entity role. Validates; 14 `sameAs` URLs intact.
+- **Hub off auto-dispatch + profile YAML tightened** (Jun 27) -- Portfolio Orchestrator no longer dispatches sinabarimd on Mondays. `profiles/sinabarimd_com.yaml` bans board-cert claims (Dr. Bari is NOT board certified), healthcare-AI deep dives, plastic-surgery procedure writing, longevity, generic AI, and editorial essays -- those route to satellites. `topic_violation` QA gate now auto-enforces hub coherence.
+- **4 misplaced topical articles migrated to satellites with 301s** (Jun 27) -- Clinical AI governance + personal AI stack regenerated and published on sinabari.net; value-based care + longevity-medicine regenerated and published on sinabariplasticsurgery.com. Each old hub URL 301s to its specific new satellite article URL via Traefik `redirectRegex` middlewares. All 11 pre-existing sinabari.net articles and all 8 pre-existing sinabariplasticsurgery articles preserved through the deploys -- Publisher's `article_archive` logic confirmed working under full-file-sync.
 
 See **[CHANGELOG.md](CHANGELOG.md)** for the full changelog.
 

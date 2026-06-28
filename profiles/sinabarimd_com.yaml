@@ -1,63 +1,74 @@
 site: sinabarimd.com
-role: Canonical identity hub
-objective: Own branded name queries and act as the central entity page all other assets
-  reinforce.
-positioning: Sina Bari, MD — surgeon, medical AI leader, and writer on healthcare
-  technology and aesthetics.
+role: Canonical identity hub (entity node)
+objective: Own branded name queries and serve as the canonical entity record that
+  the Knowledge Panel, AI Overviews, and the entity graph attach to. Funnel topical
+  authority outward to the satellites; do not compete with them on topical depth.
+positioning: Dr. Sina Bari, MD. Stanford-trained surgeon, healthcare-AI executive,
+  and builder. The entity hub for a multi-site portfolio.
 allowed_topics:
-- biography and credentials
-- current work in medical AI
-- selected media and speaking
-- curated essays that connect surgery, aesthetics, and healthcare technology
-- brand-safe updates about projects and publications
+- identity and biography (who is Dr. Sina Bari)
+- credentials and training (Stanford, MD)
+- integration narrative (surgeon and technologist, two-calendars framing)
+- builder showcases (Awesome Medical Tools, Reputation Engine, Chief of Staff)
+- selected work curation and portfolio routing
+- press and media validation
+- clearly-bounded personal pieces (hobbies, family, infrastructure) only when fenced
 forbidden_topics:
+- board-certification claims (Dr. Bari is NOT board certified)
+- clinical or healthcare-AI deep dives (these belong on sinabari.net)
+- plastic and reconstructive surgery procedures or technique writing (belongs on
+    sinabariplasticsurgery.com)
+- longevity, anti-aging, or aesthetic-medicine deep dives (belongs on
+    sinabariplasticsurgery.com)
+- general AI explainers or vendor coverage (belongs on sinabari.net)
+- long-form editorial essays on medicine and technology (belongs on drsinabari.com)
 - thin generic SEO blog posts
-- local-clinic style service pages unless factually current
-- placeholder office/contact claims
+- local-clinic style service pages
+- placeholder office, contact, or address claims
 - broad unsourced medical claims
 - duplicate reposts of full articles from satellite sites
 primary_keywords:
 - Sina Bari MD
 - Dr Sina Bari
 - Sina Bari
-- Sina Bari AI
 - Sina Bari surgeon
+- Sina Bari Stanford
+- Sina Bari iMerit
 content_types:
-- homepage
-- about / current work
-- media and speaking
-- selected essays
-- press / interviews
-- contact
+- homepage (entity anchor)
+- about / canonical biography
+- selected writing (curated index, NOT a chronological blog)
+- press / media validation
+- builder showcases
 core_pages:
 - /
-- /about
-- /current-work
-- /writing
-- /media
-- /contact
+- /about.html
+- /press.html
+- /articles/ (Selected Writing index, curated)
 linking_rules:
   inbound_priority: Receive strongest contextual links from all owned sites and Web
-    2.0 profiles.
+    2.0 profiles. Satellites must link back to sinabarimd.com/about.
   outbound:
-  - Link to sinabari.net from AI / healthcare technology sections
-  - Link to drsinabari.com from essays / commentary sections
-  - Link to sinabariplasticsurgery.com only from historical expertise or aesthetics
-    archive contexts
+  - Selected Work router links OUT to sinabari.net for healthcare AI
+  - Selected Work router links OUT to drsinabari.com for long-form essays
+  - Selected Work router links OUT to sinabariplasticsurgery.com for surgical practice
   anchor_guidance:
-  - Sina Bari, MD
-  - official site
-  - current work
-  - medical AI
+  - Dr. Sina Bari, MD
+  - Stanford-trained surgeon
+  - healthcare-AI executive
+  - canonical profile
 schema:
-- Person
+- Person + Physician (with @id https://sinabarimd.com/#sinabari)
+- ProfilePage
 - WebSite
-- Organization (if needed for company/project pages)
-- Article
+- Article (cornerstone pages only)
 agent:
   name: identity-agent
-  job: Maintain entity clarity, homepage authority, and branded SERP control.
+  job: Maintain entity clarity, homepage authority, branded SERP control, and the
+    coherence of the entity hub. Hub is OFF auto-dispatch as of 2026-06-27 — cornerstone
+    content is hand-authored, not auto-generated.
   approval_required_for:
   - homepage rewrites
   - bio changes
   - contact or credential edits
+  - any new cornerstone page
