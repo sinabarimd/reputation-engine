@@ -1,24 +1,30 @@
 site: sinabari.net
-role: Healthcare AI authority node
-objective: Build topical authority for healthcare AI and support branded queries related
-  to AI leadership.
-positioning: Thought leadership hub focused on healthcare AI, clinical workflows,
-  validation, adoption, and innovation.
+role: AI authority node (physician-technologist perspective)
+objective: Build topical authority for AI broadly and healthcare AI specifically,
+  supporting branded queries related to AI leadership and physician-technologist identity.
+positioning: Thought leadership hub for AI from a physician-executive perspective.
+  Healthcare AI is the core but broader AI topics (ethics, governance, resource costs,
+  labor, alignment, policy) are welcome when the author has genuine perspective.
 allowed_topics:
-- healthcare AI
-- clinical workflow design
+- AI ethics, governance, and policy
+- AI resource costs and sustainability (energy, water, labor)
+- AI data labor and supply chain ethics
+- LLMs, foundation models, and AI safety
+- healthcare AI and clinical workflows
 - AI adoption in health systems
 - medical imaging and diagnostics AI
-- governance, safety, and evaluation of medical AI
-- commentary on healthcare innovation
+- AI in creative and knowledge work
+- physician-technologist identity and AI builder ethics
+- digital health platforms and health data
 forbidden_topics:
 - plastic surgery education
 - beauty or aesthetics advice
 - local practice or patient acquisition pages
-- generic productivity / tech fluff unrelated to healthcare
+- shallow prompt-engineering listicles
+- vendor press releases or product reviews
 primary_keywords:
 - Sina Bari AI
-- medical AI expert
+- AI ethics physician
 - healthcare AI thought leadership
 - Sina Bari healthcare AI
 content_types:
@@ -44,7 +50,7 @@ linking_rules:
   - Sina Bari, MD
   - official profile
   - healthcare AI
-  - medical AI
+  - AI ethics
 schema:
 - Person
 - WebSite
@@ -52,8 +58,7 @@ schema:
 - Article
 agent:
   name: ai-authority-agent
-  job: Publish high-trust healthcare AI content without drifting into aesthetics or
-    generic personal branding.
+  job: Publish high-trust AI content from a physician-technologist perspective without
+    drifting into aesthetics or generic personal branding.
   approval_required_for:
-  - topic expansion beyond healthcare AI
   - new pillar pages

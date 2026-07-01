@@ -29,7 +29,24 @@
       "about": {
         "@id": "https://sinabarimd.com/#sinabari"
       },
-      "dateModified": "2026-05-11"
+      "primaryImageOfPage": {
+        "@id": "https://sinabari.net/#hero-image"
+      },
+      "dateModified": "2026-06-27"
+    },
+    {
+      "@type": "ImageObject",
+      "@id": "https://sinabari.net/#hero-image",
+      "url": "https://sinabari.net/assets/sina-bari-builder.jpg",
+      "contentUrl": "https://sinabari.net/assets/sina-bari-builder.jpg",
+      "thumbnailUrl": "https://sinabari.net/assets/sina-bari-builder-sm.jpg",
+      "width": 1200,
+      "height": 975,
+      "caption": "Dr. Sina Bari, MD",
+      "creditText": "Dr. Sina Bari, MD",
+      "about": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      }
     }
   ]
 }

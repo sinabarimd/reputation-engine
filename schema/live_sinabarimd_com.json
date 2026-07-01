@@ -14,11 +14,23 @@
       "familyName": "Bari",
       "jobTitle": [
         "Plastic and Reconstructive Surgeon",
-        "Healthcare AI Executive"
+        "VP, Healthcare AI"
       ],
       "url": "https://sinabarimd.com",
-      "image": "https://sinabarimd.com/#headshot",
-      "description": "Oakland-based surgeon, Stanford-trained physician, and healthcare AI executive. Writes about medicine, technology, family life, and the things that shape a life outside the operating room.",
+      "image": {
+        "@type": "ImageObject",
+        "@id": "https://sinabarimd.com/#headshot",
+        "url": "https://sinabarimd.com/assets/sina-bari-headshot.jpg",
+        "contentUrl": "https://sinabarimd.com/assets/sina-bari-headshot.jpg",
+        "thumbnailUrl": "https://sinabarimd.com/assets/sina-bari-headshot-sm.jpg",
+        "width": 1200,
+        "height": 975,
+        "caption": "Dr. Sina Bari, MD"
+      },
+      "subjectOf": {
+        "@id": "https://sinabarimd.com/#video-reputation-engine"
+      },
+      "description": "Stanford-trained plastic and reconstructive surgeon and healthcare-AI executive based in Oakland, California.",
       "medicalSpecialty": "PlasticSurgery",
       "alumniOf": [
         {
@@ -46,13 +58,17 @@
         },
         {
           "@type": "Occupation",
-          "name": "Healthcare AI Executive",
+          "name": "VP, Healthcare AI",
           "occupationLocation": {
             "@type": "Country",
             "name": "United States"
           }
         }
       ],
+      "worksFor": {
+        "@type": "Organization",
+        "name": "iMerit"
+      },
       "workLocation": {
         "@type": "Place",
         "name": "Oakland, California",
@@ -90,22 +106,16 @@
         "https://github.com/sinabarimd"
       ],
       "knowsAbout": [
+        "Healthcare AI",
+        "Clinical AI Governance",
+        "Medical Device Evaluation",
+        "Clinical Workflow Design",
+        "Healthcare Technology Governance",
+        "Physician-led Software",
         "Plastic Surgery",
         "Reconstructive Surgery",
         "Microsurgery",
-        "Healthcare AI",
-        "Clinical Workflow Design",
-        "Medical Device Evaluation",
-        "Healthcare Technology Governance",
-        "Medical Leadership",
-        "Clinical Innovation",
-        "Home Automation",
-        "Local AI Systems",
-        "Gentle Parenting",
-        "Interfaith Families",
-        "NBA Basketball",
-        "Automotive Engineering",
-        "Oakland Community"
+        "Medical Leadership"
       ],
       "mainEntityOfPage": {
         "@id": "https://sinabarimd.com/#profilepage"
@@ -116,7 +126,7 @@
       "@id": "https://sinabarimd.com/#website",
       "url": "https://sinabarimd.com",
       "name": "Dr. Sina Bari, MD",
-      "description": "Personal site of Dr. Sina Bari, MD. Writing about medicine, healthcare AI, family, technology projects, and life in Oakland.",
+      "description": "The canonical entity profile of Dr. Sina Bari, MD: Stanford-trained surgeon and healthcare-AI executive. Selected writing, press, and links to his work across sinabari.net, drsinabari.com, and sinabariplasticsurgery.com.",
       "inLanguage": "en-US",
       "publisher": {
         "@id": "https://sinabarimd.com/#sinabari"
@@ -147,7 +157,7 @@
       "@id": "https://sinabarimd.com/#profilepage",
       "url": "https://sinabarimd.com",
       "name": "Dr. Sina Bari, MD - Official Profile",
-      "dateModified": "2026-05-11",
+      "dateModified": "2026-06-27",
       "isPartOf": {
         "@id": "https://sinabarimd.com/#website"
       },
@@ -165,6 +175,25 @@
         "https://drsinabari.com",
         "https://sinabariplasticsurgery.com"
       ]
+    },
+    {
+      "@type": "VideoObject",
+      "@id": "https://sinabarimd.com/#video-reputation-engine",
+      "name": "How I Built a Personal Reputation Engine with AI Agents",
+      "description": "A physician's walkthrough of the automated multi-site publishing system Dr. Sina Bari built for entity-first SEO: n8n orchestration, OpenClaw content generation, structured-data optimization, and SERP measurement across four owned domains.",
+      "thumbnailUrl": "https://i.ytimg.com/vi/3WV84_8cgA8/maxresdefault.jpg",
+      "uploadDate": "2026-04-12",
+      "contentUrl": "https://youtu.be/3WV84_8cgA8",
+      "embedUrl": "https://www.youtube.com/embed/3WV84_8cgA8",
+      "author": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "publisher": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "about": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      }
     }
   ]
 }

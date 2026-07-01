@@ -29,12 +29,29 @@
       "about": {
         "@id": "https://sinabarimd.com/#sinabari"
       },
+      "primaryImageOfPage": {
+        "@id": "https://sinabariplasticsurgery.com/#hero-image"
+      },
       "medicalAudience": {
         "@type": "MedicalAudience",
         "audienceType": "Patient"
       },
       "specialty": "PlasticSurgery",
-      "dateModified": "2026-05-11"
+      "dateModified": "2026-06-27"
+    },
+    {
+      "@type": "ImageObject",
+      "@id": "https://sinabariplasticsurgery.com/#hero-image",
+      "url": "https://sinabariplasticsurgery.com/assets/sina-bari-coat.jpg",
+      "contentUrl": "https://sinabariplasticsurgery.com/assets/sina-bari-coat.jpg",
+      "thumbnailUrl": "https://sinabariplasticsurgery.com/assets/sina-bari-coat-sm.jpg",
+      "width": 1200,
+      "height": 975,
+      "caption": "Dr. Sina Bari, MD",
+      "creditText": "Dr. Sina Bari, MD",
+      "about": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      }
     }
   ]
 }
