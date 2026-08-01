@@ -46,7 +46,13 @@
       "creditText": "Dr. Sina Bari, MD",
       "about": {
         "@id": "https://sinabarimd.com/#sinabari"
-      }
+      },
+      "creator": {
+        "@id": "https://sinabarimd.com/#sinabari"
+      },
+      "copyrightNotice": "\u00a9 2026 Dr. Sina Bari, MD",
+      "license": "https://sinabarimd.com/about.html#image-rights",
+      "acquireLicensePage": "https://sinabarimd.com/about.html#image-rights"
     }
   ]
 }

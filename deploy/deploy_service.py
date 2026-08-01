@@ -116,6 +116,45 @@ class DeployHandler(BaseHTTPRequestHandler):
         return json_response(self, 404, {"ok": False, "error": "Not found"})
 
     def do_POST(self):
+        # /fetch-image: download a public URL to an assets path (used by Content Generator to attach article images)
+        if self.path == "/fetch-image":
+            if DEPLOY_TOKEN:
+                auth = self.headers.get("Authorization", "")
+                if auth != f"Bearer {DEPLOY_TOKEN}":
+                    return json_response(self, 401, {"ok": False, "error": "Unauthorized"})
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length)
+                payload = json.loads(raw.decode("utf-8"))
+                src_url = payload.get("src_url")
+                dest_path = payload.get("dest_path", "")
+                if not src_url or not dest_path:
+                    return json_response(self, 400, {"ok": False, "error": "src_url and dest_path required"})
+                ALLOWED_PREFIXES = (
+                    "sinabariplasticsurgery/article-images/",
+                    "sinabari-net/article-images/",
+                    "drsinabari/article-images/",
+                    "sinabarimd/article-images/",
+                )
+                if not any(dest_path.startswith(p) for p in ALLOWED_PREFIXES):
+                    return json_response(self, 400, {"ok": False, "error": f"dest_path must start with {ALLOWED_PREFIXES}"})
+                if ".." in dest_path or dest_path.startswith("/"):
+                    return json_response(self, 400, {"ok": False, "error": "invalid dest_path"})
+                import urllib.request
+                req = urllib.request.Request(src_url, headers={"User-Agent": "OpenClawDeployer/0.3 (article-image-fetcher)"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    content_type = resp.headers.get("Content-Type", "")
+                    if not content_type.startswith("image/"):
+                        return json_response(self, 400, {"ok": False, "error": f"Not an image ({content_type})"})
+                    data = resp.read()
+                out = Path("/srv/assets") / dest_path
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_bytes(data)
+                os.chmod(str(out), 0o644)
+                return json_response(self, 200, {"ok": True, "saved_bytes": len(data), "dest": str(out), "content_type": content_type})
+            except Exception as e:
+                return json_response(self, 500, {"ok": False, "error": str(e)})
+
         if self.path != "/deploy":
             return json_response(self, 404, {"ok": False, "error": "Not found"})
 
