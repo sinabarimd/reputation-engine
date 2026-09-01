@@ -43,6 +43,19 @@ ALLOWED_PROFILE_FILES = {
     "README.txt",
 }
 
+# Fallback: expose the current output.yaml from each publisher agent's workspace so
+# the Content Generator can recover an article when the OpenClaw gateway returns its
+# "No response from OpenClaw." fallback string despite the agent having written the
+# file. Freshness cap prevents serving a stale file from a previous generation.
+OPENCLAW_WORKSPACE_ROOT = Path("/root/.openclaw-default")
+SITE_TO_WORKSPACE_SLUG = {
+    "sinabarimd": "sinabarimd",
+    "sinabari_net": "sinabari-net",
+    "drsinabari": "drsinabari",
+    "sinabariplasticsurgery": "sinabariplasticsurgery",
+}
+WORKSPACE_OUTPUT_MAX_AGE_SEC = 600  # 10 minutes
+
 
 def json_response(handler, status, payload):
     body = json.dumps(payload).encode("utf-8")
@@ -94,6 +107,43 @@ class DeployHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/health":
             return json_response(self, 200, {"ok": True, "service": "openclaw-deployer"})
+
+        if parsed.path.startswith("/workspace-output/"):
+            if DEPLOY_TOKEN:
+                auth = self.headers.get("Authorization", "")
+                if auth != f"Bearer {DEPLOY_TOKEN}":
+                    return json_response(self, 401, {"ok": False, "error": "Unauthorized"})
+            site_id = parsed.path.split("/workspace-output/", 1)[1].strip("/")
+            slug = SITE_TO_WORKSPACE_SLUG.get(site_id)
+            if not slug:
+                return json_response(self, 404, {"ok": False, "error": "Unknown site_id"})
+            yaml_path = OPENCLAW_WORKSPACE_ROOT / f"workspace-publisher-{slug}" / "output.yaml"
+            if not yaml_path.exists():
+                return json_response(self, 404, {"ok": False, "error": "No output.yaml in workspace"})
+            try:
+                mtime = yaml_path.stat().st_mtime
+            except OSError as e:
+                return json_response(self, 500, {"ok": False, "error": str(e)})
+            age = datetime.now(timezone.utc).timestamp() - mtime
+            if age > WORKSPACE_OUTPUT_MAX_AGE_SEC:
+                return json_response(self, 410, {
+                    "ok": False,
+                    "error": "Workspace output.yaml is stale",
+                    "age_sec": int(age),
+                    "max_age_sec": WORKSPACE_OUTPUT_MAX_AGE_SEC,
+                })
+            try:
+                body = yaml_path.read_text(encoding="utf-8")
+            except OSError as e:
+                return json_response(self, 500, {"ok": False, "error": str(e)})
+            return json_response(self, 200, {
+                "ok": True,
+                "site_id": site_id,
+                "yaml_path": str(yaml_path),
+                "age_sec": int(age),
+                "bytes": len(body),
+                "content": body,
+            })
 
         if parsed.path.startswith("/profiles/"):
             filename = parsed.path.split("/profiles/", 1)[1]

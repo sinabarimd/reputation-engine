@@ -1,5 +1,23 @@
 # Changelog
 
+## v2026.09 - September 2026
+
+Auto-synced from live system on 2026-09-01.
+
+### Changes
+
+- Updated profiles/sinabarimd_com.yaml
+- Updated profiles/sinabari_net.yaml
+- Updated profiles/drsinabari_com.yaml
+- Updated profiles/sinabariplasticsurgery_com.yaml
+- Synced deploy/deploy_service.py from live
+- Synced services/extract_server.py from live
+
+### Stats
+- 1 modified file(s)
+
+---
+
 ## v2026.08 - August 2026
 
 Auto-synced from live system on 2026-08-01.
